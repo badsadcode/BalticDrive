@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baltic Drive Devlog</title>
+<meta name="description" content="Driving the real Baltic, one bad idea at a time. The Baltic Drive devlog by Bad Ideas Works.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Caveat:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #f5efe2;
+  --card: #fffaf0;
+  --ink: #23201b;
+  --muted: #6b6457;
+  --asphalt: #2a2c30;
+  --asphalt-ink: #f3efe6;
+  --sign: #f2c230;
+  --sign-ink: #1d1a12;
+  --route: #2f8fd8;
+  --line: #d9cfbb;
+  --tape: rgba(242, 194, 48, .55);
+  --shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(40,30,10,.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181b; --card: #202226; --ink: #ece7dc; --muted: #a49d8f;
+    --asphalt: #0f1012; --asphalt-ink: #f3efe6; --line: #34363c; --tape: rgba(242, 194, 48, .35);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181b; --card: #202226; --ink: #ece7dc; --muted: #a49d8f;
+  --asphalt: #0f1012; --asphalt-ink: #f3efe6; --line: #34363c; --tape: rgba(242, 194, 48, .35);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.65 Inter, system-ui, sans-serif; }
+img { max-width: 100%; display: block; }
+a { color: var(--route); }
+h1, h2, h3 { font-family: "Bricolage Grotesque", Inter, sans-serif; line-height: 1.15; margin: 0; }
+
+/* ---- the road ---- */
+.road { background: var(--asphalt); color: var(--asphalt-ink); position: relative; overflow: hidden; }
+.road::after { content: ""; position: absolute; left: 0; right: 0; bottom: 34px; height: 6px;
+  background: repeating-linear-gradient(90deg, var(--sign) 0 48px, transparent 48px 96px);
+  animation: drive 1.6s linear infinite; opacity: .9; }
+@keyframes drive { to { background-position: -96px 0; } }
+@media (prefers-reduced-motion: reduce) { .road::after { animation: none; } }
+.hero { max-width: 980px; margin: 0 auto; padding: 56px 20px 84px; }
+.eyebrow { display: inline-block; background: var(--sign); color: var(--sign-ink); font-weight: 600; font-size: 13px;
+  letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; }
+.hero h1 { font-size: clamp(40px, 8vw, 84px); font-weight: 800; margin: 16px 0 10px; letter-spacing: -.02em; }
+.hero p { font-size: clamp(17px, 2.4vw, 21px); max-width: 640px; margin: 0; color: #d6d0c3; }
+.hero .hand { font-family: Caveat, cursive; font-size: 26px; color: var(--sign); margin-top: 14px; display: block; }
+
+/* ---- odometer ---- */
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+.odo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: -40px 0 48px; position: relative; z-index: 1; }
+.odo div { background: var(--card); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.odo b { display: block; font-family: "Bricolage Grotesque", sans-serif; font-size: 28px; font-variant-numeric: tabular-nums; }
+.odo span { color: var(--muted); font-size: 14px; }
+
+/* ---- entries ---- */
+.entry { display: grid; grid-template-columns: 88px 1fr; gap: 22px; margin: 0 0 56px; }
+.km { position: sticky; top: 16px; align-self: start; background: #fff; color: #1a1a1a; border: 3px solid #c8102e;
+  border-radius: 6px; text-align: center; padding: 6px 4px 8px; font-family: "Bricolage Grotesque", sans-serif;
+  box-shadow: var(--shadow); }
+.km small { display: block; font-size: 11px; letter-spacing: .1em; color: #c8102e; font-weight: 800; }
+.km strong { font-size: 30px; font-weight: 800; }
+.entry h2 { font-size: clamp(26px, 4vw, 36px); font-weight: 800; margin-bottom: 4px; }
+.date { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+.entry p { margin: 0 0 14px; }
+.photo { background: var(--card); padding: 10px 10px 4px; border-radius: 4px; box-shadow: var(--shadow); margin: 20px 0 22px;
+  transform: rotate(-.6deg); position: relative; border: 1px solid var(--line); }
+.photo.r { transform: rotate(.7deg); }
+.photo::before { content: ""; position: absolute; top: -12px; left: 50%; width: 110px; height: 24px; margin-left: -55px;
+  background: var(--tape); transform: rotate(-2deg); }
+.photo img { border-radius: 2px; width: 100%; }
+.photo figcaption { font-family: Caveat, cursive; font-size: 22px; padding: 6px 4px; color: var(--muted); }
+.quote { border-left: 5px solid var(--sign); background: var(--card); padding: 12px 16px; border-radius: 0 8px 8px 0;
+  margin: 16px 0; font-style: italic; box-shadow: var(--shadow); }
+.quote cite { display: block; font-style: normal; color: var(--muted); font-size: 14px; margin-top: 6px; }
+.note { font-family: Caveat, cursive; font-size: 24px; color: var(--route); transform: rotate(-1deg); margin: 8px 0 16px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; padding: 0; list-style: none; }
+.facts li { background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 3px 12px; font-size: 14px; }
+code { font-size: .9em; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+footer { background: var(--asphalt); color: #cfc9bc; padding: 40px 20px 52px; margin-top: 40px; font-size: 15px; }
+footer .wrap { padding: 0; }
+footer h3 { color: var(--asphalt-ink); font-size: 22px; margin-bottom: 10px; }
+footer a { color: var(--sign); }
+.bads { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 20px; }
+.bads span { background: #33363b; border-radius: 99px; padding: 4px 12px; color: var(--asphalt-ink); }
+
+@media (max-width: 640px) {
+  .odo { grid-template-columns: repeat(2, 1fr); }
+  .odo b { font-size: 22px; }
+  .entry { grid-template-columns: 1fr; gap: 10px; }
+  .km { position: static; width: 74px; }
+  .photo, .photo.r { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="road">
+  <div class="hero">
+    <span class="eyebrow">Devlog · Bad Ideas Works</span>
+    <h1>Baltic Drive</h1>
+    <p>We're building a drivable copy of the real Baltic out of OpenStreetMap and government elevation data:
+      Poland, Lithuania, Latvia, Estonia, Finland, Sweden, Norway and Denmark. Every road. Every wiadukt.
+      Starting with Mazowsze.</p>
+    <span class="hand">a pre-alpha that is surprisingly awesome. — Tom</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="odo" aria-label="Numbers so far">
+    <div><b>11,482</b><span>map tiles of Mazowsze</span></div>
+    <div><b>2,594,347</b><span>buildings, every one from OSM</span></div>
+    <div><b>561,875</b><span>roads and railways</span></div>
+    <div><b>0.5 s</b><span>to route Warsaw → Radom (104.7 km)</span></div>
+    <div><b>6,590</b><span>elevation sheets being downloaded</span></div>
+    <div><b>1</b><span>car that rolled over at 60 km/h</span></div>
+  </section>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>0</strong></div>
+    <div>
+      <h2>Two projects walk into a bar</h2>
+      <div class="date">12 November 2026</div>
+      <p>Baltic Drive is what happens when you take two unfinished games and staple them together.
+        <b>Dead Miles</b>, a road-survival experiment, had grown an importer that turns OpenStreetMap into
+        real-scale roads and buildings. All of Mazowsze, the Palace of Culture included. <b>Thornwake</b>, a
+        survival-crafting world, had the streaming engine: terrain that loads in rings around you out to
+        20 km, and a moving origin so the numbers never get blurry far from home.</p>
+      <p>The goal: drive from Warsaw to family in Sweden and friends in Denmark and Estonia. On real roads,
+        in a real car, with real ferries. And maybe, later, with zombies and seven friends.</p>
+      <figure class="photo">
+        <img src="img/drive-gps.webp" alt="A blue sedan driving down a wide street in central Warsaw, a GPS strip at the top saying 140 m then right, 4.4 km to go" loading="lazy">
+        <figcaption>96 km/h through Śródmieście. The GPS knows where it's going. The car mostly does too.</figcaption>
+      </figure>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>1</strong></div>
+    <div>
+      <h2>Bending the Earth (by only 1%)</h2>
+      <div class="date">12 November 2026</div>
+      <p>The Earth is round and a game world is flat, so you have to squash it. The usual trick projects each
+        small region on its own, which works until you drive across the border into Lithuania.</p>
+      <p>We picked a single Lambert conformal conic for the whole loop, with standard parallels at 53° and 67°
+        north. Distances stay true to within about 1% from the Tatras to North Cape. Speedometers don't lie,
+        and roads don't break at borders. Positions are kept in double precision, and the world quietly
+        recentres itself every couple of kilometres so the car never notices it's 700 km from the map's
+        middle.</p>
+      <ul class="facts"><li>world 0,0 is 58° N 20° E, in the Baltic Sea</li><li>Warsaw sits at x 68,891, z 639,498</li><li>Pripyat would fit too. Just saying.</li></ul>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>2</strong></div>
+    <div>
+      <h2>Every roof was black</h2>
+      <div class="date">12 November 2026</div>
+      <p>First run on a real GPU, and every roof in Poland was pitch black. Flat ones, tiled ones, the lot.</p>
+      <p>The building shader works out window spacing for every face, roofs included. A roof has no wall
+        length and no wall height, so it calculated 0 ÷ 0. That gives NaN, which survives every
+        "mix the wall colour with the roof colour" step and comes out as black. Dead Miles had only ever been
+        tested on a software renderer, which forgave it. The fix was two <code>max(…, 0.01)</code>s.</p>
+      <p class="note">two characters of code, two and a half million roofs fixed.</p>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>3</strong></div>
+    <div>
+      <h2>The phantom wiadukt</h2>
+      <div class="date">12 November 2026</div>
+      <p>Tom lives in Warsaw, which turns out to be the best QA there is. He drove past Warszawa Ochota and
+        found two long concrete buildings parked on top of Aleje Jerozolimskie, where nothing like that exists.</p>
+      <p>He sent a Google Maps screenshot with the "buildings" circled in red, the viaducts in blue and the
+        streets underneath in yellow. That settled it. Someone had mapped the viaduct's own concrete body in 3D,
+        as building parts tagged <code>man_made=bridge</code>. Our importer had faithfully stood them on the
+        road as 5-metre boxes.</p>
+      <p>Bridges are now left to the road data, and underground buildings stay underground.</p>
+      <div class="quote">"In real life, there is no hole like that. It's pretty much flat terrain there."
+        <cite>Tom, near Dworzec Centralny, discovering the next problem</cite></div>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>4</strong></div>
+    <div>
+      <h2>Junctions are hard. Very hard.</h2>
+      <div class="date">12 November 2026</div>
+      <p>In the first build every junction was just roads overlapping each other with rounded ends, like
+        spaghetti dropped on a plate. Now each junction is one surface.</p>
+      <ul class="facts"><li>find the nodes where 3+ roads meet</li><li>group the close ones (a dual-carriageway crossing is 4 nodes)</li><li>trim each road where it clears its neighbours</li><li>grow by r, shrink by r: kerbs</li></ul>
+      <p>That last step is the trick. Grow the shape outwards by a corner radius, then shrink it back by the
+        same amount, and every inside corner fills with a neat arc while the outside corners stay sharp.
+        Roads end at the edge with a stop line, and the sat-nav learned to hop across junction surfaces.</p>
+      <figure class="photo r">
+        <img src="img/rondo-dmowskiego.webp" alt="Aerial view of Rondo Dmowskiego in Warsaw: wide dark-asphalt junction surfaces with rounded kerb corners joining multi-lane roads" loading="lazy">
+        <figcaption>Rondo Dmowskiego, now in one piece.</figcaption>
+      </figure>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>5</strong></div>
+    <div>
+      <h2>Downloading Poland, one sheet at a time</h2>
+      <div class="date">12 November 2026: still running as you read this</div>
+      <p>Why was there a pit next to Dworzec Centralny? Because over half of Mazowsze had no elevation at all.
+        Poland's survey office (GUGiK) serves its terrain model through a web service, but only the older
+        surveys. Newer sheets, central Warsaw among them, are separate downloads. We had filled 21,500 km²
+        of holes by copying nearby heights, which produces exactly the pits, steps and phantom ramps Tom kept
+        driving into.</p>
+      <p>So the importer now asks GUGiK's sheet index about every hole, downloads each survey sheet
+        (plain-text grids, about 36 MB a piece, 1 m resolution), shrinks it into the game's 10 m grid and
+        throws the original away. That's 6,590 sheets and roughly 230 GB of traffic, all to keep under 3 GB
+        on disk.</p>
+      <div class="quote">"It feels like we are downloading the whole world on my hard drive. I think I can hear it crying."
+        <cite>Tom</cite></div>
+      <p>It started at 6 MB/s. The bottleneck turned out to be the script, not the internet: Python threads
+        politely queuing to parse text. After moving to eight worker processes and switching the PC from
+        2.4 GHz to 5 GHz Wi-Fi, it runs at about 19 MB/s.</p>
+      <figure class="photo">
+        <img src="img/vistula.webp" alt="Aerial view over the Vistula in Warsaw: the river, a bridge, an interchange and the Port Praski basin" loading="lazy">
+        <figcaption>The Vistula and the Port Praski basin. Water levels come straight from the terrain model.</figcaption>
+      </figure>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>6</strong></div>
+    <div>
+      <h2>The map screen, and where we're going</h2>
+      <div class="date">12 November 2026</div>
+      <p>Press M and you get a road atlas drawn from the same tiles the world is built from. Click anywhere
+        and the sat-nav plans a route; press T to teleport while testing. Warsaw to Radom takes half a second
+        to work out.</p>
+      <figure class="photo r">
+        <img src="img/map-route.webp" alt="The in-game map of central Warsaw with the Vistula, main roads in yellow and a blue GPS route heading south-east" loading="lazy">
+        <figcaption>4.5 km across Śródmieście. Orange squares are fuel stations.</figcaption>
+      </figure>
+      <p>Next: rebuild Mazowsze on real elevation everywhere, then the slope between a ramp and the road next to
+        it, far-away roads, forests, and Thornwake's sky. After that, the next voivodeship, the next country,
+        and ferries.</p>
+      <p>The long dream is a survival game on simplified real terrain, for up to eight friends. Project
+        Zomboid's Kentucky is flat as a table and still endlessly fun. Here, at least, you could loot your own
+        street.</p>
+      <figure class="photo">
+        <img src="img/street-level.webp" alt="Street level in Warsaw: a road between apartment blocks with the city's towers in the distance" loading="lazy">
+        <figcaption>Street level. Somebody's flat is in there.</figcaption>
+      </figure>
+    </div>
+  </article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <h3>Bad Ideas Works</h3>
+    <p>We are the Bads. We like ideas big enough to probably fail, and we build them anyway.</p>
+    <div class="bads"><span>Tom: idea, driving, Warsaw QA</span><span>Noor: art</span><span>Sage: the AI writing the code</span></div>
+    <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).
+      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car in the screenshots: Synty POLYGON City.
+      Placeholder models: Quaternius (CC0). Made with Godot.
+      <a href="https://github.com/badsadcode/BalticDrive">Source on GitHub</a>.</p>
+  </div>
+</footer>
+</body>
+</html>
