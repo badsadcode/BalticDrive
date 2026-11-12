@@ -1,0 +1,68 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Baltic Drive"
+config/version="0.1.0"
+run/main_scene="res://Game/Main.tscn"
+run/flush_stdout_on_print=true
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+config/description="Drive the real Baltic, built from OpenStreetMap."
+config/use_custom_user_dir=true
+config/custom_user_dir_name="BalticDrive"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/aspect="expand"
+
+[dotnet]
+
+project/assembly_name="BalticDrive"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=120
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+anti_aliasing/quality/msaa_3d=2
+textures/default_filters/use_nearest_mipmap_filter=false
+
+[shader_globals]
+
+world_offset={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+cloud_shadow={
+"type": "float",
+"value": 0.0
+}
+wetness={
+"type": "float",
+"value": 0.0
+}
+sky_tint={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
+ocean_time={
+"type": "float",
+"value": 0.0
+}
+caustic_light={
+"type": "float",
+"value": 1.0
+}
