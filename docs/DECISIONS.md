@@ -46,3 +46,15 @@ Godot 4.7's built-in Jolt. Dead Miles' car was tuned on GodotPhysics; it is retu
 Roads, buildings and street furniture are meshed in 128 m cells within 1 km (collision within 320 m), inside the
 terrain levels whose ground follows the road beds (≥ 1,024 m). Buildings over 42 m are drawn per tile out to ~5 km
 (skyline). Far roads are not drawn yet.
+
+## D9 — Building shader: guard the window maths
+Roof faces carry no wall length or height, and the shader divided by both for every face; the NaN survived the
+wall/roof mix and turned every roof black on real GPUs (Dead Miles was only ever seen on a software renderer). Both
+divisors are clamped. Flat roofs are drawn at 1.5× the palette (Dead Miles' 0.8× read as tar-black here).
+
+## D10 — Car model: Synty when installed, Quaternius otherwise
+Tom's Synty Store packs are licensed for use in the game but not for redistribution, and this repository is public:
+they live in `Assets/Synty/` (git-ignored) and `data/assets/synty/`. The car uses POLYGON City's sedan when it is there,
+else Quaternius' CC0 pickup (committed). The car reads its wheel layout from the model (`*_Wheel_fl/fr/rl/rr` or
+Quaternius' names), fits its collision boxes to the body, and strips colliders the model brings. Centre of mass
+near the axles and low roll influence keep it on its wheels (the first sedan rolled over at 60 km/h).

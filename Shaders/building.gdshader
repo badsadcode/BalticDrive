@@ -55,9 +55,9 @@ void fragment() {
 	float front = step(UV2.x, -0.01);
 	float height = UV2.y;
 	float floors = max(1.0, floor(height / 2.9));
-	float fh = height / floors;
+	float fh = max(height / floors, 0.01); // roofs carry no wall size: avoid 0/0 (NaN turned every roof black)
 	float cols = max(1.0, floor(len / 2.7));
-	float cw = len / cols;
+	float cw = max(len / cols, 0.01);
 	vec2 cell = vec2(floor(UV.x / cw), floor(UV.y / fh));
 	float xu = (fract(UV.x / cw) - 0.5) * cw;
 	float yv = fract(UV.y / fh) * fh;

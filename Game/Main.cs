@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using BalticDrive.Core;
 using BalticDrive.Map;
+using BalticDrive.UI;
 using BalticDrive.Vehicle;
 using BalticDrive.World;
 using Godot;
@@ -25,6 +26,9 @@ public partial class Main : Node3D
 	private Label _hud = null!;
 	private Tests? _tests;
 	private Car? _car;
+	private Navigation? _nav;
+	private MapScreen? _mapScreen;
+	private CanvasLayer _ui = null!;
 	/// <summary>True while the free camera is in charge (F toggles; views tests and --fly start in it).</summary>
 	public bool Flying { get; private set; }
 
@@ -52,8 +56,15 @@ public partial class Main : Node3D
 		AddChild(_camera);
 		_hud = new Label { Position = new Vector2(12, 8) };
 		_hud.AddThemeColorOverride("font_shadow_color", Colors.Black);
-		var ui = new CanvasLayer();
+		var ui = _ui = new CanvasLayer();
 		ui.AddChild(_hud);
+		// ODbL: the credit stays visible whenever the map is on screen.
+		var credit = new Label { Text = "Map data © OpenStreetMap contributors · elevation © GUGiK", Modulate = new Color(1, 1, 1, 0.75f) };
+		credit.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight, Control.LayoutPresetMode.Minsize, 10);
+		credit.GrowHorizontal = Control.GrowDirection.Begin;
+		credit.GrowVertical = Control.GrowDirection.Begin;
+		credit.AddThemeColorOverride("font_shadow_color", Colors.Black);
+		ui.AddChild(credit);
 		AddChild(ui);
 		WorldOrigin.Shifted += (dx, dz) => _camera.Position -= new Vector3((float)dx, 0, (float)dz);
 
@@ -68,6 +79,23 @@ public partial class Main : Node3D
 		}
 		_terrain.Configure(_world);
 		_content.Configure(_world);
+		_nav = new Navigation(_world.Data);
+		var gps = new GpsHud { Name = "Gps" };
+		_ui.AddChild(gps);
+		gps.Setup(_nav);
+		_mapScreen = new MapScreen { Name = "MapScreen" };
+		_ui.AddChild(_mapScreen);
+		_mapScreen.Setup(_world, _nav, () =>
+		{
+			var (x, z) = Focus;
+			var f = !Flying && _car != null ? -_car.GlobalTransform.Basis.Z : -_camera.GlobalTransform.Basis.Z;
+			var d = new Vector2(f.X, f.Z);
+			return (x, z, d.LengthSquared() > 1e-4f ? d.Normalized() : new Vector2(0, -1));
+		}, (x, z) =>
+		{
+			Teleport(x, z, 40f, Mathf.RadToDeg(_camera.Yaw), -12f);
+			if (!Flying) SpawnCar(x, z);
+		});
 
 		double sx, sz;
 		if (Args.TryGetValue("start", out var start))
@@ -100,13 +128,15 @@ public partial class Main : Node3D
 	public MapContentStreamer Content => _content;
 	public FlyCamera Camera => _camera;
 	public Car? Car => _car;
+	public Navigation? Nav => _nav;
+	public MapScreen? MapView => _mapScreen;
 
 	/// <summary>Puts the car on the nearest road to a world point and hands it the controls.</summary>
 	public void SpawnCar(double x, double z)
 	{
 		if (_car == null)
 		{
-			_car = new Car { Name = "Car", Map = _world, HasGround = _terrain.HasGround };
+			_car = new Car { Name = "Car", Map = _world, HasGround = _terrain.HasGround, Model = Car.ChooseModel(Args.GetValueOrDefault("car")) };
 			AddChild(_car);
 		}
 		_car.Recover(x, z);
@@ -117,6 +147,12 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent e)
 	{
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.M } && _mapScreen != null && !_mapScreen.Visible)
+		{
+			_mapScreen.Toggle();
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null)
 		{
 			if (Flying)
@@ -175,6 +211,7 @@ public partial class Main : Node3D
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building\n" +
 					(Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road");
+		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
 	}
 

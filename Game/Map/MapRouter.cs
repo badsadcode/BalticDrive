@@ -42,7 +42,7 @@ public sealed class MapRoute
 /// </summary>
 public sealed class MapRouter
 {
-    private const int TileDm = 15360;
+    private const int TileDm = (int)(MapTile.Size * 10);   // tile size in decimetres
     private const int MaxExpansions = 6_000_000;
     /// <summary>Beyond this distance from both ends only through roads are considered, like a real sat-nav.</summary>
     private const float LocalRadius = 5000f;

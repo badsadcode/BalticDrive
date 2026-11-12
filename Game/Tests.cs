@@ -33,6 +33,11 @@ public sealed class Tests
     private bool _drive;
     private double _driveTime, _maxSpeed, _offRoad;
     private bool _driveStarted;
+    private double _driveLimit = 20;
+    private int _routeHint;
+    private double _driven;
+    private bool _map;
+    private double _mapTime = -1;
 
     public Tests(Main main)
     {
@@ -42,6 +47,7 @@ public sealed class Tests
         if (Main.Args.TryGetValue("views", out var v))
             foreach (var s in v.Split(';', StringSplitOptions.RemoveEmptyEntries)) _views.Add(s.Split(':'));
         _fly = Main.Args.GetValueOrDefault("autotest", "").Contains("fly");
+        _map = Main.Args.GetValueOrDefault("autotest", "").Contains("map");
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
     }
@@ -99,6 +105,32 @@ public sealed class Tests
             }
             else return;
         }
+        if (_map && _main.MapView is { } view && _main.Nav is { } nav)
+        {
+            // --autotest=map [--dest=x,z]: open the map, route to the destination, screenshot at two zooms.
+            if (_mapTime < 0)
+            {
+                if (_settledFor < 1.5) return;
+                _mapTime = 0;
+                var (fx, fz) = _main.Focus;
+                if (Main.Args.TryGetValue("dest", out var d))
+                {
+                    var p = d.Split(',');
+                    nav.SetDestination(new Vector2((float)Num(p[0]), (float)Num(p[1])), new Vector2((float)fx, (float)fz));
+                }
+                view.Toggle();
+                view.SetZoom(1);
+            }
+            _mapTime += delta;
+            if (nav.Routing && _mapTime < 60) return;
+            if (_mapTime < 1.5) return;
+            if (_mapTime < 100) { Shot("map_near"); view.SetZoom(3); _mapTime = 100; return; }
+            if (_mapTime < 101.5) return;
+            Shot("map_far");
+            Log.Info("Test", $"map: route {(nav.Route != null ? $"{nav.Route.Length / 1000f:F1} km" : "none")}");
+            view.Toggle();
+            _map = false;
+        }
         if (_drive && _main.Car is { } car && _main.World is { } map)
         {
             if (!_driveStarted)
@@ -106,33 +138,68 @@ public sealed class Tests
                 if (_settledFor < 1.5) return;
                 _driveStarted = true;
                 Shot("drive_start");
-                // Keep to the road: steer at the carriageway point 18 m ahead (right-hand lane), hold ~60 km/h.
+                // With --dest: follow the GPS route (steer at the route point ~20 m ahead, slow for bends).
+                // Without: keep to the nearest road, steering at the carriageway point 18 m ahead.
+                if (Main.Args.TryGetValue("dest", out var dest) && _main.Nav is { } nav0)
+                {
+                    var p = dest.Split(',');
+                    var (fx, fz) = _main.Focus;
+                    nav0.SetDestination(new Vector2((float)Num(p[0]), (float)Num(p[1])), new Vector2((float)fx, (float)fz));
+                    _driveLimit = double.Parse(Main.Args.GetValueOrDefault("seconds", "180"), CultureInfo.InvariantCulture);
+                }
                 car.Autopilot = c =>
                 {
-                    var fwd = -c.GlobalTransform.Basis.Z with { Y = 0 };
-                    fwd = fwd.Normalized();
-                    var (x, _, z) = World.WorldOrigin.ToWorld(c.GlobalPosition + fwd * 18f);
-                    float steer = 0;
-                    if (map.NearestRoad(x, z, 25f, 1.8f, out double px, out _, out double pz, out _, Map.RoadClass.Residential))
+                    var fwd = (-c.GlobalTransform.Basis.Z with { Y = 0 }).Normalized();
+                    var (cx, _, cz) = World.WorldOrigin.ToWorld(c.GlobalPosition);
+                    float steer = 0, target = 17f;
+                    if (_main.Nav?.Route is { } route)
+                    {
+                        var here = new Vector2((float)cx, (float)cz);
+                        _routeHint = route.Nearest(here, _routeHint, out _);
+                        float look = Math.Clamp(Math.Abs(c.Speed) * 0.9f, 12f, 40f);
+                        int i = _routeHint;
+                        while (i + 1 < route.Points.Length && route.Along[i] - route.Along[_routeHint] < look) i++;
+                        // keep right: aim 1.8 m to the right of the centre line
+                        var seg = route.Points[Math.Min(i + 1, route.Points.Length - 1)] - route.Points[Math.Max(i - 1, 0)];
+                        var right = seg.LengthSquared() > 0.01f ? new Vector2(-seg.Y, seg.X).Normalized() : Vector2.Zero;
+                        var aim = route.Points[i] + right * 1.8f;
+                        var to = World.WorldOrigin.ToLocal(aim.X, 0, aim.Y) - c.GlobalPosition;
+                        to.Y = 0;
+                        steer = Mathf.Clamp(fwd.Cross(to.Normalized()).Y * 2.2f, -1f, 1f);
+                        // speed from the sharpest bend in the next 120 m: v = sqrt(a * r) with a = 3.5 m/s²
+                        float maxAng = 0;
+                        for (int k = _routeHint; k + 2 < route.Points.Length && route.Along[k] - route.Along[_routeHint] < 120f; k++)
+                        {
+                            var a = route.Points[k + 1] - route.Points[k];
+                            int m = k + 1;
+                            while (m + 1 < route.Points.Length && route.Points[m].DistanceTo(route.Points[k + 1]) < 15f) m++;
+                            var b = route.Points[m] - route.Points[k + 1];
+                            if (a.LengthSquared() > 0.01f && b.LengthSquared() > 0.01f) maxAng = Math.Max(maxAng, Math.Abs(a.AngleTo(b)));
+                        }
+                        float radius = 15f / Math.Max(0.02f, maxAng);
+                        target = Math.Clamp(MathF.Sqrt(3.5f * radius), 6f, 38f);
+                    }
+                    else if (map.NearestRoad(cx + fwd.X * 18, cz + fwd.Z * 18, 25f, 1.8f, out double px, out _, out double pz, out _, Map.RoadClass.Residential))
                     {
                         var to = World.WorldOrigin.ToLocal(px, 0, pz) - c.GlobalPosition;
                         to.Y = 0;
-                        float side = fwd.Cross(to.Normalized()).Y; // left positive
-                        steer = Mathf.Clamp(side * 2.5f, -1f, 1f);
+                        steer = Mathf.Clamp(fwd.Cross(to.Normalized()).Y * 2.5f, -1f, 1f);
                     }
-                    float target = 17f;
-                    return (c.Speed < target ? 0.7f : 0f, c.Speed > target + 3 ? 0.3f : 0f, steer);
+                    return (c.Speed < target ? 0.8f : 0f, c.Speed > target + 2 ? 0.5f : 0f, steer);
                 };
                 Log.Info("Test", "drive: start");
             }
             _driveTime += delta;
+            _driven += Math.Abs(car.Speed) * delta;
             _maxSpeed = Math.Max(_maxSpeed, car.Speed);
+            if (_main.Nav is { } nv && nv.Route == null && !nv.Routing && nv.Destination == null && _driveLimit > 20) _driveTime = _driveLimit; // arrived
             if (!car.OnRoad) _offRoad += delta;
             if (Math.Abs(_driveTime - 8) < delta) Shot("drive_8s");
-            if (_driveTime < 20) return;
+            if (_driveTime >= 60 && (int)(_driveTime / 60) != (int)((_driveTime - delta) / 60)) Shot($"drive_{(int)_driveTime}s");
+            if (_driveTime < _driveLimit) return;
             Shot("drive_end");
             var (wx, _, wz) = World.WorldOrigin.ToWorld(car.GlobalPosition);
-            Log.Info("Test", $"drive: 20 s, top {_maxSpeed * 3.6:F0} km/h, {_offRoad:F1} s off road, ended at {wx:F0},{wz:F0}, upright {car.GlobalTransform.Basis.Y.Y:F2}");
+            Log.Info("Test", $"drive: {_driveTime:F0} s, {_driven / 1000:F2} km, {(_main.Nav?.Destination == null && _driveLimit > 20 ? "ARRIVED, " : "")}{(_main.Nav?.Route != null ? $"{_main.Nav.Remaining / 1000:F2} km left, " : "")}top {_maxSpeed * 3.6:F0} km/h, {_offRoad:F1} s off road, ended at {wx:F0},{wz:F0}, upright {car.GlobalTransform.Basis.Y.Y:F2}");
             _drive = false;
         }
         Log.Info("Test", "done");

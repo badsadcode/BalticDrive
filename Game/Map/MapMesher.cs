@@ -621,7 +621,7 @@ public static class MapMesher
 
         // flat roof
         // (Dead Miles drew flat roofs at 0.8x its dark palette; under plain lighting that read as pure black)
-        var flat = new Color(MathF.Min(1f, roofCol.R * 2.4f + 0.06f), MathF.Min(1f, roofCol.G * 2.4f + 0.06f), MathF.Min(1f, roofCol.B * 2.4f + 0.06f), KindFlatRoof);
+        var flat = new Color(MathF.Min(1f, roofCol.R * 1.5f + 0.03f), MathF.Min(1f, roofCol.G * 1.5f + 0.03f), MathF.Min(1f, roofCol.B * 1.5f + 0.03f), KindFlatRoof);
         int baseV = mesh.V.Count;
         for (int q = 0; q < b.RX.Length; q++)
             for (int i = 0; i < b.RX[q].Length; i++)

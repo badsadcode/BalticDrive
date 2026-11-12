@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using BalticDrive.Core;
 using BalticDrive.Map;
 using BalticDrive.World;
@@ -43,7 +44,6 @@ public partial class Car : VehicleBody3D
         CollisionLayer = Bodies.Vehicles;
         CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Props | Bodies.Vehicles;
         CenterOfMassMode = CenterOfMassModeEnum.Custom;
-        CenterOfMass = new Vector3(0, 0.55f, 0.1f);
         LinearDampMode = DampMode.Replace;
         AngularDampMode = DampMode.Replace;
         AngularDamp = 0.35f;
@@ -51,10 +51,7 @@ public partial class Car : VehicleBody3D
         ContinuousCd = true;
         CanSleep = false;
 
-        AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(2.15f, 0.7f, 5.0f) }, Position = new Vector3(0, 0.95f, 0) });
-        AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(1.9f, 0.6f, 2.2f) }, Position = new Vector3(0, 1.5f, -0.2f) });
-        BuildModel();
-        BuildWheels();
+        BuildModelAndWheels();
         for (int i = 0; i < 2; i++)
         {
             var l = new SpotLight3D
@@ -86,59 +83,145 @@ public partial class Car : VehicleBody3D
         _chase.GlobalPosition -= new Vector3((float)dx, 0, (float)dz);
     }
 
-    private void BuildModel()
+    /// <summary>The model to drive: a Synty POLYGON City car when that (licensed, git-ignored) pack is installed,
+    /// else Quaternius' CC0 pickup. <c>--car=res://...tscn</c> picks another.</summary>
+    public static string ChooseModel(string? wanted)
     {
-        // The model's nose is +Z; the body's is -Z.
-        _model = new Node3D { Rotation = new Vector3(0, Mathf.Pi, 0) };
-        AddChild(_model);
-        var scene = ResourceLoader.Exists(ModelPath) ? GD.Load<PackedScene>(ModelPath) : null;
-        if (scene == null)
-        {
-            Log.Warn("Car", $"Missing {ModelPath}; using a placeholder body");
-            _model.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(2.1f, 1.2f, 5.0f) }, Position = new Vector3(0, 1.1f, 0) });
-            return;
-        }
-        _model.AddChild(scene.Instantiate<Node3D>());
+        if (!string.IsNullOrEmpty(wanted) && ResourceLoader.Exists(wanted)) return wanted;
+        const string synty = "res://Assets/Synty/PolygonCity/Prefabs/Vehicles/SM_Veh_Car_Sedan_01.tscn";
+        return ResourceLoader.Exists(synty) ? synty : ModelPath;
     }
 
-    private void BuildWheels()
+    public string Model = ModelPath;
+    private float _bodyLength = 4.5f;
+
+    /// <summary>Transform of a node relative to an ancestor (inclusive of the ancestor's own transform).</summary>
+    private static Transform3D ToRoot(Node3D n, Node3D root)
     {
-        // Wheel layout from the model (nose -Z after the turn): radius 0.44, track ±0.94, axles at -1.89 / +1.23.
-        const float radius = 0.44f, rest = 0.25f;
-        float y = radius + rest - 0.1f;
-        var spots = new[] { new Vector3(-0.94f, y, -1.89f), new Vector3(0.94f, y, -1.89f), new Vector3(-0.94f, y, 1.23f), new Vector3(0.94f, y, 1.23f) };
-        Node? car = _model.GetChildCount() > 0 ? _model.GetChild(0) : null;
+        var t = Transform3D.Identity;
+        for (Node? p = n; p != null && p != root.GetParent(); p = p.GetParent())
+            if (p is Node3D q) t = q.Transform * t;
+        return t;
+    }
+
+    /// <summary>
+    /// Loads the model (nose +Z, as both Synty and Quaternius author them; turned to the body's -Z), strips any
+    /// colliders it brings, finds its four wheels and puts physics wheels where they are, with the wheel meshes on them.
+    /// Synty cars: separate meshes *_Wheel_fl/fr/rl/rr pivoted at the hub. Quaternius pickup: FrontWheel_L/R and one
+    /// BackWheels mesh. The body collision boxes are fitted to the remaining meshes.
+    /// </summary>
+    private void BuildModelAndWheels()
+    {
+        var turn = new Basis(Vector3.Up, Mathf.Pi);
+        _model = new Node3D { Rotation = new Vector3(0, Mathf.Pi, 0) };
+        AddChild(_model);
+        _rearAxle = new Node3D();
+        AddChild(_rearAxle);
+        var scene = ResourceLoader.Exists(Model) ? GD.Load<PackedScene>(Model) : null;
+        Node3D? car = scene?.Instantiate<Node3D>();
+        if (car == null) Log.Warn("Car", $"Missing {Model}; using a placeholder body");
+        else
+        {
+            _model.AddChild(car);
+            foreach (var n in car.FindChildren("*", "CollisionObject3D", true, false)) n.Free();
+        }
+
+        var meshes = new List<MeshInstance3D>();
+        if (car != null)
+        {
+            if (car is MeshInstance3D rootMesh) meshes.Add(rootMesh);
+            foreach (var n in car.FindChildren("*", "MeshInstance3D", true, false)) meshes.Add((MeshInstance3D)n);
+        }
+        string[] synty = { "wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr" };
+        var wheelMesh = new MeshInstance3D?[4];
+        MeshInstance3D? rearPair = null;
+        foreach (var mi in meshes)
+        {
+            string name = mi.Name.ToString().ToLowerInvariant();
+            for (int i = 0; i < 4; i++) if (name.EndsWith(synty[i])) wheelMesh[i] = mi;
+            if (name.Contains("frontwheel_l")) wheelMesh[0] = mi;
+            if (name.Contains("frontwheel_r")) wheelMesh[1] = mi;
+            if (name.Contains("backwheels")) rearPair = mi;
+        }
+
+        // Wheel centres in model space and the radius.
+        var centres = new Vector3[4];
+        float radius = 0.44f;
+        bool found = wheelMesh[0] != null && wheelMesh[1] != null && (rearPair != null || (wheelMesh[2] != null && wheelMesh[3] != null));
+        if (found && car != null)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                var mi = wheelMesh[i];
+                if (mi == null) continue;
+                var aabb = ToRoot(mi, car) * mi.GetAabb();
+                centres[i] = aabb.GetCenter();
+                radius = aabb.Size.Y * 0.5f;
+            }
+            if (rearPair != null)
+            {
+                var aabb = ToRoot(rearPair, car) * rearPair.GetAabb();
+                var c = aabb.GetCenter();
+                centres[2] = new Vector3(centres[0].X, c.Y, c.Z);
+                centres[3] = new Vector3(centres[1].X, c.Y, c.Z);
+            }
+        }
+        else
+        {
+            radius = 0.4f;
+            centres = new[] { new Vector3(0.85f, 0.4f, 1.5f), new Vector3(-0.85f, 0.4f, 1.5f), new Vector3(0.85f, 0.4f, -1.3f), new Vector3(-0.85f, 0.4f, -1.3f) };
+            if (car == null) _model.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(1.9f, 1.2f, 4.6f) }, Position = new Vector3(0, 1.0f, 0) });
+        }
+
+        // Body boxes from everything that is not a wheel.
+        var body = new Aabb(new Vector3(-0.9f, 0.3f, -2.2f), new Vector3(1.8f, 1.1f, 4.4f));
+        bool first = true;
+        if (car != null)
+            foreach (var mi in meshes)
+            {
+                if (Array.IndexOf(wheelMesh, mi) >= 0 || mi == rearPair || mi.Mesh == null) continue;
+                var a = ToRoot(mi, car) * mi.GetAabb();
+                body = first ? a : body.Merge(a);
+                first = false;
+            }
+        // Lower part solid (bumpers to sills), upper part the cabin, narrower and shorter; in body space (nose -Z).
+        var bc = turn * body.GetCenter();
+        float low = MathF.Max(body.Position.Y, radius * 0.9f), mid = body.Position.Y + body.Size.Y * 0.55f, top = body.End.Y;
+        AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(body.Size.X, mid - low, body.Size.Z) }, Position = new Vector3(bc.X, (low + mid) * 0.5f, bc.Z) });
+        AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(body.Size.X * 0.85f, top - mid, body.Size.Z * 0.55f) }, Position = new Vector3(bc.X, (mid + top) * 0.5f, bc.Z) });
+        CenterOfMass = new Vector3(bc.X, low - 0.05f, bc.Z); // low, near the axles: arcade-stable against roll-over
+        _bodyLength = body.Size.Z;
+
+        const float rest = 0.25f;
         for (int i = 0; i < 4; i++)
         {
             bool front = i < 2;
+            var p = turn * centres[i];
             var w = new VehicleWheel3D
             {
-                Position = spots[i], UseAsSteering = front, UseAsTraction = true,
+                // the wheel hangs `rest` below its mount; mount it so the hub sits about where the model has it
+                Position = new Vector3(p.X, p.Y + rest - 0.08f, p.Z), UseAsSteering = front, UseAsTraction = true,
                 WheelRadius = radius, WheelRestLength = rest, SuspensionTravel = 0.22f,
                 SuspensionStiffness = 32f, SuspensionMaxForce = 24000f,
                 DampingCompression = 2.8f, DampingRelaxation = 3.8f,
-                WheelFrictionSlip = front ? 3.3f : 3.1f, WheelRollInfluence = 0.06f,
+                WheelFrictionSlip = front ? 3.3f : 3.1f, WheelRollInfluence = 0.015f,
             };
             AddChild(w);
             _wheels[i] = w;
         }
-        _rearAxle = new Node3D();
-        AddChild(_rearAxle);
-        if (car == null) return;
-        // Move the model's wheel meshes onto the physics wheels (the model's own wheels are centred where its axles are).
-        foreach (var n in car.FindChildren("*", "MeshInstance3D", true, false))
+        if (car == null || !found) return;
+        // Move the wheel meshes onto the physics wheels, hub on the pivot.
+        for (int i = 0; i < 4; i++)
+            if (wheelMesh[i] is { } mi) Reparent(mi, _wheels[i], centres[i]);
+        if (rearPair != null) Reparent(rearPair, _rearAxle, new Vector3(0, centres[2].Y, centres[2].Z));
+
+        void Reparent(MeshInstance3D mi, Node3D target, Vector3 hub)
         {
-            var mi = (MeshInstance3D)n;
-            string name = mi.Name.ToString();
-            Node3D? target = name.Contains("FrontWheel_L") ? _wheels[0] : name.Contains("FrontWheel_R") ? _wheels[1] : name.Contains("BackWheels") ? _rearAxle : null;
-            if (target == null) continue;
-            var aabb = mi.GetAabb();
-            var centre = aabb.GetCenter();
+            var toRoot = ToRoot(mi, car!);
             mi.GetParent().RemoveChild(mi);
             target.AddChild(mi);
-            // model space → turned body space; then offset so the wheel's centre sits on the pivot
-            var turn = new Basis(Vector3.Up, Mathf.Pi);
-            mi.Transform = new Transform3D(turn, -(turn * new Vector3(target == _rearAxle ? 0 : centre.X, centre.Y, centre.Z)));
+            // model space → turned body space, shifted so the hub sits on the pivot
+            mi.Transform = new Transform3D(turn, -(turn * hub)) * toRoot;
         }
     }
 
@@ -236,7 +319,7 @@ public partial class Car : VehicleBody3D
         OnRoad = contacts > 0 && paved * 2 >= contacts;
 
         // steering: quick at parking speed, calm at speed
-        float maxSteer = Mathf.Lerp(0.56f, 0.06f, MapContext.Smooth(0f, 40f, absSpeed));
+        float maxSteer = Mathf.Lerp(0.6f, 0.05f, MapContext.Smooth(0f, 28f, absSpeed));
         float target = steerIn * maxSteer;
         float rate = MathF.Abs(target) < MathF.Abs(_steer) ? 4.5f : 2.6f;
         _steer = Mathf.MoveToward(_steer, target, rate * dt * (0.25f + maxSteer));
@@ -304,6 +387,6 @@ public partial class Car : VehicleBody3D
         var fwd = -GlobalTransform.Basis.Z; fwd.Y = 0;
         if (fwd.LengthSquared() < 0.01f) fwd = Vector3.Forward;
         fwd = fwd.Normalized().Rotated(Vector3.Up, _lookYaw);
-        return new Transform3D(Basis.Identity, GlobalPosition - fwd * 8.5f + Vector3.Up * 3.2f);
+        return new Transform3D(Basis.Identity, GlobalPosition - fwd * (_bodyLength + 3.8f) + Vector3.Up * 3.0f);
     }
 }

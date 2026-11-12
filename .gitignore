@@ -7,6 +7,8 @@
 /data/
 /map/
 /dist/
+# Synty Store assets: licensed for use in the game, NOT for redistribution — never in this public repo.
+/Assets/Synty/
 /builds/
 
 # .NET and editor output
