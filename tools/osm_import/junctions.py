@@ -55,6 +55,7 @@ def build_junctions(xy, off, node, nnodes, attrs, y, lift, log):
     jn = np.nonzero(arms >= 3)[0]
     is_j = np.zeros(nnodes, dtype=bool); is_j[jn] = True
     pos = np.zeros((nnodes, 2)); pos[node] = xy
+    hgt = np.zeros(nnodes); hgt[node] = y          # road height at each node (grade separation check)
     hwn = np.zeros(nnodes); np.maximum.at(hwn, node[counted], hw_pt[counted])
     log(f'junctions: {len(jn)} junction nodes')
 
@@ -77,7 +78,8 @@ def build_junctions(xy, off, node, nnodes, attrs, y, lift, log):
     rmax = 2 * hwn[jn].max() + 8 if len(jn) else 0
     for i, j in tree.query_pairs(rmax):
         a, b = int(jn[i]), int(jn[j])
-        if np.hypot(*(pos[a] - pos[b])) < hwn[a] + hwn[b] + 8:
+        # close on the map AND at the same level: a junction on a viaduct never merges with the street below it
+        if np.hypot(*(pos[a] - pos[b])) < hwn[a] + hwn[b] + 8 and abs(hgt[a] - hgt[b]) < 2.5:
             parent[find(a)] = find(b)
     groups = defaultdict(list)
     for n in jn:
