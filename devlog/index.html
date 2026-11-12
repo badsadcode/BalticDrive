@@ -44,6 +44,11 @@ h1, h2, h3 { font-family: "Bricolage Grotesque", Inter, sans-serif; line-height:
 
 /* ---- the road ---- */
 .road { background: var(--asphalt); color: var(--asphalt-ink); position: relative; overflow: hidden; }
+.road.art { background: linear-gradient(180deg, rgba(12,12,14,.95) 0, rgba(12,12,14,0) 40%), linear-gradient(90deg, rgba(12,12,14,.92) 0%, rgba(12,12,14,.72) 45%, rgba(12,12,14,.25) 100%),
+  url(img/title-screen.webp) center 100% / cover no-repeat, var(--asphalt); }
+.road.art .hero { padding-top: 72px; padding-bottom: 110px; }
+.road.art .hero p { color: #e4ddd0; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+.credit { position: absolute; right: 14px; bottom: 46px; font-size: 12px; color: rgba(255,255,255,.7); z-index: 1; }
 .road::after { content: ""; position: absolute; left: 0; right: 0; bottom: 34px; height: 6px;
   background: repeating-linear-gradient(90deg, var(--sign) 0 48px, transparent 48px 96px);
   animation: drive 1.6s linear infinite; opacity: .9; }
@@ -58,7 +63,7 @@ h1, h2, h3 { font-family: "Bricolage Grotesque", Inter, sans-serif; line-height:
 
 /* ---- odometer ---- */
 .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
-.odo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: -40px 0 48px; position: relative; z-index: 1; }
+.odo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: -40px 0 48px; position: relative; z-index: 1; }
 .odo div { background: var(--card); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
 .odo b { display: block; font-family: "Bricolage Grotesque", sans-serif; font-size: 28px; font-variant-numeric: tabular-nums; }
 .odo span { color: var(--muted); font-size: 14px; }
@@ -94,6 +99,9 @@ footer h3 { color: var(--asphalt-ink); font-size: 22px; margin-bottom: 10px; }
 footer a { color: var(--sign); }
 .bads { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 20px; }
 .bads span { background: #33363b; border-radius: 99px; padding: 4px 12px; color: var(--asphalt-ink); }
+.crew { display: grid; grid-template-columns: 260px 1fr; gap: 28px; align-items: center; }
+.crew img { mix-blend-mode: screen; width: 100%; }
+.crew .hand { font-family: Caveat, cursive; font-size: 22px; color: var(--sign); }
 
 @media (max-width: 640px) {
   .odo { grid-template-columns: repeat(2, 1fr); }
@@ -101,12 +109,17 @@ footer a { color: var(--sign); }
   .entry { grid-template-columns: 1fr; gap: 10px; }
   .km { position: static; width: 74px; }
   .photo, .photo.r { transform: none; }
+  .crew { grid-template-columns: 1fr; }
+  .crew img { max-width: 240px; }
+  .road.art { background: linear-gradient(rgba(12,12,14,.84), rgba(12,12,14,.7)),
+    url(img/title-screen.webp) 0% 100% / cover no-repeat, var(--asphalt); }
 }
 </style>
 </head>
 <body>
 
-<header class="road">
+<header class="road art">
+  <span class="credit">Title art: Noor</span>
   <div class="hero">
     <span class="eyebrow">Devlog · Bad Ideas Works</span>
     <h1>Baltic Drive</h1>
@@ -120,11 +133,12 @@ footer a { color: var(--sign); }
 <main class="wrap">
   <section class="odo" aria-label="Numbers so far">
     <div><b>11,482</b><span>map tiles of Mazowsze</span></div>
-    <div><b>2,594,347</b><span>buildings, every one from OSM</span></div>
+    <div><b>2,601,381</b><span>buildings, every one from OSM</span></div>
     <div><b>561,875</b><span>roads and railways</span></div>
-    <div><b>0.5 s</b><span>to route Warsaw → Radom (104.7 km)</span></div>
-    <div><b>6,590</b><span>elevation sheets being downloaded</span></div>
-    <div><b>1</b><span>car that rolled over at 60 km/h</span></div>
+    <div><b>104,961</b><span>junctions, each with its own kerbs</span></div>
+    <div><b>225 GB</b><span>of elevation downloaded, 2.5 GB kept</span></div>
+    <div><b>6,950</b><span>bridges (and 2 fake buildings, now gone)</span></div>
+    <div><b>0.5 s</b><span>to route Warsaw → Radom (104.7 km)</span></div>    <div><b>1</b><span>car that rolled over at 60 km/h</span></div>
   </section>
 
   <article class="entry">
@@ -215,7 +229,7 @@ footer a { color: var(--sign); }
     <div class="km"><small>KM</small><strong>5</strong></div>
     <div>
       <h2>Downloading Poland, one sheet at a time</h2>
-      <div class="date">12 November 2026: still running as you read this</div>
+      <div class="date">12 November 2026: finished just after midnight</div>
       <p>Why was there a pit next to Dworzec Centralny? Because over half of Mazowsze had no elevation at all.
         Poland's survey office (GUGiK) serves its terrain model through a web service, but only the older
         surveys. Newer sheets, central Warsaw among them, are separate downloads. We had filled 21,500 km²
@@ -223,8 +237,9 @@ footer a { color: var(--sign); }
         driving into.</p>
       <p>So the importer now asks GUGiK's sheet index about every hole, downloads each survey sheet
         (plain-text grids, about 36 MB a piece, 1 m resolution), shrinks it into the game's 10 m grid and
-        throws the original away. That's 6,590 sheets and roughly 230 GB of traffic, all to keep under 3 GB
-        on disk.</p>
+        throws the original away. That came to 6,290 sheets and 225 GB of traffic in 2 hours 54 minutes, all
+        to keep 2.5 GB on disk. Missing terrain went from 13,076 km² down to 4,607 km², mostly at the far
+        edges of the map.</p>
       <div class="quote">"It feels like we are downloading the whole world on my hard drive. I think I can hear it crying."
         <cite>Tom</cite></div>
       <p>It started at 6 MB/s. The bottleneck turned out to be the script, not the internet: Python threads
@@ -261,16 +276,44 @@ footer a { color: var(--sign); }
       </figure>
     </div>
   </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>7</strong></div>
+    <div>
+      <h2>Noor painted us a title screen</h2>
+      <div class="date">13 November 2026, past midnight</div>
+      <p>While the computers argued with GUGiK's servers, Noor did the important part: she made the game look
+        like a game. A rusty estate car loaded for a long trip, a birch tree, a jerrycan, Warsaw at sunset
+        across the Vistula, and a road sign that sums up the whole plan.</p>
+      <figure class="photo r">
+        <img src="img/title-screen.webp" alt="Concept art: the Baltic Drive logo over a sunset sky; a rusty estate car with a loaded roof rack parked by a birch tree, an empty wet road leading to the Warsaw skyline and the Palace of Culture across a river, and a blue road sign reading Warszawa 12, Gdańsk 339, Tallinn 1048" loading="lazy">
+        <figcaption>Concept art by Noor. Tallinn: 1048 km. We'll get there.</figcaption>
+      </figure>
+      <p>Meanwhile the elevation download finished. With real heights for most of the region, the whole map
+        is being rebuilt from scratch, which took Tom's PC down with it for a while. Eight Python processes
+        working through 11,482 tiles, 104,961 junctions and 2.6 million buildings will do that.</p>
+      <div class="quote">"Oh, so we're still processing something. That's why my PC is lagging so bad. I approve."
+        <cite>Tom, waking up from a well-deserved nap</cite></div>
+      <ul class="facts"><li>6,290 sheets</li><li>225 GB in, 2.5 GB kept</li><li>8 worker processes</li><li>1 hard drive, slightly traumatised</li></ul>
+      <p>Next stop: driving past Dworzec Centralny to see if the pit is finally gone.</p>
+    </div>
+  </article>
 </main>
 
 <footer>
   <div class="wrap">
-    <h3>Bad Ideas Works</h3>
-    <p>We are the Bads. We like ideas big enough to probably fail, and we build them anyway.</p>
-    <div class="bads"><span>Tom: idea, driving, Warsaw QA</span><span>Noor: art</span><span>Sage: the AI writing the code</span></div>
+    <div class="crew">
+      <img src="img/bad-ideas-works.webp" alt="Bad Ideas Works logo: two smiling dogs in sunglasses surrounded by six rats in sunglasses, one sitting on a dog's head" loading="lazy">
+      <div>
+        <h3>Bad Ideas Works</h3>
+        <p>We are the Bads. We like ideas big enough to probably fail, and we build them anyway.</p>
+        <div class="bads"><span>Tom: idea, driving, Warsaw QA</span><span>Noor: art</span><span>Sage: the AI writing the code</span></div>
+        <p class="hand">The logo crew are animals Tom has had over the years. Melon, the smaller dog, is still on duty.</p>
+      </div>
+    </div>
     <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).
       Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car in the screenshots: Synty POLYGON City.
-      Placeholder models: Quaternius (CC0). Made with Godot.
+      Placeholder models: Quaternius (CC0). Title art and logo: Bad Ideas Works. Made with Godot.
       <a href="https://github.com/badsadcode/BalticDrive">Source on GitHub</a>.</p>
   </div>
 </footer>
