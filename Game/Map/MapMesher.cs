@@ -150,6 +150,13 @@ public static class MapMesher
             if (s.Road.IsTram) { if (lod <= 1) AddTramSegment(geo.Roads, ctx, s); }
             else AddRoadSegment(geo, s, lod);
         }
+        foreach (var jr in ctx.Junctions)
+        {
+            var j = jr.J;
+            float cx = jr.OffX + j.Cx, cz = jr.OffZ + j.Cz;
+            if (j.Ghost || cx < 0 || cx >= size || cz < 0 || cz >= size) continue;
+            AddJunction(geo, jr, lod);
+        }
         AddFurniture(ctx, size, lod, geo, collide);
         var list = ctx.Buildings;
         for (int i = 0; i < list.Count; i++)
@@ -168,6 +175,58 @@ public static class MapMesher
             }
             AddBuilding(geo.Buildings, geo.BuildingFaces, b, r.OffX, r.OffZ, gMin, gMax,
                 Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.Index, 91));
+        }
+    }
+
+    // ---- junctions -----------------------------------------------------------------------
+
+    /// <summary>
+    /// A junction surface: the triangulated outline at its own heights (no markings), with a shoulder sloping down
+    /// and out along the outline like the road ribbons have, so the ground meets it the same way.
+    /// </summary>
+    private static void AddJunction(MapChunkGeometry geo, in MapJunctionRef jr, int lod)
+    {
+        var j = jr.J;
+        var mesh = geo.Roads;
+        float bias = 0.105f + (lod > 0 ? 0.06f * lod : 0f);
+        // The road shader reads UV.x as the offset from the centre line and COLOR.b * 16 as the half width (beyond it:
+        // gravel shoulder). A junction is all carriageway: half width 16 m, UV.x kept within ±10 m (wrapping every 40 m).
+        var col = new Color(SurfAsphalt, 0f, 1f, 0.25f);
+        var uv2 = new Vector2(1000f, 0f);             // far from any junction: no stop lines, and marking style 0 anyway
+        static float U(float x, float z) => ((x * 0.5f + z * 0.5f) % 20f + 30f) % 20f - 10f;
+        int baseV = mesh.V.Count;
+        int n = j.X.Length;
+        for (int k = 0; k < n; k++)
+            mesh.Add(new Vector3(jr.OffX + j.X[k], j.Y[k] + bias, jr.OffZ + j.Z[k]), Vector3.Up, new Vector2(U(j.X[k], j.Z[k]), j.Z[k] - j.X[k]), uv2, col);
+        for (int t = 0; t + 2 < j.Tris.Length; t += 3)
+            mesh.Tri(baseV + j.Tris[t], baseV + j.Tris[t + 1], baseV + j.Tris[t + 2], Vector3.Up, geo.PavedFaces);
+        if (j.Elevated) return;
+        // shoulders: each outline edge pushed outwards (away from the surface) and down
+        int start = 0;
+        foreach (int end in j.RingEnds)
+        {
+            float area = 0;
+            for (int i = start, p = end - 1; i < end; p = i++) area += (j.X[p] * j.Z[i] - j.X[i] * j.Z[p]);
+            // ring 0 is the outside: outward is away from its interior; islands the other way round
+            float sign = (area > 0 ? 1f : -1f) * (start == 0 ? 1f : -1f);
+            for (int i = start, p = end - 1; i < end; p = i++)
+            {
+                var a = new Vector3(jr.OffX + j.X[p], j.Y[p] + bias, jr.OffZ + j.Z[p]);
+                var b = new Vector3(jr.OffX + j.X[i], j.Y[i] + bias, jr.OffZ + j.Z[i]);
+                var e = new Vector2(b.X - a.X, b.Z - a.Z);
+                float len = e.Length();
+                if (len < 0.05f) continue;
+                var outv = new Vector2(e.Y, -e.X) / len * sign;
+                var drop = new Vector3(outv.X * ShoulderWidth, -ShoulderDrop, outv.Y * ShoulderWidth);
+                var nrm = new Vector3(outv.X * 0.28f, 1f, outv.Y * 0.28f).Normalized();
+                // shoulder: UV.x from the carriageway edge (16 m) outwards, as on the road ribbons
+                int v0 = mesh.Add(a, Vector3.Up, new Vector2(16f, 0), uv2, col);
+                int v1 = mesh.Add(b, Vector3.Up, new Vector2(16f, len), uv2, col);
+                int v2 = mesh.Add(b + drop, nrm, new Vector2(16f + ShoulderWidth, len), uv2, col);
+                int v3 = mesh.Add(a + drop, nrm, new Vector2(16f + ShoulderWidth, 0), uv2, col);
+                mesh.Quad(v0, v1, v2, v3, Vector3.Up, geo.PavedFaces);
+            }
+            start = end;
         }
     }
 

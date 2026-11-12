@@ -114,6 +114,36 @@ public sealed class MapRouter
                 prev = cur;
             }
         }
+        // Roads stop at the edge of junction surfaces (format 4): link the road ends around each junction — every end
+        // a car can arrive by to every end it can leave by (one-way roads respected).
+        int NodeKey(long key)
+        {
+            if (!g.Index.TryGetValue(key, out int i)) { i = g.Keys.Count; g.Index[key] = i; g.Keys.Add(key); }
+            return i;
+        }
+        foreach (var j in tile.Junctions)
+        {
+            double jx0 = tile.OriginX + j.MinX - 2, jx1 = tile.OriginX + j.MaxX + 2, jz0 = tile.OriginZ + j.MinZ - 2, jz1 = tile.OriginZ + j.MaxZ + 2;
+            var here = new List<JunctionEnd>();
+            for (int ttz = (int)Math.Floor(jz0 / MapTile.Size); ttz <= (int)Math.Floor(jz1 / MapTile.Size); ttz++)
+                for (int ttx = (int)Math.Floor(jx0 / MapTile.Size); ttx <= (int)Math.Floor(jx1 / MapTile.Size); ttx++)
+                    foreach (var e in Ends(ttx, ttz))
+                    {
+                        if (e.Wx < jx0 || e.Wx > jx1 || e.Wz < jz0 || e.Wz > jz1) continue;
+                        float lx = (float)(e.Wx - tile.OriginX), lz = (float)(e.Wz - tile.OriginZ);
+                        if (j.Contains(lx, lz) || j.EdgeDistance(lx, lz, out _) < 1.5f) here.Add(e);
+                    }
+            foreach (var from in here)
+            {
+                if (!from.Arrive || from.Tx != tx || from.Tz != tz) continue;   // edges live in the tile of their start
+                foreach (var to in here)
+                {
+                    if (!to.Leave || to.Key == from.Key) continue;
+                    float d = (float)Math.Sqrt((to.Wx - from.Wx) * (to.Wx - from.Wx) + (to.Wz - from.Wz) * (to.Wz - from.Wz));
+                    edges.Add((NodeKey(from.Key), NodeKey(to.Key), d / 8f, false));
+                }
+            }
+        }
         int n = g.Keys.Count;
         g.Start = new int[n + 1];
         foreach (var e in edges) g.Start[e.from + 1]++;
@@ -127,6 +157,33 @@ public sealed class MapRouter
         }
         _graphs[tk] = g;
         return g;
+    }
+
+    private readonly record struct JunctionEnd(long Key, double Wx, double Wz, bool Arrive, bool Leave, int Tx, int Tz);
+    private readonly Dictionary<long, List<JunctionEnd>> _ends = new();
+
+    /// <summary>The road ends of a tile that touch a junction surface (cached).</summary>
+    private List<JunctionEnd> Ends(int tx, int tz)
+    {
+        long tk = TileKey(tx, tz);
+        if (_ends.TryGetValue(tk, out var list)) return list;
+        list = new List<JunctionEnd>();
+        var tile = _data.Tile(tx, tz);
+        long ox = (long)tx * TileDm, oz = (long)tz * TileDm;
+        foreach (var r in tile.Roads)
+        {
+            if (!r.Drivable) continue;
+            bool oneway = (r.Flags & RoadFlag.Oneway) != 0;
+            void Add(int k, bool arrive, bool leave)
+            {
+                long key = Key(ox + (long)MathF.Round(r.X[k] * 10f), oz + (long)MathF.Round(r.Z[k] * 10f));
+                list.Add(new JunctionEnd(key, tile.OriginX + r.X[k], tile.OriginZ + r.Z[k], arrive, leave, tx, tz));
+            }
+            if (r.StartsAtJunction) Add(0, !oneway, true);                 // leave the junction along the road
+            if (r.EndsAtJunction) Add(r.X.Length - 1, true, !oneway);      // arrive at the junction
+        }
+        _ends[tk] = list;
+        return list;
     }
 
     /// <summary>The road node nearest to a world position (within about 600 m), or false.</summary>

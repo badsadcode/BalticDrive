@@ -251,6 +251,12 @@ class Handler(osmium.SimpleHandler):
         b = tags.get('building')
         bp = tags.get('building:part')
         if (b and b != 'no') or (bp and bp != 'no'):
+            # Bridges mapped in 3D as building parts (man_made=bridge, building=bridge) are drawn from the roads
+            # instead; underground structures (stations, car parks below ground) are not seen at all.
+            if tags.get('man_made') == 'bridge' or b == 'bridge' or bp == 'bridge' or 'bridge:structure' in tags:
+                return
+            if tags.get('location') in ('underground', 'subway') or (tags.get('layer', '0').lstrip('-').isdigit() and int(tags.get('layer', '0')) < 0):
+                return
             self.add_building(a, tags, b if (b and b != 'no') else bp, part=not (b and b != 'no'))
             if b and b != 'no':
                 self.add_area_poi(a, tags)

@@ -24,6 +24,12 @@ public struct MapSeg
     }
 }
 
+public struct MapJunctionRef
+{
+    public MapJunction J;
+    public float OffX, OffZ;
+}
+
 public struct MapBuildingRef
 {
     public MapBuilding B;
@@ -46,6 +52,7 @@ public sealed class MapContext
     public double Ox, Oz;
     public readonly List<MapSeg> Segs = new();
     public readonly List<MapBuildingRef> Buildings = new();
+    public readonly List<MapJunctionRef> Junctions = new();
     /// <summary>Mapped trees, lamps, poles and pylons: X/Z local metres, Y holds the <see cref="MapPointKind"/>.</summary>
     public readonly List<(float X, byte Kind, float Z)> Points = new();
     private readonly HashSet<long> _seen = new();
@@ -57,7 +64,7 @@ public sealed class MapContext
     public void Reset(double ox, double oz, float minX, float minZ, float maxX, float maxZ, bool withPoints = true)
     {
         Ox = ox; Oz = oz;
-        Segs.Clear(); Buildings.Clear(); Points.Clear(); _seen.Clear(); _tile = null;
+        Segs.Clear(); Buildings.Clear(); Junctions.Clear(); Points.Clear(); _seen.Clear(); _tile = null;
         double wx0 = ox + minX - Reach, wx1 = ox + maxX + Reach, wz0 = oz + minZ - Reach, wz1 = oz + maxZ + Reach;
         int tx0 = (int)Math.Floor(wx0 / MapTile.Size), tx1 = (int)Math.Floor(wx1 / MapTile.Size);
         int tz0 = (int)Math.Floor(wz0 / MapTile.Size), tz1 = (int)Math.Floor(wz1 / MapTile.Size);
@@ -91,6 +98,12 @@ public sealed class MapContext
                         if (withPoints && tile.PointCell(cx, cz) is { } pc)
                             foreach (int pi in pc)
                                 Points.Add((offX + tile.PointX[pi], tile.PointKind[pi], offZ + tile.PointZ[pi]));
+                        if (tile.JunctionCell(cx, cz) is { } jc)
+                            foreach (int ji in jc)
+                            {
+                                if (!_seen.Add(tileKey | 0x40000000u | (uint)ji)) continue;
+                                Junctions.Add(new MapJunctionRef { J = tile.Junctions[ji], OffX = offX, OffZ = offZ });
+                            }
                         if (tile.BuildingCell(cx, cz) is { } bc)
                             foreach (int bi in bc)
                             {
@@ -129,6 +142,26 @@ public sealed class MapContext
         return best;
     }
 
+    /// <summary>The nearest junction surface that shapes the ground (not elevated ones). Returns the distance to its
+    /// outline (negative inside) and the surface height there, or a large value.</summary>
+    public float NearestGroundJunction(float lx, float lz, out float y)
+    {
+        float best = 1e9f; y = 0;
+        var list = Junctions;
+        for (int i = 0; i < list.Count; i++)
+        {
+            var r = list[i];
+            var j = r.J;
+            if (j.Elevated) continue;
+            float x = lx - r.OffX, z = lz - r.OffZ;
+            if (x < j.MinX - Shoulder || x > j.MaxX + Shoulder || z < j.MinZ - Shoulder || z > j.MaxZ + Shoulder) continue;
+            if (j.Contains(x, z)) { y = j.HeightAt(x, z); return -j.EdgeDistance(x, z, out _); }
+            float d = j.EdgeDistance(x, z, out float ey);
+            if (d < best) { best = d; y = ey; }
+        }
+        return best;
+    }
+
     /// <summary>Natural ground (DEM, water beds carved) at a local point, before roads shape it.</summary>
     public float Ground(float lx, float lz)
     {
@@ -154,10 +187,16 @@ public sealed class MapContext
         float h = tile.GroundAt(tlx, tlz);
         dirt = tile.Empty ? 0f : tile.LandBlend(tlx, tlz, MapWorld.DirtLut);
         float edge = NearestGroundRoad(lx, lz, out float roadY, out var road);
+        if (Junctions.Count > 0)
+        {
+            float je = NearestGroundJunction(lx, lz, out float jy);
+            if (je < edge) { edge = je; roadY = jy; road = null; }
+        }
         if (edge < Shoulder)
         {
             h = Lerp(roadY, h, Smooth(1.5f, Shoulder, edge));
-            dirt = MathF.Max(dirt, road!.Unpaved || road.IsRail ? 1f - Smooth(-0.2f, 1.1f, edge) : 1f - Smooth(0.3f, 1.7f, edge));
+            bool loose = road != null && (road.Unpaved || road.IsRail);
+            dirt = MathF.Max(dirt, loose ? 1f - Smooth(-0.2f, 1.1f, edge) : 1f - Smooth(0.3f, 1.7f, edge));
             if (depress > 0f) h -= depress * (1f - Smooth(0.15f, 1.25f, edge));
         }
         return h;

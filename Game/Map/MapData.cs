@@ -22,6 +22,8 @@ public static class MapLand
 public static class RoadFlag
 {
     public const byte Bridge = 1, Tunnel = 2, Oneway = 4, Unpaved = 8, Lit = 16, Rail = 32, StartCap = 64, EndCap = 128;
+    /// <summary>Second flag byte: the piece starts / ends at the edge of a junction surface.</summary>
+    public const byte JunctionStart = 1, JunctionEnd = 2;
 }
 
 /// <summary>Road classes, most important first. Rail is last and is not drivable.</summary>
@@ -53,7 +55,7 @@ public enum MapPoiKind : byte { Fuel, Food, Shop, Medical, Diner, Garage, Police
 /// <summary>A stretch of road inside one tile. Points are tile-local metres, at most 12 m apart.</summary>
 public sealed class MapRoad
 {
-    public byte Cls, Flags, MappedLanes;
+    public byte Cls, Flags, Flags2, MappedLanes;
     public sbyte Layer;
     public float HalfWidth;
     public float[] X = null!, Z = null!;
@@ -76,6 +78,75 @@ public sealed class MapRoad
     public bool IsTram => Cls == RoadClass.Tram;
     public bool Unpaved => (Flags & RoadFlag.Unpaved) != 0;
     public bool Drivable => !IsRail;
+    public bool StartsAtJunction => (Flags2 & RoadFlag.JunctionStart) != 0;
+    public bool EndsAtJunction => (Flags2 & RoadFlag.JunctionEnd) != 0;
+}
+
+/// <summary>
+/// A junction surface (format 4, D11): the area where roads meet, with rounded kerb corners. Outline rings in
+/// tile-local metres (ring 0 the outside, the rest islands), a height per vertex and a triangulation.
+/// </summary>
+public sealed class MapJunction
+{
+    public float[] X = null!, Z = null!, Y = null!;
+    /// <summary>End index (exclusive) of each ring in X/Z/Y.</summary>
+    public int[] RingEnds = null!;
+    public ushort[] Tris = null!;
+    public bool Ghost, Elevated;
+    public float MinX, MinZ, MaxX, MaxZ, Cx, Cz;
+
+    public bool Contains(float x, float z)
+    {
+        if (x < MinX || x > MaxX || z < MinZ || z > MaxZ) return false;
+        bool inside = false;
+        int start = 0;
+        foreach (int end in RingEnds)
+        {
+            for (int i = start, j = end - 1; i < end; j = i++)
+                if ((Z[i] > z) != (Z[j] > z) && x < (X[j] - X[i]) * (z - Z[i]) / (Z[j] - Z[i]) + X[i])
+                    inside = !inside;
+            start = end;
+        }
+        return inside;
+    }
+
+    /// <summary>Surface height at a point inside (barycentric over the triangle holding it), else at the nearest vertex.</summary>
+    public float HeightAt(float x, float z)
+    {
+        for (int t = 0; t + 2 < Tris.Length; t += 3)
+        {
+            int a = Tris[t], b = Tris[t + 1], c = Tris[t + 2];
+            float d = (Z[b] - Z[c]) * (X[a] - X[c]) + (X[c] - X[b]) * (Z[a] - Z[c]);
+            if (MathF.Abs(d) < 1e-9f) continue;
+            float wa = ((Z[b] - Z[c]) * (x - X[c]) + (X[c] - X[b]) * (z - Z[c])) / d;
+            float wb = ((Z[c] - Z[a]) * (x - X[c]) + (X[a] - X[c]) * (z - Z[c])) / d;
+            float wc = 1f - wa - wb;
+            if (wa >= -1e-4f && wb >= -1e-4f && wc >= -1e-4f) return wa * Y[a] + wb * Y[b] + wc * Y[c];
+        }
+        EdgeDistance(x, z, out float y);
+        return y;
+    }
+
+    /// <summary>Distance from a point to the outline (any ring); <paramref name="y"/> = height at the nearest outline point.</summary>
+    public float EdgeDistance(float x, float z, out float y)
+    {
+        float best = float.MaxValue; y = Y.Length > 0 ? Y[0] : 0;
+        int start = 0;
+        foreach (int end in RingEnds)
+        {
+            for (int i = start, j = end - 1; i < end; j = i++)
+            {
+                float bx = X[i] - X[j], bz = Z[i] - Z[j];
+                float len2 = bx * bx + bz * bz;
+                float u = len2 > 1e-8f ? Math.Clamp(((x - X[j]) * bx + (z - Z[j]) * bz) / len2, 0f, 1f) : 0f;
+                float ex = x - (X[j] + bx * u), ez = z - (Z[j] + bz * u);
+                float d = ex * ex + ez * ez;
+                if (d < best) { best = d; y = Y[j] + (Y[i] - Y[j]) * u; }
+            }
+            start = end;
+        }
+        return MathF.Sqrt(best);
+    }
 }
 
 public sealed class MapBuilding
@@ -132,6 +203,7 @@ public sealed class MapTile
     public readonly double OriginX, OriginZ;
     public readonly bool Empty;
     public MapRoad[] Roads = Array.Empty<MapRoad>();
+    public MapJunction[] Junctions = Array.Empty<MapJunction>();
     public MapBuilding[] Buildings = Array.Empty<MapBuilding>();
     public MapPoi[] Pois = Array.Empty<MapPoi>();
     /// <summary>Mapped trees, lamps, poles and pylons (tile-local metres).</summary>
@@ -145,6 +217,7 @@ public sealed class MapTile
     private readonly List<int>?[] _roadCells = new List<int>?[Cells * Cells];
     private readonly List<int>?[] _buildingCells = new List<int>?[Cells * Cells];
     private readonly List<int>?[] _pointCells = new List<int>?[Cells * Cells];
+    private readonly List<int>?[] _junctionCells = new List<int>?[Cells * Cells];
 
     private static readonly byte[] EmptyLand = new byte[LandRes * LandRes];
 
@@ -162,14 +235,14 @@ public sealed class MapTile
         Tx = tx; Tz = tz; OriginX = tx * (double)Size; OriginZ = tz * (double)Size;
         using var ms = new MemoryStream(raw);
         using var r = new BinaryReader(ms);
-        if (r.ReadUInt32() != 0x33544442u) throw new InvalidDataException("bad tile magic"); // "BDT3"
+        if (r.ReadUInt32() != 0x34544442u) throw new InvalidDataException("bad tile magic"); // "BDT4"
 
         int nRoads = (int)r.ReadUInt32();
         var roads = new List<MapRoad>(nRoads);
         var xs = new List<float>(); var zs = new List<float>(); var ys = new List<float>(); var ls = new List<float>(); var al = new List<float>();
         for (int i = 0; i < nRoads; i++)
         {
-            var road = new MapRoad { Cls = r.ReadByte(), Flags = r.ReadByte() };
+            var road = new MapRoad { Cls = r.ReadByte(), Flags = r.ReadByte(), Flags2 = r.ReadByte() };
             road.HalfWidth = r.ReadByte() * 0.05f;
             road.Layer = r.ReadSByte();
             road.MappedLanes = r.ReadByte();
@@ -207,6 +280,34 @@ public sealed class MapTile
         }
         Roads = roads.ToArray();
         FindJunctions();
+        MarkJunctionEnds();
+
+        int nJunctions = (int)r.ReadUInt32();
+        Junctions = new MapJunction[nJunctions];
+        for (int i = 0; i < nJunctions; i++)
+        {
+            byte jf = r.ReadByte();
+            int rings = r.ReadByte();
+            var ends = new int[rings];
+            int total = 0;
+            for (int q = 0; q < rings; q++) { total += r.ReadUInt16(); ends[q] = total; }
+            var j = new MapJunction { RingEnds = ends, Ghost = (jf & 1) != 0, Elevated = (jf & 2) != 0, X = new float[total], Z = new float[total], Y = new float[total] };
+            j.MinX = j.MinZ = float.MaxValue; j.MaxX = j.MaxZ = float.MinValue;
+            for (int k = 0; k < total; k++)
+            {
+                j.X[k] = r.ReadInt16() * 0.1f; j.Z[k] = r.ReadInt16() * 0.1f; j.Y[k] = r.ReadUInt16() * hUnit + hBase;
+                j.MinX = MathF.Min(j.MinX, j.X[k]); j.MaxX = MathF.Max(j.MaxX, j.X[k]);
+                j.MinZ = MathF.Min(j.MinZ, j.Z[k]); j.MaxZ = MathF.Max(j.MaxZ, j.Z[k]);
+            }
+            int outer = ends.Length > 0 ? ends[0] : total;
+            for (int k = 0; k < outer; k++) { j.Cx += j.X[k]; j.Cz += j.Z[k]; }
+            if (outer > 0) { j.Cx /= outer; j.Cz /= outer; }
+            int nt = (int)r.ReadUInt32();
+            j.Tris = new ushort[nt];
+            for (int k = 0; k < nt; k++) j.Tris[k] = r.ReadUInt16();
+            Junctions[i] = j;
+            Bucket(_junctionCells, j.MinX - 10f, j.MinZ - 10f, j.MaxX + 10f, j.MaxZ + 10f, i);
+        }
 
         int nBuildings = (int)r.ReadUInt32();
         Buildings = new MapBuilding[nBuildings];
@@ -338,6 +439,27 @@ public sealed class MapTile
         }
     }
 
+    /// <summary>Road pieces that start or end at a junction surface: markings stop there (with a stop line).</summary>
+    private void MarkJunctionEnds()
+    {
+        foreach (var r in Roads)
+        {
+            int n = r.X.Length;
+            if (r.StartsAtJunction)
+                for (int k = 0; k < n; k++)
+                {
+                    float d = r.Along[k] - r.Along[0];
+                    if (d < r.Clear[k]) { r.Clear[k] = d; r.JunctionAhead[k] = -1f; }
+                }
+            if (r.EndsAtJunction)
+                for (int k = 0; k < n; k++)
+                {
+                    float d = r.Along[n - 1] - r.Along[k];
+                    if (d < r.Clear[k]) { r.Clear[k] = d; r.JunctionAhead[k] = 1f; }
+                }
+        }
+    }
+
     private static void Bucket(List<int>?[] cells, float x0, float z0, float x1, float z1, int value)
     {
         int cx0 = Math.Clamp((int)MathF.Floor(x0 / CellSize), 0, Cells - 1), cx1 = Math.Clamp((int)MathF.Floor(x1 / CellSize), 0, Cells - 1);
@@ -350,6 +472,7 @@ public sealed class MapTile
     public List<int>? RoadCell(int cx, int cz) => _roadCells[cz * Cells + cx];
     public List<int>? BuildingCell(int cx, int cz) => _buildingCells[cz * Cells + cx];
     public List<int>? PointCell(int cx, int cz) => _pointCells[cz * Cells + cx];
+    public List<int>? JunctionCell(int cx, int cz) => _junctionCells[cz * Cells + cx];
 
     // ---- rasters (tile-local coordinates; lookups clamp to this tile so they never need a neighbour) ----
 
@@ -419,7 +542,7 @@ public sealed class MapPlace
 /// <summary>Opens a map (index + pack files) and hands out tiles on demand. Safe to call from worker threads.</summary>
 public sealed class MapData : IDisposable
 {
-    public const int Format = 3;
+    public const int Format = 4;
     public readonly string Name;
     public readonly string Directory;
     public readonly List<MapPlace> Places = new();

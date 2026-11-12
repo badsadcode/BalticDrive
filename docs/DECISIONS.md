@@ -58,3 +58,29 @@ they live in `Assets/Synty/` (git-ignored) and `data/assets/synty/`. The car use
 else Quaternius' CC0 pickup (committed). The car reads its wheel layout from the model (`*_Wheel_fl/fr/rl/rr` or
 Quaternius' names), fits its collision boxes to the body, and strips colliders the model brings. Centre of mass
 near the axles and low roll influence keep it on its wheels (the first sedan rolled over at 60 km/h).
+
+## D11 — Junction surfaces (tile format 4)
+Where three or more drivable roads meet, the importer builds one surface: junction nodes closer than their half widths
++ 8 m form one junction (dual carriageway crossings, roundabout entries), every arm is trimmed where it is clear of
+the others' strips widened by a corner radius r (3–8 m by road width), and the union of the arms is closed with r —
+inside corners become kerb arcs, outside corners and the straight cuts stay. Roads are cut back to the edge and carry
+JunctionStart/End flags (markings stop with a stop line there); the router links road ends around each junction
+(one-ways respected). The ground is shaped to the surface like to a road; elevated junctions are left alone.
+
+## D12 — Road heights: urban smoothing, stacked decks, ramp limit
+Smoothing length shrinks to 30–100 % of the class value with road density (towns follow the accurate street-level
+DEM). Bridge decks clear what they cross by 6 m per level, solved in two passes so stacked levels add up (instead of
+6 m × layer). Climbs up to bridges are limited to 4–6 % by lifting the approach (central Warsaw had 7 % of primary
+pieces steeper than 10 %, up to 24 %).
+
+## D13 — Elevation holes filled from GUGiK sheets
+GUGiK's WCS serves only the older Kronsztadt-86 survey: 15–56 % of every Mazowsze block (21,500 km², central Warsaw
+among it) came back empty and was filled with copied neighbour heights — the pits, steps and phantom viaduct ramps
+Tom saw. `tools/dem/fill_gugik_sheets.py` asks the EVRF2007 sheet index which sheets cover each hole, downloads them
+(ARC/INFO ASCII, preferring 1 m sheets), averages them into the 10 m blocks and deletes them: ~100+ GB of transfer,
+under 3 GB kept. The datums differ by ~0.2 m in Mazowsze.
+
+## D14 — Bridges and underground structures are not buildings
+OSM maps some viaducts in 3D as building parts (man_made=bridge, bridge:structure): they stood as 5 m boxes on the
+road. They are skipped (the game draws bridges from the roads), as are underground structures (location=underground,
+negative layer).

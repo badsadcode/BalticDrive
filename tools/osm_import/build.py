@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
-FORMAT = 3
+FORMAT = 4
 TILE = 2048.0
 LAND_RES = 512           # land-cover cells per tile side (4 m)
 LAND_CELL = TILE / LAND_RES
@@ -42,9 +42,10 @@ PAK_LIMIT = 48 * 1024 * 1024
 
 F_BRIDGE, F_TUNNEL, F_ONEWAY, F_UNPAVED, F_LIT, F_RAIL, F_STARTCAP, F_ENDCAP = 1, 2, 4, 8, 16, 32, 64, 128
 BF_GHOST, BF_TRIS, BF_PART = 1, 2, 4
+F2_JSTART, F2_JEND = 1, 2   # second road flag byte: the piece starts / ends at a junction surface
 
 ROAD_STEP = 10.0         # road points are at most this far apart (heights follow the ground between them)
-DECK_CLEAR = 6.0         # a bridge's deck above a road or railway it passes over
+DECK_CLEAR = 6.0         # a bridge's deck above each road, railway or lower bridge it passes over
 # How far (m) a road's height profile averages the ground, by class: long and smooth for motorways, close to the
 # ground for tracks. See D4.
 SMOOTH = {0: 150.0, 1: 150.0, 2: 90.0, 3: 90.0, 4: 60.0, 5: 60.0, 6: 40.0, 7: 30.0, 8: 35.0, 9: 25.0, 10: 80.0,
@@ -129,7 +130,7 @@ def find_crossings(xy, off, attrs, nodes):
     return out, is_bridge
 
 
-def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None):
+def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscale=None):
     """Road heights on the node graph: as close to the ground as the class's smoothing length allows.
 
     Minimises sum(a_i (h_i - g_i)^2) + sum((h_i - h_j)^2 / d_ij), a_i = (node's length share) / L^2, so a profile
@@ -149,6 +150,8 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None):
     cls = attrs['cls'][way]
     flags = attrs['flags'][way]
     L = np.vectorize(SMOOTH.get)(cls).astype(np.float64)
+    if lscale is not None:
+        L = L * lscale
     free = ((flags & F_BRIDGE) != 0) & ((flags & F_TUNNEL) == 0)
     # each point owns half of each segment next to it; bridge interiors are free (no ground term)
     share = np.zeros(n)
@@ -188,6 +191,74 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None):
     return h
 
 
+# Steepest a road may climb up to a bridge, by class (real roads: motorways ~4 %, main roads ~5 %).
+RAMP_GRADE = {0: 0.04, 1: 0.04, 2: 0.05, 3: 0.05, 10: 0.05, 4: 0.06, 11: 0.025, 12: 0.06}
+
+
+def urban_scale(xy):
+    """Per road point: how much of its class's smoothing length to use. In towns (many roads close together) the
+    elevation model is accurate to the street and roads follow it closely; out in the country they average it."""
+    cell = 50.0
+    gx = np.floor(xy[:, 0] / cell).astype(np.int64)
+    gy = np.floor(xy[:, 1] / cell).astype(np.int64)
+    x0, y0 = gx.min(), gy.min()
+    W, H = int(gx.max() - x0 + 3), int(gy.max() - y0 + 3)
+    grid = np.zeros((H, W), dtype=np.float32)
+    np.add.at(grid, (gy - y0 + 1, gx - x0 + 1), 1)
+    from scipy import ndimage
+    dens = ndimage.uniform_filter(grid, size=3, mode='constant') * 9      # road points in the 150 m square around
+    d = dens[gy - y0 + 1, gx - x0 + 1]
+    scale = np.clip(1.25 - d / 160.0, 0.3, 1.0)
+    log(f'urban smoothing: {100 * (scale < 0.6).mean():.0f} % of road points use under 60 % of the class length')
+    return scale
+
+
+def limit_ramps(h, node, nnodes, xy, off, attrs, ground):
+    """Raised roads (bridge decks and what leads up to them) come down no steeper than RAMP_GRADE: from every node
+    that rides above the ground, neighbours are lifted to at least h - grade * distance (an embankment)."""
+    import heapq
+    n = len(xy)
+    last = np.zeros(n, dtype=bool)
+    last[off[1:] - 1] = True
+    a = np.nonzero(~last)[0]
+    a = a[a < n - 1]
+    b = a + 1
+    d = np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1])
+    way = np.repeat(np.arange(len(attrs)), np.diff(off))
+    g = np.vectorize(lambda c: RAMP_GRADE.get(int(c), 0.08))(attrs['cls'][way[a]])
+    u, v = node[a], node[b]
+    uu = np.concatenate([u, v]); vv = np.concatenate([v, u])
+    dd = np.concatenate([d * g, d * g])                       # height allowed to drop along each edge
+    order = np.argsort(uu, kind='stable')
+    uu, vv, dd = uu[order], vv[order], dd[order]
+    start = np.searchsorted(uu, np.arange(nnodes + 1))
+    gnode = np.full(nnodes, np.inf)
+    np.minimum.at(gnode, node, ground)
+    h = h.copy()
+    # sources: bridge decks only (an ordinary road in a dip may sit above the ground and must not spread)
+    fl = attrs['flags'][way]
+    on_bridge = np.zeros(nnodes, dtype=bool)
+    on_bridge[node[((fl & F_BRIDGE) != 0) & ((fl & F_TUNNEL) == 0)]] = True
+    lifted = np.nonzero(on_bridge & (h > gnode + 1.0))[0]
+    heap = [(-float(h[i]), int(i)) for i in lifted]
+    heapq.heapify(heap)
+    raised = 0
+    while heap:
+        neg, i = heapq.heappop(heap)
+        cur = -neg
+        if cur < h[i] - 1e-6:
+            continue
+        for k in range(start[i], start[i + 1]):
+            j = int(vv[k])
+            cand = cur - float(dd[k])
+            if cand > h[j] + 0.01:
+                h[j] = cand
+                raised += 1
+                heapq.heappush(heap, (-cand, j))
+    log(f'ramps: {raised} road points raised to keep climbs to bridges gentle')
+    return h
+
+
 def build_roads(work, dem):
     roads = np.load(os.path.join(work, 'roads.npz'))
     xy0 = roads['xy'].astype(np.float64) / 100.0     # x east, y north
@@ -223,27 +294,34 @@ def build_roads(work, dem):
             _, idx = cKDTree(xy[~bad]).query(xy[bad])
             ground[bad] = ground[~bad][idx]
     ground = ground.astype(np.float64)
-    h = solve_heights(node, nnodes, xy, off, attrs, ground)
+    lscale = urban_scale(xy)
+    h = solve_heights(node, nnodes, xy, off, attrs, ground, lscale=lscale)
     log('road heights solved (pass 1)')
 
-    # Pass 2: bridges that pass over a road or railway keep a deck DECK_CLEAR above it.
-    if crossings:
+    # Bridges that pass over a road or railway keep a deck DECK_CLEAR above it. Repeated so stacked levels add up
+    # (a level-2 bridge clears the level-1 bridge under it once that one has been raised).
+    for p in range(2 if crossings else 0):
         pin_idx, pin_t = [], []
         for bw, lst in crossings.items():
             need = -1e9
-            for other, cx, cy, lay in lst:
+            for other, cx, cy, _lay in lst:
                 pts = slice(off[other], off[other + 1])
                 k = np.argmin(np.hypot(xy[pts, 0] - cx, xy[pts, 1] - cy))
-                need = max(need, h[node[off[other] + k]] + DECK_CLEAR * lay)
+                need = max(need, h[node[off[other] + k]] + DECK_CLEAR)
             sl = node[off[bw]:off[bw + 1]]
             for nd in sl[1:-1] if len(sl) > 2 else sl:
                 pin_idx.append(nd)
                 pin_t.append(max(need, h[nd]))
         h = solve_heights(node, nnodes, xy, off, attrs, ground,
-                          (np.array(pin_idx, dtype=np.int64), np.array(pin_t), 5.0))
-        log(f'road heights solved (pass 2, {len(pin_idx)} deck points pinned)')
+                          (np.array(pin_idx, dtype=np.int64), np.array(pin_t), 5.0), lscale=lscale)
+        log(f'road heights solved (deck pass {p + 1}, {len(pin_idx)} deck points pinned)')
+    h = limit_ramps(h, node, nnodes, xy, off, attrs, ground)
     y = h[node]
     lift = np.clip(y - ground, 0, 25.5)
+
+    from junctions import build_junctions
+    cuts, junctions = build_junctions(xy, off, node, nnodes, attrs, y, lift, log)
+    jtiles = encode_junctions(junctions)
 
     gx, gz = xy[:, 0], -xy[:, 1]
     per_tile = defaultdict(list)
@@ -251,33 +329,102 @@ def build_roads(work, dem):
     for w in range(nways):
         a, b = off[w], off[w + 1]
         px, pz, py, pl = gx[a:b], gz[a:b], y[a:b], lift[a:b]
-        keep = np.ones(b - a, dtype=bool)
-        keep[1:] = (np.abs(np.diff(px)) + np.abs(np.diff(pz))) > 0.02
-        if keep.sum() < 2:
-            continue
-        px, pz, py, pl = px[keep], pz[keep], py[keep], pl[keep]
         cls, flags, width_dm, layer, lanes = (int(v) for v in attrs[w])
-        xs, zs, ys, ls, pieces = split_way(px, pz, py, pl)
-        cum = np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(xs), np.diff(zs)))])
-        for (tx, tz), i0, i1 in pieces:
-            if not in_scope((tx, tz)):
+        seg = np.hypot(np.diff(px), np.diff(pz))
+        al = np.concatenate([[0.0], np.cumsum(seg)])
+        for sx, sz, sy, sl, s_start, jstart, jend, orig_start, orig_end in cut_way(px, pz, py, pl, al, cuts.get(w)):
+            keep = np.ones(len(sx), dtype=bool)
+            keep[1:] = (np.abs(np.diff(sx)) + np.abs(np.diff(sz))) > 0.02
+            if keep.sum() < 2:
                 continue
-            f = flags
-            if i0 == 0:
-                f |= F_STARTCAP
-            if i1 == len(xs) - 1:
-                f |= F_ENDCAP
-            n = i1 - i0 + 1
-            rec = bytearray(struct.pack('<BBBbBfH', cls, f, width_dm, layer, lanes, float(cum[i0] % 4096.0), n))
-            q = np.empty(n, dtype=[('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')])
-            q['x'] = np.clip(np.round((xs[i0:i1 + 1] - tx * TILE) * 10), -32768, 32767)
-            q['z'] = np.clip(np.round((zs[i0:i1 + 1] - tz * TILE) * 10), -32768, 32767)
-            q['y'] = encode_h(ys[i0:i1 + 1])
-            q['l'] = np.clip(np.round(ls[i0:i1 + 1] * 10), 0, 255)
-            per_tile[(tx, tz)].append(bytes(rec) + q.tobytes())
+            sx, sz, sy, sl = sx[keep], sz[keep], sy[keep], sl[keep]
+            xs, zs, ys, ls, pieces = split_way(sx, sz, sy, sl)
+            cum = s_start + np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(xs), np.diff(zs)))])
+            for (tx, tz), i0, i1 in pieces:
+                if not in_scope((tx, tz)):
+                    continue
+                f, f2 = flags, 0
+                if i0 == 0:
+                    if orig_start:
+                        f |= F_STARTCAP
+                    if jstart:
+                        f2 |= F2_JSTART
+                if i1 == len(xs) - 1:
+                    if orig_end:
+                        f |= F_ENDCAP
+                    if jend:
+                        f2 |= F2_JEND
+                n = i1 - i0 + 1
+                rec = bytearray(struct.pack('<BBBBbBfH', cls, f, f2, width_dm, layer, lanes, float(cum[i0] % 4096.0), n))
+                q = np.empty(n, dtype=[('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')])
+                q['x'] = np.clip(np.round((xs[i0:i1 + 1] - tx * TILE) * 10), -32768, 32767)
+                q['z'] = np.clip(np.round((zs[i0:i1 + 1] - tz * TILE) * 10), -32768, 32767)
+                q['y'] = encode_h(ys[i0:i1 + 1])
+                q['l'] = np.clip(np.round(ls[i0:i1 + 1] * 10), 0, 255)
+                per_tile[(tx, tz)].append(bytes(rec) + q.tobytes())
         if w % 300000 == 0:
             log(f'roads {w}/{nways}')
     log(f'roads cut into {sum(len(v) for v in per_tile.values())} pieces over {len(per_tile)} tiles')
+    return per_tile, jtiles
+
+
+
+def cut_way(px, pz, py, pl, al, intervals):
+    """Splits one way's polyline into the parts outside the junction intervals. Yields
+    (x, z, y, lift, distance at start, starts at a junction, ends at a junction, is the way's start, is its end)."""
+    total = al[-1]
+    if not intervals:
+        yield px, pz, py, pl, 0.0, False, False, True, True
+        return
+    iv = sorted((max(0.0, a), min(total, b)) for a, b in intervals if b > 0 and a < total)
+    merged = []
+    for a, b in iv:
+        if merged and a <= merged[-1][1] + 0.05:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    keep, cur = [], 0.0
+    for a, b in merged:
+        if a - cur > 0.5:
+            keep.append((cur, a))
+        cur = max(cur, b)
+    if total - cur > 0.5:
+        keep.append((cur, total))
+    for a, b in keep:
+        inside = (al > a) & (al < b)
+        ss = np.concatenate([[a], al[inside], [b]])
+        yield (np.interp(ss, al, px), np.interp(ss, al, pz), np.interp(ss, al, py), np.interp(ss, al, pl), a,
+               a > 0.01, b < total - 0.01, a <= 0.01, b >= total - 0.01)
+
+
+def encode_junctions(junctions):
+    """Junction surfaces into tile records: the tile holding the centroid draws it; tiles its box overlaps get a
+    ghost copy (for shaping the ground)."""
+    per_tile = defaultdict(list)
+    for j in junctions:
+        x = j['xy'][:, 0]
+        z = -j['xy'][:, 1]
+        cx, cz = x.mean(), z.mean()
+        home = (tile_of(cx), tile_of(cz))
+        tiles = {(tx, tz) for tx in range(tile_of(x.min()), tile_of(x.max()) + 1)
+                 for tz in range(tile_of(z.min()), tile_of(z.max()) + 1)}
+        ends = j['ends']
+        counts = np.diff(np.concatenate([[0], ends])).astype(np.int64)
+        for t in tiles:
+            if not in_scope(t):
+                continue
+            fl = (0 if t == home else 1) | (2 if j['elevated'] else 0)
+            rec = bytearray(struct.pack('<BB', fl, len(counts)))
+            for c in counts:
+                rec += struct.pack('<H', int(c))
+            q = np.empty(len(x), dtype=[('x', '<i2'), ('z', '<i2'), ('y', '<u2')])
+            q['x'] = np.clip(np.round((x - t[0] * TILE) * 10), -32768, 32767)
+            q['z'] = np.clip(np.round((z - t[1] * TILE) * 10), -32768, 32767)
+            q['y'] = encode_h(j['y'])
+            rec += q.tobytes()
+            tris = j['tris'].astype('<u2')
+            rec += struct.pack('<I', len(tris)) + tris.tobytes()
+            per_tile[t].append(bytes(rec))
     return per_tile
 
 
@@ -760,12 +907,12 @@ def main():
     from dem import DemMosaic
     dem = DemMosaic(args.dem, cache_blocks=160)
 
-    roads = build_roads(args.work, dem)
+    roads, jtiles = build_roads(args.work, dem)
     del dem
     buildings = build_buildings(args.work)
     pois = build_pois(args.work)
     points = build_points(args.work)
-    land = build_land(args.work, set(roads) | set(buildings) | set(points), args.workers)
+    land = build_land(args.work, set(roads) | set(jtiles) | set(buildings) | set(points), args.workers)
     heights, water = build_heights(land, args.dem, args.workers)
     txs = [t[0] for t in land]
     tzs = [t[1] for t in land]
@@ -780,8 +927,10 @@ def main():
         r = roads.get(t, [])
         b = buildings.get(t, [])
         p = pois.get(t, [])
-        blob = bytearray(b'BDT3')
+        blob = bytearray(b'BDT4')
         blob += struct.pack('<I', len(r)) + b''.join(r)
+        jr = jtiles.get(t, [])
+        blob += struct.pack('<I', len(jr)) + b''.join(jr)
         blob += struct.pack('<I', len(b)) + b''.join(b)
         blob += struct.pack('<H', len(p)) + b''.join(p)
         pt = points.get(t)
