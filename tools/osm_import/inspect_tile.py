@@ -40,10 +40,11 @@ def main():
     o += 4
     print(f'tile {tx},{tz}: {nroads} road pieces; roads within {radius:.0f} m of ({lx:.0f},{lz:.0f}):')
     for _ in range(nroads):
-        cls, flags, _f2, wdm, layer, lanes, along, n = struct.unpack_from('<BBBBbBfH', blob, o)
+        cls, flags, f2, wdm, layer, lanes, along, n = struct.unpack_from('<BBBBbBfH', blob, o)
         o += struct.calcsize('<BBBBbBfH')
-        pts = np.frombuffer(blob, dtype=[('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')], count=n, offset=o)
-        o += n * 7
+        dt = [('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')] + ([('w', 'u1'), ('uo', 'i1')] if f2 & 128 else [])
+        pts = np.frombuffer(blob, dtype=dt, count=n, offset=o)
+        o += n * (9 if f2 & 128 else 7)
         x, z = pts['x'] / 10, pts['z'] / 10
         dist = np.hypot(x - lx, z - lz)
         if dist.min() > radius:
@@ -51,7 +52,8 @@ def main():
         y = pts['y'] * hunit + hbase
         fl = ''.join(c for c, bit in zip('BTOULR', (1, 2, 4, 8, 16, 32)) if flags & bit)
         print(f'  {CLS[cls]:9s} {fl:4s} layer {layer:2d} lanes {lanes} width {wdm / 10:4.1f}  y {y.min():6.1f}..{y.max():6.1f}  '
-              f'lift {pts["l"].max() / 10:4.1f}  n {n}  nearest {dist.min():5.1f} m')
+              f'lift {pts["l"].max() / 10:4.1f}  n {n}  nearest {dist.min():5.1f} m'
+              + (f'  TAPER width {pts["w"].min() / 10:.1f}..{pts["w"].max() / 10:.1f} at x {x[np.argmin(pts["w"])] + tx * tile:.0f} z {z[np.argmin(pts["w"])] + tz * tile:.0f}' if f2 & 128 else ''))
     # junction surfaces (format 4)
     nj, = struct.unpack_from('<I', blob, o); o += 4
     for _ in range(nj):

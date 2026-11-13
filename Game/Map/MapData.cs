@@ -23,7 +23,7 @@ public static class RoadFlag
 {
     public const byte Bridge = 1, Tunnel = 2, Oneway = 4, Unpaved = 8, Lit = 16, Rail = 32, StartCap = 64, EndCap = 128;
     /// <summary>Second flag byte: the piece starts / ends at the edge of a junction surface.</summary>
-    public const byte JunctionStart = 1, JunctionEnd = 2, OnPaved = 64;   // flags2 (bits 2..5: lane split)
+    public const byte JunctionStart = 1, JunctionEnd = 2, OnPaved = 64, Taper = 128;   // flags2 (bits 2..5: lane split)
 }
 
 /// <summary>Road classes, most important first. Rail is last and is not drivable.</summary>
@@ -58,6 +58,10 @@ public sealed class MapRoad
     public byte Cls, Flags, Flags2, MappedLanes;
     public sbyte Layer;
     public float HalfWidth;
+    /// <summary>Tapered pieces only (D21; else null): the half width at each point, and the offset that keeps lane
+    /// markings in place relative to the edge that does not move (UV.x = lateral offset + this).</summary>
+    public float[]? Hw, UOff;
+    public float HalfWidthAt(int k) => Hw != null ? Hw[k] : HalfWidth;
     public float[] X = null!, Z = null!;
     /// <summary>Carriageway height at each point (absolute metres; on bridges the deck).</summary>
     public float[] Y = null!;
@@ -241,11 +245,12 @@ public sealed class MapTile
         Tx = tx; Tz = tz; OriginX = tx * (double)Size; OriginZ = tz * (double)Size;
         using var ms = new MemoryStream(raw);
         using var r = new BinaryReader(ms);
-        if (r.ReadUInt32() != 0x34544442u) throw new InvalidDataException("bad tile magic"); // "BDT4"
+        if (r.ReadUInt32() != 0x35544442u) throw new InvalidDataException("bad tile magic"); // "BDT5"
 
         int nRoads = (int)r.ReadUInt32();
         var roads = new List<MapRoad>(nRoads);
         var xs = new List<float>(); var zs = new List<float>(); var ys = new List<float>(); var ls = new List<float>(); var al = new List<float>();
+        var hs = new List<float>(); var us = new List<float>();
         for (int i = 0; i < nRoads; i++)
         {
             var road = new MapRoad { Cls = r.ReadByte(), Flags = r.ReadByte(), Flags2 = r.ReadByte() };
@@ -254,11 +259,14 @@ public sealed class MapTile
             road.MappedLanes = r.ReadByte();
             float along = r.ReadSingle();
             int n = r.ReadUInt16();
-            xs.Clear(); zs.Clear(); ys.Clear(); ls.Clear(); al.Clear();
-            float px = 0, pz = 0, py = 0, pl = 0;
+            xs.Clear(); zs.Clear(); ys.Clear(); ls.Clear(); al.Clear(); hs.Clear(); us.Clear();
+            bool taper = (road.Flags2 & RoadFlag.Taper) != 0;
+            float px = 0, pz = 0, py = 0, pl = 0, ph = 0, pu = 0;
             for (int k = 0; k < n; k++)
             {
                 float x = r.ReadInt16() * 0.1f, z = r.ReadInt16() * 0.1f, y = r.ReadUInt16() * hUnit + hBase, l = r.ReadByte() * 0.1f;
+                float h = road.HalfWidth, u = 0f;
+                if (taper) { h = r.ReadByte() * 0.05f; u = r.ReadSByte() * 0.1f; }
                 if (k > 0)
                 {
                     float len = MathF.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz));
@@ -267,14 +275,16 @@ public sealed class MapTile
                     {
                         float t = s / (float)parts;
                         xs.Add(px + (x - px) * t); zs.Add(pz + (z - pz) * t); ys.Add(py + (y - py) * t); ls.Add(pl + (l - pl) * t);
+                        hs.Add(ph + (h - ph) * t); us.Add(pu + (u - pu) * t);
                         al.Add(along + len * t);
                     }
                     along += len;
                 }
-                else { xs.Add(x); zs.Add(z); ys.Add(y); ls.Add(l); al.Add(along); }
-                px = x; pz = z; py = y; pl = l;
+                else { xs.Add(x); zs.Add(z); ys.Add(y); ls.Add(l); al.Add(along); hs.Add(h); us.Add(u); }
+                px = x; pz = z; py = y; pl = l; ph = h; pu = u;
             }
             road.X = xs.ToArray(); road.Z = zs.ToArray(); road.Y = ys.ToArray(); road.Lift = ls.ToArray(); road.Along = al.ToArray();
+            if (taper) { road.Hw = hs.ToArray(); road.UOff = us.ToArray(); }
             // Railways and trams in tunnels run underground: nothing to draw or drive on.
             if (road.IsRail && (road.Flags & RoadFlag.Tunnel) != 0) continue;
             int index = roads.Count;
@@ -548,7 +558,7 @@ public sealed class MapPlace
 /// <summary>Opens a map (index + pack files) and hands out tiles on demand. Safe to call from worker threads.</summary>
 public sealed class MapData : IDisposable
 {
-    public const int Format = 4;
+    public const int Format = 5;
     public readonly string Name;
     public readonly string Directory;
     public readonly List<MapPlace> Places = new();

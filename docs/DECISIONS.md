@@ -136,3 +136,14 @@ underground, multi-storey or rooftop, not on an unpaved surface), `area:highway=
 service|living_street` with `area=yes`, and `place=square` are extracted to `paved.npz` and built as flat surfaces
 like junctions: the same record with flag 4 (8 = pedestrian paving, drawn as concrete). They shape the ground, have
 collision, sit just under the roads crossing them, and the router and stop-line logic ignore them.
+
+## D21 — Lane tapers (tile format 5)
+OSM splits a way where the lane count changes; each piece had one width, so the road stepped sideways and every
+lane line jumped (Banacha, Tom's sketches). Where two pieces meet end to end at a node no other road touches, with
+widths differing by 1.5 m or more, the wider piece narrows to the other's width over 30–60 m (15 m per metre of
+difference, at most 45 % of the piece), with a smoothstep. One-way roads keep one edge fixed: a lane opening in
+the direction of travel opens by the median unless `turn:lanes` says it is a right-turn lane; a lane ending merges
+from the kerb side. Such pieces carry a width and a lane offset per point (flags2 bit 7); the shader still lays out
+lanes for the full width, shifted by that offset, so existing lane lines run straight and the new lane grows
+beside them. The centre line itself does not move (OSM draws each piece through its own middle), so the fixed edge
+drifts half a lane over the taper: barely visible.

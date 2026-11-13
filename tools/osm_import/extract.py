@@ -98,7 +98,10 @@ class Polys:
 
 # fwd: lanes in the way's direction on a two-way road when OSM says (lanes:forward, or counted from turn:lanes);
 # 0 = unknown (drawn as an even split). See D19.
-ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'), ('lanes', 'u1'), ('fwd', 'u1')]
+# turn: 1 = the leftmost lane turns left, 2 = the rightmost lane turns right (turn:lanes; picks the side a lane is
+# added on where the lane count changes, D21)
+ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'), ('lanes', 'u1'), ('fwd', 'u1'),
+              ('turn', 'u1')]
 # Paved areas drawn as asphalt (D20): 0 parking or fuel forecourt, 1 pedestrian square, 2 carriageway area
 PAVED_DTYPE = [('kind', 'u1')]
 WATERLINE_DTYPE = [('width_dm', 'u1')]
@@ -246,6 +249,14 @@ class Handler(osmium.SimpleHandler):
                 elif lb and lb < lanes:
                     fwd = int(lanes) - lb
             fwd = max(0, min(8, fwd))
+        turn = 0
+        tl = tags.get('turn:lanes') or tags.get('turn:lanes:forward')
+        if tl:
+            parts = tl.split('|')
+            if 'left' in parts[0] and 'left' not in parts[-1]:
+                turn |= 1
+            if 'right' in parts[-1] and 'right' not in parts[0]:
+                turn |= 2
         width = parse_float(tags.get('width'))
         if hw is None:
             width = default_width
@@ -269,7 +280,7 @@ class Handler(osmium.SimpleHandler):
             layer = 0
         layer = max(-5, min(5, layer))
         self.roads.add(lons, lats,
-                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd),
+                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd, turn),
                        [nd.ref for nd in w.nodes])
 
     # ---- areas ---------------------------------------------------------------------------

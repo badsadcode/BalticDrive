@@ -294,12 +294,20 @@ public static class MapMesher
         {
             var p = e == 0 ? p0 : p1; var m = e == 0 ? m0 : m1;
             float y = e == 0 ? y0 : y1, along = road.Along[k + e];
+            float uo = 0f;
+            if (road.Hw != null)
+            {
+                // a taper (D21): the edges follow this point's width; UV.x keeps the full-width lane layout
+                float h = road.Hw[k + e];
+                off[0] = -(outer - hw + h); off[1] = -h; off[2] = h; off[3] = outer - hw + h;
+                uo = road.UOff![k + e];
+            }
             for (int i = 0; i < 4; i++)
             {
                 var n = i == 0 ? (up - new Vector3(m.X, 0, m.Y) * 0.28f).Normalized()
                       : i == 3 ? (up + new Vector3(m.X, 0, m.Y) * 0.28f).Normalized() : up;
                 mesh.Add(new Vector3(p.X + m.X * off[i], y + dy[i], p.Y + m.Y * off[i]), bridge ? up : n,
-                    new Vector2(off[i], along), new Vector2(road.Clear[k + e], road.JunctionAhead[k + e]), col);
+                    new Vector2(off[i] + uo, along), new Vector2(road.Clear[k + e], road.JunctionAhead[k + e]), col);
             }
         }
         for (int i = 0; i < 3; i++)
@@ -309,10 +317,10 @@ public static class MapMesher
 
         if (!road.IsRail)
         {
-            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, hw, road.Along[0], col, collision, !bridge && !onPaved);
-            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, hw, road.Along[k + 1], col, collision, !bridge && !onPaved);
+            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, road.HalfWidthAt(k), road.Along[0], col, collision, !bridge && !onPaved);
+            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, road.HalfWidthAt(k + 1), road.Along[k + 1], col, collision, !bridge && !onPaved);
         }
-        if (bridge) AddBridgeSides(mesh, geo.PavedFaces, p0, p1, m0, m1, y0, y1, hw);
+        if (bridge) AddBridgeSides(mesh, geo.PavedFaces, p0, p1, m0, m1, y0, y1, MathF.Max(road.HalfWidthAt(k), road.HalfWidthAt(k + 1)));
     }
 
     /// <summary>Rounds off the end of a road so junctions and dead ends have no notches.</summary>

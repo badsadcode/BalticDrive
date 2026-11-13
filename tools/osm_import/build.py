@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
-FORMAT = 4
+FORMAT = 5
 TILE = 2048.0
 LAND_RES = 512           # land-cover cells per tile side (4 m)
 LAND_CELL = TILE / LAND_RES
@@ -42,7 +42,7 @@ PAK_LIMIT = 48 * 1024 * 1024
 
 F_BRIDGE, F_TUNNEL, F_ONEWAY, F_UNPAVED, F_LIT, F_RAIL, F_STARTCAP, F_ENDCAP = 1, 2, 4, 8, 16, 32, 64, 128
 BF_GHOST, BF_TRIS, BF_PART = 1, 2, 4
-F2_JSTART, F2_JEND, F2_ONPAVED = 1, 2, 64   # second road flag byte: the piece starts / ends at a junction surface
+F2_JSTART, F2_JEND, F2_ONPAVED, F2_TAPER = 1, 2, 64, 128   # second road flag byte: the piece starts / ends at a junction surface
 
 ROAD_STEP = 10.0         # road points are at most this far apart (heights follow the ground between them)
 DECK_CLEAR = 6.0         # a bridge's deck above each road, railway or lower bridge it passes over
@@ -430,6 +430,8 @@ def build_roads(work, dem):
     junctions = junctions + paved
     jtiles = encode_junctions(junctions)
 
+    tapers = find_tapers(xy, off, node, nnodes, attrs)
+
     gx, gz = xy[:, 0], -xy[:, 1]
     per_tile = defaultdict(list)
     nways = len(attrs)
@@ -438,6 +440,8 @@ def build_roads(work, dem):
         px, pz, py, pl = gx[a:b], gz[a:b], y[a:b], lift[a:b]
         cls, flags, width_dm, layer, lanes = (int(attrs[w][k]) for k in ('cls', 'flags', 'width_dm', 'layer', 'lanes'))
         fwd = int(attrs[w]['fwd']) if 'fwd' in attrs.dtype.names else 0
+        tp = tapers.get(w)
+        way_len = float(np.hypot(np.diff(px), np.diff(pz)).sum())
         seg = np.hypot(np.diff(px), np.diff(pz))
         al = np.concatenate([[0.0], np.cumsum(seg)])
         parts = cut_way(px, pz, py, pl, al, cuts.get(w))
@@ -466,18 +470,95 @@ def build_roads(work, dem):
                     if jend:
                         f2 |= F2_JEND
                 n = i1 - i0 + 1
+                wpt = uopt = None
+                if tp:
+                    wpt, uopt = taper_profile(tp, cum[i0:i1 + 1], way_len, width_dm / 10.0)
+                    if np.abs(wpt - width_dm / 10.0).max() < 0.05:
+                        wpt = None
+                if wpt is not None:
+                    f2 |= F2_TAPER
                 rec = bytearray(struct.pack('<BBBBbBfH', cls, f, f2, width_dm, layer, lanes, float(cum[i0] % 4096.0), n))
-                q = np.empty(n, dtype=[('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')])
+                fields = [('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')]
+                if wpt is not None:
+                    fields += [('w', 'u1'), ('uo', 'i1')]
+                q = np.empty(n, dtype=fields)
                 q['x'] = np.clip(np.round((xs[i0:i1 + 1] - tx * TILE) * 10), -32768, 32767)
                 q['z'] = np.clip(np.round((zs[i0:i1 + 1] - tz * TILE) * 10), -32768, 32767)
                 q['y'] = encode_h(ys[i0:i1 + 1])
                 q['l'] = np.clip(np.round(ls[i0:i1 + 1] * 10), 0, 255)
+                if wpt is not None:
+                    q['w'] = np.clip(np.round(wpt * 10), 10, 255)
+                    q['uo'] = np.clip(np.round(uopt * 10), -127, 127)
                 per_tile[(tx, tz)].append(bytes(rec) + q.tobytes())
         if w % 300000 == 0:
             log(f'roads {w}/{nways}')
     log(f'roads cut into {sum(len(v) for v in per_tile.values())} pieces over {len(per_tile)} tiles')
     return per_tile, jtiles
 
+
+
+def find_tapers(xy, off, node, nnodes, attrs):
+    """Where two pieces of one road meet end to end (no junction) with different widths, the wider piece tapers from
+    the narrower width over a few tens of metres (D21). {way: [(at_start, length, narrow width m, side)]}; side +1 =
+    the lane opens on the right (left edge fixed), -1 = on the left (right edge fixed), 0 = both edges (two-way)."""
+    n = len(xy)
+    first, last = off[:-1], off[1:] - 1
+    inc = np.zeros(nnodes, dtype=np.int64)
+    np.add.at(inc, node, 2)
+    np.add.at(inc, node[first], -1)
+    np.add.at(inc, node[last], -1)
+    ends = defaultdict(list)
+    for w in range(len(attrs)):
+        if attrs['flags'][w] & F_RAIL or attrs['cls'][w] > 10:
+            continue
+        ends[int(node[first[w]])].append((w, True))
+        ends[int(node[last[w]])].append((w, False))
+    seglen = np.hypot(np.diff(xy[:, 0]), np.diff(xy[:, 1]))
+    out = defaultdict(list)
+    turn = attrs['turn'] if 'turn' in attrs.dtype.names else np.zeros(len(attrs), dtype=np.uint8)
+    for nd, lst in ends.items():
+        if len(lst) != 2 or inc[nd] != 2:
+            continue
+        (a, a_start), (b, b_start) = lst
+        ow_a, ow_b = bool(attrs['flags'][a] & F_ONEWAY), bool(attrs['flags'][b] & F_ONEWAY)
+        if ow_a != ow_b or a_start == b_start and ow_a:
+            continue        # one-way pieces must run on from each other
+        wa, wb = attrs['width_dm'][a] / 10.0, attrs['width_dm'][b] / 10.0
+        if abs(wa - wb) < 1.5:
+            continue
+        wide, wide_start, narrow_w = (a, a_start, wb) if wa > wb else (b, b_start, wa)
+        W = max(wa, wb)
+        L = float(seglen[off[wide]:off[wide + 1] - 1].sum())
+        T = min(float(np.clip(15.0 * (W - narrow_w), 30.0, 60.0)), 0.45 * L)
+        if T < 8.0:
+            continue
+        if not ow_a:
+            side = 0
+        elif wide_start:
+            # a lane opens in the direction of travel: by the median unless the tags say a right-turn lane
+            side = 1 if (turn[wide] & 2) and not (turn[wide] & 1) else -1
+        else:
+            side = 1        # a lane ending: the kerb-side lane merges in (left edge fixed)
+        out[wide].append((wide_start, T, narrow_w, side))
+    log(f'lane tapers: {len(out)} road pieces widen or narrow gradually where the lane count changes')
+    return out
+
+
+def taper_profile(tp, along, way_len, W):
+    """Width and UV offset (metres) at each along-the-way distance for a tapered way. The UV offset keeps lane
+    markings in place relative to the fixed edge (the shader draws lanes for the full width)."""
+    w = np.full(len(along), W)
+    uo = np.zeros(len(along))
+    for at_start, T, wn, side in tp:
+        d = along if at_start else way_len - along
+        t = np.clip(d / T, 0.0, 1.0)
+        t = t * t * (3.0 - 2.0 * t)
+        wt = wn + (W - wn) * t
+        sel = wt < w
+        w = np.where(sel, wt, w)
+        # side -1 (opens on the left, right edge fixed): right edge at +w/2 must read as +W/2
+        uo = np.where(sel, (W - wt) * 0.5 * (-side if side else 0.0), uo)
+    return w, uo
 
 
 def roads_on_paved(paved, xy, off, attrs):
@@ -496,7 +577,10 @@ def roads_on_paved(paved, xy, off, attrs):
     hit[idx[np.unique(pi)]] = True
     inside = np.bincount(way[hit], minlength=len(attrs))
     total = np.diff(off)
-    out = set(np.nonzero(inside * 2 > total)[0].tolist())
+    # service roads (car-park aisles and the lanes around them) lose their verges when they touch a paved area at
+    # all; other minor roads only when they run mostly across one
+    service = attrs['cls'] == 8
+    out = set(np.nonzero((inside * 2 > total) | (service & (inside > 0)))[0].tolist())
     log(f'paved areas: {len(out)} minor roads run across them (drawn without verges)')
     return out
 
@@ -1186,7 +1270,7 @@ def main():
         r = roads.get(t, [])
         b = buildings.get(t, [])
         p = pois.get(t, [])
-        blob = bytearray(b'BDT4')
+        blob = bytearray(b'BDT5')
         blob += struct.pack('<I', len(r)) + b''.join(r)
         jr = jtiles.get(t, [])
         blob += struct.pack('<I', len(jr)) + b''.join(jr)

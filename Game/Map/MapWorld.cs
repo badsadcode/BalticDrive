@@ -92,7 +92,7 @@ public sealed class MapContext
                                 Segs.Add(new MapSeg
                                 {
                                     Ax = offX + road.X[k], Az = offZ + road.Z[k], Bx = offX + road.X[k + 1], Bz = offZ + road.Z[k + 1],
-                                    Ya = road.Y[k], Yb = road.Y[k + 1], Hw = road.HalfWidth, Road = road, Index = k, OffX = offX, OffZ = offZ,
+                                    Ya = road.Y[k], Yb = road.Y[k + 1], Hw = MathF.Max(road.HalfWidthAt(k), road.HalfWidthAt(k + 1)), Road = road, Index = k, OffX = offX, OffZ = offZ,
                                 });
                             }
                         if (withPoints && tile.PointCell(cx, cz) is { } pc)
