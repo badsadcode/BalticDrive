@@ -28,7 +28,7 @@ public partial class MapContentStreamer : Node3D
     private readonly Dictionary<(long, long), (Node3D Node, int Lod)> _cells = new();
     private readonly Dictionary<(long, long), (Task<MapChunkGeometry> Task, int Lod, long Revision)> _jobs = new();
     private readonly Dictionary<(long, long), int> _want = new();
-    private Material _road = null!, _building = null!, _furniture = null!;
+    private Material _road = null!, _building = null!, _furniture = null!, _barrier = null!;
     private ArrayMesh _lamp = null!, _pole = null!, _pylon = null!;
     private MapSkyline? _skyline;
     private Node3D _skyRoot = null!;
@@ -40,6 +40,7 @@ public partial class MapContentStreamer : Node3D
     {
         _road = GD.Load<Material>("res://Shaders/road.tres");
         _building = GD.Load<Material>("res://Shaders/building.tres");
+        _barrier = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/barrier.gdshader") };
         _furniture = new StandardMaterial3D { VertexColorUseAsAlbedo = true, Roughness = 0.6f, Metallic = 0.3f };
         _lamp = MapMesher.LampMesh(_furniture);
         _pole = MapMesher.PoleMesh(_furniture);
@@ -138,6 +139,7 @@ public partial class MapContentStreamer : Node3D
         WorldOrigin.Anchor(node, key.Item1 * (double)CellSize, key.Item2 * (double)CellSize);
         if (!geo.Roads.Empty) node.AddChild(new MeshInstance3D { Mesh = geo.Roads.ToMesh(_road), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
         if (!geo.Buildings.Empty) node.AddChild(new MeshInstance3D { Mesh = geo.Buildings.ToMesh(_building) });
+        if (!geo.Barriers.Empty) node.AddChild(new MeshInstance3D { Mesh = geo.Barriers.ToMesh(_barrier) });
         Bodies.AddFaces(node, geo.PavedFaces, "paved", false, Bodies.Roads);
         Bodies.AddFaces(node, geo.LooseFaces, "loose", false, Bodies.Roads);
         Bodies.AddFaces(node, geo.BuildingFaces, "hard", true, Bodies.Buildings);

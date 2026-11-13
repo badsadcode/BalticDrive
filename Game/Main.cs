@@ -159,7 +159,7 @@ public partial class Main : Node3D
 	{
 		if (e is InputEventKey { Pressed: true, Keycode: Key.Bracketleft or Key.Bracketright } k)
 		{
-			_atmosphere.Hour = (_atmosphere.Hour + (k.Keycode == Key.Bracketright ? 0.5 : -0.5) + 24) % 24;
+			_atmosphere.AdvanceClock(k.Keycode == Key.Bracketright ? 0.5 : -0.5);
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -242,6 +242,7 @@ public partial class Main : Node3D
 		// --hour=HH.H (local solar time) and --day=N (day of the year) for screenshots; T+/- keys change the hour
 		if (Args.TryGetValue("hour", out var h)) _atmosphere.Hour = double.Parse(h, System.Globalization.CultureInfo.InvariantCulture);
 		if (Args.TryGetValue("day", out var d)) _atmosphere.DayOfYear = double.Parse(d, System.Globalization.CultureInfo.InvariantCulture);
+		if (Args.TryGetValue("jump", out var jmp)) _atmosphere.AdvanceClock(double.Parse(jmp, System.Globalization.CultureInfo.InvariantCulture));
 		if (Args.TryGetValue("clouds", out var c)) _atmosphere.Coverage = float.Parse(c, System.Globalization.CultureInfo.InvariantCulture);
 		AddChild(_atmosphere);
 		// look experiments: --grade=N (0 none), --volfog=0, --haze=F, --sat=F

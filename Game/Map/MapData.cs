@@ -47,7 +47,13 @@ public static class RoofKind
 /// <summary>Small things mapped one by one.</summary>
 public static class MapPointKind
 {
-    public const byte Tree = 0, Lamp = 1, Pole = 2, Pylon = 3;
+    public const byte Tree = 0, Lamp = 1, Pole = 2, Pylon = 3, Bollard = 4;
+}
+
+/// <summary>Barrier kinds (D25; tools/osm_import/common.py B_*).</summary>
+public static class BarrierKind
+{
+    public const byte Fence = 0, Wall = 1, Noise = 2, Hedge = 3, Retaining = 4, Guard = 5, CityWall = 6, Jersey = 7, Railing = 8, ConcreteFence = 9;
 }
 
 public enum MapPoiKind : byte { Fuel, Food, Shop, Medical, Diner, Garage, Police, Hardware, Camp }
@@ -94,6 +100,15 @@ public sealed class MapRoad
 /// A junction surface (format 4, D11): the area where roads meet, with rounded kerb corners. Outline rings in
 /// tile-local metres (ring 0 the outside, the rest islands), a height per vertex and a triangulation.
 /// </summary>
+/// <summary>A fence, wall, hedge or guard rail line (D25): tile-local points, and the gap a gate leaves at each (m, 0 = none).</summary>
+public sealed class MapBarrier
+{
+    public byte Kind;
+    public float Height;
+    public float[] X = null!, Z = null!, Gap = null!;
+    public int Index;
+}
+
 public sealed class MapJunction
 {
     public float[] X = null!, Z = null!, Y = null!;
@@ -226,6 +241,8 @@ public sealed class MapTile
     public float[]? Water;
     private readonly List<int>?[] _roadCells = new List<int>?[Cells * Cells];
     private readonly List<int>?[] _buildingCells = new List<int>?[Cells * Cells];
+    private readonly List<int>?[] _barrierCells = new List<int>?[Cells * Cells];
+    public MapBarrier[] Barriers = Array.Empty<MapBarrier>();
     private readonly List<int>?[] _pointCells = new List<int>?[Cells * Cells];
     private readonly List<int>?[] _junctionCells = new List<int>?[Cells * Cells];
 
@@ -245,7 +262,7 @@ public sealed class MapTile
         Tx = tx; Tz = tz; OriginX = tx * (double)Size; OriginZ = tz * (double)Size;
         using var ms = new MemoryStream(raw);
         using var r = new BinaryReader(ms);
-        if (r.ReadUInt32() != 0x35544442u) throw new InvalidDataException("bad tile magic"); // "BDT5"
+        if (r.ReadUInt32() != 0x36544442u) throw new InvalidDataException("bad tile magic"); // "BDT6"
 
         int nRoads = (int)r.ReadUInt32();
         var roads = new List<MapRoad>(nRoads);
@@ -383,6 +400,23 @@ public sealed class MapTile
             Bucket(_pointCells, PointX[i], PointZ[i], PointX[i], PointZ[i], i);
         }
 
+        int nBarriers = (int)r.ReadUInt32();
+        Barriers = new MapBarrier[nBarriers];
+        for (int i = 0; i < nBarriers; i++)
+        {
+            var b = new MapBarrier { Kind = r.ReadByte(), Height = r.ReadByte() * 0.1f, Index = i };
+            int n = r.ReadUInt16();
+            b.X = new float[n]; b.Z = new float[n]; b.Gap = new float[n];
+            float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue;
+            for (int k = 0; k < n; k++)
+            {
+                b.X[k] = r.ReadInt16() * 0.1f; b.Z[k] = r.ReadInt16() * 0.1f; b.Gap[k] = r.ReadByte() * 0.1f;
+                x0 = MathF.Min(x0, b.X[k]); x1 = MathF.Max(x1, b.X[k]); z0 = MathF.Min(z0, b.Z[k]); z1 = MathF.Max(z1, b.Z[k]);
+            }
+            Barriers[i] = b;
+            Bucket(_barrierCells, x0, z0, x1, z1, i);
+        }
+
         Land = r.ReadBytes(LandRes * LandRes);
         const int corners = (HRes + 1) * (HRes + 1);
         Ground = new float[corners];
@@ -487,6 +521,7 @@ public sealed class MapTile
 
     public List<int>? RoadCell(int cx, int cz) => _roadCells[cz * Cells + cx];
     public List<int>? BuildingCell(int cx, int cz) => _buildingCells[cz * Cells + cx];
+    public List<int>? BarrierCell(int cx, int cz) => _barrierCells[cz * Cells + cx];
     public List<int>? PointCell(int cx, int cz) => _pointCells[cz * Cells + cx];
     public List<int>? JunctionCell(int cx, int cz) => _junctionCells[cz * Cells + cx];
 
@@ -558,7 +593,7 @@ public sealed class MapPlace
 /// <summary>Opens a map (index + pack files) and hands out tiles on demand. Safe to call from worker threads.</summary>
 public sealed class MapData : IDisposable
 {
-    public const int Format = 5;
+    public const int Format = 6;
     public readonly string Name;
     public readonly string Directory;
     public readonly List<MapPlace> Places = new();

@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
-FORMAT = 5
+FORMAT = 6
 TILE = 2048.0
 LAND_RES = 512           # land-cover cells per tile side (4 m)
 LAND_CELL = TILE / LAND_RES
@@ -1209,6 +1209,44 @@ def build_points(work):
     return per_tile
 
 
+def build_barriers(work):
+    """Fences, walls, hedges, guard rails (D25) cut at tile borders: kind u8, height u8 (0.1 m), point count u16, then
+    per point x i16, z i16 (0.1 m, tile-local) and the gap a gate there leaves (u8, 0.1 m). Heights come from the
+    ground in the game."""
+    path = os.path.join(work, 'barriers.npz')
+    if not os.path.exists(path):
+        return {}
+    d = np.load(path)
+    xy = d['xy'].astype(np.float64) / 100.0
+    off, attrs = d['off'], d['attrs']
+    gaps = np.load(os.path.join(work, 'barrier_gaps.npy'))
+    per_tile = defaultdict(list)
+    n = 0
+    for w in range(len(attrs)):
+        a, b = off[w], off[w + 1]
+        if b - a < 2:
+            continue
+        px, pz = xy[a:b, 0], -xy[a:b, 1]
+        if KEEP is not None and not any(in_scope((tile_of(x), tile_of(z))) for x, z in ((px[0], pz[0]), (px[-1], pz[-1]))):
+            continue
+        g = gaps[a:b].astype(np.float64)
+        xs, zs, gs, _, pieces = split_way(px, pz, g, np.zeros_like(px))
+        # (split_way interpolates the third array at tile crossings: a gap belongs to its own node only)
+        gs = np.where(np.isin(np.round(gs), g), gs, 0)
+        kind, h = int(attrs['kind'][w]), int(attrs['height_dm'][w])
+        for (tx, tz), i0, i1 in pieces:
+            if not in_scope((tx, tz)) or i1 - i0 < 1 or i1 - i0 + 1 > 65535:
+                continue
+            q = np.empty(i1 - i0 + 1, dtype=[('x', '<i2'), ('z', '<i2'), ('g', 'u1')])
+            q['x'] = np.clip(np.round((xs[i0:i1 + 1] - tx * TILE) * 10), -32768, 32767)
+            q['z'] = np.clip(np.round((zs[i0:i1 + 1] - tz * TILE) * 10), -32768, 32767)
+            q['g'] = np.clip(np.round(gs[i0:i1 + 1]), 0, 255)
+            per_tile[(tx, tz)].append(struct.pack('<BBH', kind, h, len(q)) + q.tobytes())
+            n += 1
+    log(f'barriers: {len(attrs)} ways, {n} pieces over {len(per_tile)} tiles')
+    return per_tile
+
+
 def build_places(work):
     p = np.load(os.path.join(work, 'places.npy'))
     with open(os.path.join(work, 'place_names.txt'), encoding='utf-8') as f:
@@ -1255,6 +1293,7 @@ def main():
     buildings = build_buildings(args.work)
     pois = build_pois(args.work)
     points = build_points(args.work)
+    barriers = build_barriers(args.work)
     land = build_land(args.work, set(roads) | set(jtiles) | set(buildings) | set(points), args.workers)
     heights, water = build_heights(land, args.dem, args.workers)
     txs = [t[0] for t in land]
@@ -1270,7 +1309,7 @@ def main():
         r = roads.get(t, [])
         b = buildings.get(t, [])
         p = pois.get(t, [])
-        blob = bytearray(b'BDT5')
+        blob = bytearray(b'BDT6')
         blob += struct.pack('<I', len(r)) + b''.join(r)
         jr = jtiles.get(t, [])
         blob += struct.pack('<I', len(jr)) + b''.join(jr)
@@ -1278,6 +1317,8 @@ def main():
         blob += struct.pack('<H', len(p)) + b''.join(p)
         pt = points.get(t)
         blob += struct.pack('<I', 0 if pt is None else len(pt)) + (b'' if pt is None else pt.tobytes())
+        br = barriers.get(t, [])
+        blob += struct.pack('<I', len(br)) + b''.join(br)
         blob += land[t]
         blob += heights[t]
         wb = water.get(t)

@@ -1,4 +1,4 @@
-# Map packs, format 5
+# Map packs, format 6
 
 Written by `tools/osm_import/build.py`, read by `Game/Map/MapData.cs`. Little-endian throughout. Change both together
 and bump `FORMAT`.
@@ -14,7 +14,7 @@ and bump `FORMAT`.
 | Field | Type |
 | --- | --- |
 | magic | `BDIX` |
-| format | u32 = 5 |
+| format | u32 = 6 |
 | tile size | f32 = 2048 |
 | land raster | u32 = 512 (cells per side, 4 m) |
 | height grid | u32 = 256 (cells per side, 8 m; 257² corner values) |
@@ -27,7 +27,7 @@ Tile (tx, tz) covers world x ∈ [tx·2048, (tx+1)·2048), z ∈ [tz·2048, (tz+
 
 ## Tile blob
 
-`BDT5`, then:
+`BDT6`, then:
 
 1. **Roads**: u32 count, each: class u8, flags u8 (1 bridge, 2 tunnel, 4 one-way, 8 unpaved, 16 lit, 32 rail,
    64 start cap, 128 end cap), flags2 u8 (1 starts at a junction surface, 2 ends at one, bits 2–5: lanes in the point direction on a
@@ -44,9 +44,12 @@ Tile (tx, tz) covers world x ∈ [tx·2048, (tx+1)·2048), z ∈ [tz·2048, (tz+
 3. **Buildings**: u32 count, each: type u8, flags u8 (1 ghost, 2 has triangles, 4 part), roof u8, height u16 (0.1 m),
    min height u16, roof height u16, ring count u8, rings (u16 n, n × (x i16, z i16)), then if flag 2: u16 n, n × u16.
 4. **POIs**: u16 count, each: kind u8, x u16, z u16 (0.1 m), name length u8, UTF-8 name.
-5. **Points** (trees, lamps, poles, pylons): u32 count, each: kind u8, x u16, z u16.
-6. **Land cover**: 512 × 512 u8, rows north to south.
-7. **Ground**: 257 × 257 u16 corner heights (natural ground with water beds carved in), rows north to south.
-8. **Water**: u8 flag; if 1: 257 × 257 u16 water surface heights, 0 = dry.
+5. **Points** (trees, lamps, poles, pylons, bollards): u32 count, each: kind u8, x u16, z u16.
+6. **Barriers** (D25): u32 count, each: kind u8 (fence, wall, noise barrier, hedge, retaining wall, guard rail, city
+   wall, jersey barrier, railing, concrete fence), height u8 (0.1 m), point count u16, then per point x i16, z i16
+   (0.1 m, tile-local) and gap u8 (0.1 m: the opening a gate at that point leaves, 0 = none).
+7. **Land cover**: 512 × 512 u8, rows north to south.
+8. **Ground**: 257 × 257 u16 corner heights (natural ground with water beds carved in), rows north to south.
+9. **Water**: u8 flag; if 1: 257 × 257 u16 water surface heights, 0 = dry.
 
 Class, flag, land-cover and kind numbers: `tools/osm_import/common.py` and the top of `MapData.cs`.

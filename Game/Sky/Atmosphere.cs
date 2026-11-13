@@ -39,7 +39,15 @@ public partial class Atmosphere : Node3D
     private float _adapted = 1;
     private const float BaseExposure = .95f * 1.15f;   // natural look at exposure 1
     private Vector2 _windDir = new Vector2(0.75f, 0.45f).Normalized();
-    private const float WindSpeed = 5f;                // m/s at the ground
+    private const float WindSpeed = 7f;                // m/s at the ground (clouds ride ~1.35× that)
+    private double _cloudJump;                          // game seconds the clock jumped since the last frame
+
+    /// <summary>Moves the clock by <paramref name="hours"/>; the clouds drift and change as if that time had passed.</summary>
+    public void AdvanceClock(double hours)
+    {
+        Hour = ((Hour + hours) % 24 + 24) % 24;
+        _cloudJump += hours * 3600;
+    }
 
     public override void _Ready()
     {
@@ -199,20 +207,23 @@ public partial class Atmosphere : Node3D
         }
         _shafts.SetShaderParameter("sun_color", Sun.LightColor);
 
-        // clouds drift with the wind; layers on their own winds (high cirrus slow and veered, low scud fast)
+        // clouds drift with the wind; layers on their own winds (high cirrus slow and veered, low scud fast). They run on
+        // game time: a running clock or a jump of the clock carries them along (Tom: the big clouds never changed)
+        double cloudDt = delta * (1 + TimeScale * 3600) + _cloudJump;
+        _cloudJump = 0;
         double wind = WindSpeed * 1.5 * 0.9;
-        _windX = (_windX + delta * wind * _windDir.X) % CloudPeriod;
-        _windZ = (_windZ + delta * wind * _windDir.Y) % CloudPeriod;
+        _windX = (_windX + cloudDt * wind * _windDir.X) % CloudPeriod;
+        _windZ = (_windZ + cloudDt * wind * _windDir.Y) % CloudPeriod;
         var high = _windDir.Rotated(.9f);
         double highPeriod = CloudPeriod * 25, lowPeriod = CloudPeriod * .45 * 40;
-        _highX = (_highX + delta * wind * .35 * high.X) % highPeriod; _highZ = (_highZ + delta * wind * .35 * high.Y) % highPeriod;
-        _lowX = (_lowX + delta * wind * 1.9 * _windDir.X) % lowPeriod; _lowZ = (_lowZ + delta * wind * 1.9 * _windDir.Y) % lowPeriod;
+        _highX = (_highX + cloudDt * wind * .35 * high.X) % highPeriod; _highZ = (_highZ + cloudDt * wind * .35 * high.Y) % highPeriod;
+        _lowX = (_lowX + cloudDt * wind * 1.9 * _windDir.X) % lowPeriod; _lowZ = (_lowZ + cloudDt * wind * 1.9 * _windDir.Y) % lowPeriod;
         double cx = Wrap(cameraWorldX + _windX, CloudPeriod), cz = Wrap(cameraWorldZ + _windZ, CloudPeriod);
         RenderingServer.GlobalShaderParameterSet("cloud_state", new Vector4((float)cx, (float)cz, Coverage, 0));
         RenderingServer.GlobalShaderParameterSet("cloud_layers", new Vector4(
             (float)Wrap(cameraWorldX + _highX, highPeriod), (float)Wrap(cameraWorldZ + _highZ, highPeriod),
             (float)Wrap(cameraWorldX + _lowX, lowPeriod), (float)Wrap(cameraWorldZ + _lowZ, lowPeriod)));
-        _cloudTime = (_cloudTime + delta) % 100000;
+        _cloudTime = ((_cloudTime + cloudDt) % 100000 + 100000) % 100000;
         RenderingServer.GlobalShaderParameterSet("cloud_types", new Vector4(Cumulus, 0, 0, 0));
         float baseAbove = Mathf.Min(CloudBaseAboveSea - cameraLocal.Y, 2200);
         RenderingServer.GlobalShaderParameterSet("cloud_more", new Vector4(0, Mathf.Atan2(_windDir.Y, _windDir.X), (float)_cloudTime, baseAbove));

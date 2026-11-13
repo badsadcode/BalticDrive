@@ -53,6 +53,7 @@ public sealed class MapContext
     public readonly List<MapSeg> Segs = new();
     public readonly List<MapBuildingRef> Buildings = new();
     public readonly List<MapJunctionRef> Junctions = new();
+    public readonly List<(MapBarrier B, float OffX, float OffZ)> Barriers = new();
     /// <summary>Mapped trees, lamps, poles and pylons: X/Z local metres, Y holds the <see cref="MapPointKind"/>.</summary>
     public readonly List<(float X, byte Kind, float Z)> Points = new();
     private readonly HashSet<long> _seen = new();
@@ -64,7 +65,7 @@ public sealed class MapContext
     public void Reset(double ox, double oz, float minX, float minZ, float maxX, float maxZ, bool withPoints = true)
     {
         Ox = ox; Oz = oz;
-        Segs.Clear(); Buildings.Clear(); Junctions.Clear(); Points.Clear(); _seen.Clear(); _tile = null;
+        Segs.Clear(); Buildings.Clear(); Junctions.Clear(); Points.Clear(); Barriers.Clear(); _seen.Clear(); _tile = null;
         double wx0 = ox + minX - Reach, wx1 = ox + maxX + Reach, wz0 = oz + minZ - Reach, wz1 = oz + maxZ + Reach;
         int tx0 = (int)Math.Floor(wx0 / MapTile.Size), tx1 = (int)Math.Floor(wx1 / MapTile.Size);
         int tz0 = (int)Math.Floor(wz0 / MapTile.Size), tz1 = (int)Math.Floor(wz1 / MapTile.Size);
@@ -104,6 +105,9 @@ public sealed class MapContext
                                 if (!_seen.Add(tileKey | 0x40000000u | (uint)ji)) continue;
                                 Junctions.Add(new MapJunctionRef { J = tile.Junctions[ji], OffX = offX, OffZ = offZ });
                             }
+                        if (withPoints && tile.BarrierCell(cx, cz) is { } brc)
+                            foreach (int bi in brc)
+                                if (_seen.Add(tileKey | 0x20000000u | (uint)bi)) Barriers.Add((tile.Barriers[bi], offX, offZ));
                         if (tile.BuildingCell(cx, cz) is { } bc)
                             foreach (int bi in bc)
                             {

@@ -185,3 +185,15 @@ The magenta (and some green and blue) specks on the horizon came from the terrai
 pixels' albedo came out invalid, and ACES plus the colour grade turned them into saturated specks (found by turning
 effects off one by one: only replacing the terrain shader removed them). The albedo is now clamped and the world
 normal guarded; 0 specks in the test views.
+
+## D25 — Fences, walls, hedges and guard rails (tile format 6)
+OSM maps 223k fences, 19k hedges, 11k walls (1,800 noise barriers), 3,600 retaining walls and 3,400 guard rails in
+Mazowsze, with 144k gate nodes. They are extracted as lines (barriers.npz, kind and height; gate nodes on a line
+give a gap per point) and written per tile (section 6). In the game Map/BarrierMesher.cs walks each line in ≤2 m
+steps on the road-shaped ground, leaves a gap at gates and wherever the line would cross a drivable road or a
+junction surface, and builds thin double-sided panels with posts (wire mesh, railings, concrete panels, guard rails)
+or boxes with caps (walls, hedges, noise barriers, retaining walls, jersey barriers, city walls). One shader
+(Shaders/barrier.gdshader) draws every style from COLOR.a: wire mesh and railings are cut out and thin to a
+dithered veil with distance, brick, plaster, concrete panels, ribbed noise barrier panels, leafy hedges with a
+ragged top. Near chunks (lod 0) collide; drawn to ~600 m (lod 1, no posts). Bollards (barrier=bollard/block nodes)
+are a new point kind: short posts with collision. Looks are generated, not Synty yet — a later pass can swap pieces.

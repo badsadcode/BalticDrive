@@ -85,6 +85,7 @@ public sealed class MapChunkGeometry
 {
     public readonly MeshData Roads = new();
     public readonly MeshData Buildings = new();
+    public readonly MeshData Barriers = new();
     public List<Vector3>? PavedFaces, LooseFaces, BuildingFaces;
     /// <summary>MultiMesh instance buffers for street lamps, wooden power poles and pylons.</summary>
     public List<float>? Lamps, Poles, Pylons;
@@ -162,6 +163,7 @@ public static class MapMesher
             AddJunction(geo, jr, lod);
         }
         AddFurniture(ctx, size, lod, geo, collide);
+        BarrierMesher.AddBarriers(ctx, size, lod, geo.Barriers, collide ? geo.BuildingFaces ??= new List<Vector3>() : null);
         var list = ctx.Buildings;
         for (int i = 0; i < list.Count; i++)
         {
@@ -439,6 +441,15 @@ public static class MapMesher
             if (!StepOffRoad(ctx, ref p.X, ref p.Z)) continue;
             float y = ctx.Height(p.X, p.Z, 0f, out _);
             if (!float.IsNaN(ctx.Water(p.X, p.Z))) continue;
+            if (kind == MapPointKind.Bollard)
+            {
+                // a short concrete or dark steel post (D25); kept off drivable roads like the others
+                bool steel = (Hash.Of((int)(p.X * 10f), (int)(p.Z * 10f), 9) & 1) == 0;
+                var bc = steel ? new Color(.12f, .12f, .13f, 0f) : new Color(.55f, .54f, .5f, 0f);
+                geo.Barriers.Box(new Vector3(p.X - .07f, y - .2f, p.Z - .07f), new Vector3(p.X + .07f, y + .9f, p.Z + .07f), bc);
+                if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(p.X, y, p.Z, 0.08f));
+                continue;
+            }
             float yaw = 0f;
             if (kind == MapPointKind.Lamp)
             {

@@ -194,12 +194,38 @@ def poi_kind(tags):
 
 
 # small point features (must match MapPointKind in MapData.cs)
-PT_TREE, PT_LAMP, PT_POLE, PT_PYLON = range(4)
+PT_TREE, PT_LAMP, PT_POLE, PT_PYLON, PT_BOLLARD = range(5)
+
+
+# Barriers (D25): kind byte in barriers.npz and the tile records; default height (m) per kind
+B_FENCE, B_WALL, B_NOISE, B_HEDGE, B_RETAINING, B_GUARD, B_CITYWALL, B_JERSEY, B_RAILING, B_CONCRETE_FENCE = range(10)
+BARRIER_HEIGHT = {B_FENCE: 1.6, B_WALL: 2.0, B_NOISE: 3.5, B_HEDGE: 1.5, B_RETAINING: 1.2, B_GUARD: 0.75,
+                  B_CITYWALL: 5.0, B_JERSEY: 0.8, B_RAILING: 1.1, B_CONCRETE_FENCE: 2.0}
+# Gates and passages on a barrier line: the gap they leave (m)
+BARRIER_GAPS = {'gate': 3.5, 'swing_gate': 3.5, 'lift_gate': 4.0, 'sliding_gate': 4.5, 'wicket_gate': 1.1,
+                'entrance': 2.0, 'kissing_gate': 1.2, 'turnstile': 1.0, 'stile': 1.0, 'cycle_barrier': 1.5}
+
+
+def barrier_kind(tags):
+    b = tags.get('barrier')
+    if b == 'fence':
+        ft = tags.get('fence_type', '')
+        if ft in ('railing', 'bars', 'metal_bars', 'railings'):
+            return B_RAILING
+        if ft in ('concrete', 'panel'):
+            return B_CONCRETE_FENCE
+        return B_FENCE
+    if b == 'wall':
+        return B_NOISE if tags.get('wall') == 'noise_barrier' else B_WALL
+    return {'hedge': B_HEDGE, 'retaining_wall': B_RETAINING, 'guard_rail': B_GUARD, 'city_wall': B_CITYWALL,
+            'jersey_barrier': B_JERSEY, 'handrail': B_RAILING}.get(b)
 
 
 def point_kind(tags):
     if tags.get('natural') == 'tree':
         return PT_TREE
+    if tags.get('barrier') in ('bollard', 'block'):
+        return PT_BOLLARD
     if tags.get('highway') == 'street_lamp':
         return PT_LAMP
     p = tags.get('power')

@@ -18,7 +18,7 @@ import osmium
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from common import project, parse_float, ROAD_CLASS, RAIL, LANDUSE, building_type, \
-    BUILDING_DEFAULT_HEIGHT, ROOF_SHAPES, poi_kind, point_kind, PT_TREE, PLACE_RANK
+    BUILDING_DEFAULT_HEIGHT, ROOF_SHAPES, poi_kind, point_kind, PT_TREE, PLACE_RANK, barrier_kind, BARRIER_HEIGHT, BARRIER_GAPS
 
 
 class Lines:
@@ -104,6 +104,7 @@ ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'
               ('turn', 'u1')]
 # Paved areas drawn as asphalt (D20): 0 parking or fuel forecourt, 1 pedestrian square, 2 carriageway area
 PAVED_DTYPE = [('kind', 'u1')]
+BARRIER_DTYPE = [('kind', 'u1'), ('height_dm', 'u1')]
 WATERLINE_DTYPE = [('width_dm', 'u1')]
 LAND_DTYPE = [('cls', 'u1')]
 BUILDING_DTYPE = [('type', 'u1'), ('part', 'u1'), ('roof', 'u1'), ('height_dm', 'u2'),
@@ -125,6 +126,9 @@ class Handler(osmium.SimpleHandler):
         self.land = Polys()
         self.buildings = Polys()
         self.paved = Polys()
+        self.barriers = Lines()
+        self.barrier_gap = array('B')   # per barrier point: the gap a gate there leaves (0.1 m), 0 = none
+        self.gates = {}                 # node id -> gap (0.1 m), from gate nodes (read before the ways)
         self.pois = []      # (kind, x_cm, y_cm, name)
         self.places = []    # (rank, x_cm, y_cm, population, name)
         self.pt_kind = array('B')   # trees, lamps, poles, pylons
@@ -158,6 +162,9 @@ class Handler(osmium.SimpleHandler):
             return
         if not n.location.valid():
             return
+        gap = BARRIER_GAPS.get(n.tags.get('barrier'))
+        if gap is not None:
+            self.gates[n.id] = int(round(gap * 10))
         pk = point_kind(n.tags)
         if pk is not None:
             self.pt_kind.append(pk)
@@ -179,6 +186,15 @@ class Handler(osmium.SimpleHandler):
             self.add_road(w, tags, cls, default_width, hw)
         elif rw in RAIL and tags.get('service') not in ('yard', 'siding', 'spur', 'crossover'):
             self.add_road(w, tags, RAIL[rw], 3.2, None)
+        elif barrier_kind(tags) is not None and tags.get('location') not in ('underground', 'indoor'):
+            kind = barrier_kind(tags)
+            lons, lats = self.coords(w)
+            if lons is not None:
+                h = parse_float(tags.get('height'))
+                if h is None or h <= 0.2 or h > 20:
+                    h = BARRIER_HEIGHT[kind]
+                self.barriers.add(lons, lats, (kind, int(min(255, round(h * 10)))))
+                self.barrier_gap.extend(self.gates.get(nd.ref, 0) for nd in w.nodes)
         elif tags.get('natural') == 'tree_row':
             # a mapped avenue: one tree roughly every 9 m along the line
             lons, lats = self.coords(w)
@@ -385,6 +401,10 @@ def main():
     h.land.save(os.path.join(work, 'land.npz'), LAND_DTYPE)
     h.buildings.save(os.path.join(work, 'buildings.npz'), BUILDING_DTYPE)
     h.paved.save(os.path.join(work, 'paved.npz'), PAVED_DTYPE)
+    h.barriers.save(os.path.join(work, 'barriers.npz'), BARRIER_DTYPE)
+    np.save(os.path.join(work, 'barrier_gaps.npy'), np.frombuffer(h.barrier_gap, dtype=np.uint8))
+    print(f'{len(h.barriers.attrs)} barriers (fences, walls, hedges, guard rails), '
+          f'{int((np.frombuffer(h.barrier_gap, dtype=np.uint8) > 0).sum())} gates on them', flush=True)
     print(f'{len(h.paved.attrs)} paved areas (parking, squares, carriageway areas)', flush=True)
     np.save(os.path.join(work, 'pois.npy'), np.array(
         [(k, x, y) for k, x, y, _ in h.pois], dtype=[('kind', 'u1'), ('x', 'i4'), ('y', 'i4')]))
