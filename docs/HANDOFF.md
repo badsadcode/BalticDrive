@@ -56,6 +56,10 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 ## Not done / next
 
 * Far roads (beyond ~1 km) are not drawn; motorways vanish into the distance.
+* Lane changes along a road (2 → 3 lanes where a turn lane opens, 3 → 2 where lanes merge): OSM splits the way at
+  that node and each piece has one width, so the road steps sideways. Plan (Tom, 13 Nov): per-point width, taper
+  the wider piece over ~30–50 m, keep existing lanes fixed and grow the new one on the side `turn:lanes` implies
+  (left-turn lanes by the median), merges in reverse.
 * Trees: OSM's mapped trees and forests are not planted yet (Thornwake's tree field and impostors are the candidate).
 * Sky and atmosphere: Godot's procedural sky; Thornwake's Atmosphere is the candidate.
 * Rivers use the lake water style; flow direction from OSM waterways is not fed to the shader yet.

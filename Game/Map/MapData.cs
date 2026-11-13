@@ -23,7 +23,7 @@ public static class RoadFlag
 {
     public const byte Bridge = 1, Tunnel = 2, Oneway = 4, Unpaved = 8, Lit = 16, Rail = 32, StartCap = 64, EndCap = 128;
     /// <summary>Second flag byte: the piece starts / ends at the edge of a junction surface.</summary>
-    public const byte JunctionStart = 1, JunctionEnd = 2;
+    public const byte JunctionStart = 1, JunctionEnd = 2, OnPaved = 64;   // flags2 (bits 2..5: lane split)
 }
 
 /// <summary>Road classes, most important first. Rail is last and is not drivable.</summary>
@@ -78,6 +78,10 @@ public sealed class MapRoad
     public bool IsTram => Cls == RoadClass.Tram;
     public bool Unpaved => (Flags & RoadFlag.Unpaved) != 0;
     public bool Drivable => !IsRail;
+    /// <summary>Lanes in the direction of the points on a two-way road when OSM says (D19); 0 = even split.</summary>
+    public int LanesForward => (Flags2 >> 2) & 15;
+    /// <summary>Runs across a paved area (a parking aisle, a lane over a square): drawn without verges (D20).</summary>
+    public bool OnPaved => (Flags2 & RoadFlag.OnPaved) != 0;
     public bool StartsAtJunction => (Flags2 & RoadFlag.JunctionStart) != 0;
     public bool EndsAtJunction => (Flags2 & RoadFlag.JunctionEnd) != 0;
 }
@@ -93,6 +97,8 @@ public sealed class MapJunction
     public int[] RingEnds = null!;
     public ushort[] Tris = null!;
     public bool Ghost, Elevated;
+    /// <summary>A paved area (parking, square, carriageway area; D20), not a junction: no routing or stop lines.</summary>
+    public bool Paved, Pedestrian;
     public float MinX, MinZ, MaxX, MaxZ, Cx, Cz;
 
     public bool Contains(float x, float z)
@@ -291,7 +297,7 @@ public sealed class MapTile
             var ends = new int[rings];
             int total = 0;
             for (int q = 0; q < rings; q++) { total += r.ReadUInt16(); ends[q] = total; }
-            var j = new MapJunction { RingEnds = ends, Ghost = (jf & 1) != 0, Elevated = (jf & 2) != 0, X = new float[total], Z = new float[total], Y = new float[total] };
+            var j = new MapJunction { RingEnds = ends, Ghost = (jf & 1) != 0, Elevated = (jf & 2) != 0, Paved = (jf & 4) != 0, Pedestrian = (jf & 8) != 0, X = new float[total], Z = new float[total], Y = new float[total] };
             j.MinX = j.MinZ = float.MaxValue; j.MaxX = j.MaxZ = float.MinValue;
             for (int k = 0; k < total; k++)
             {

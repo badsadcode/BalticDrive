@@ -119,3 +119,20 @@ residential and unclassified 6.5 m, living street and pedestrian 5.5 m, service 
 unchanged). Tagged lane counts get 3.5 m a lane (was 3.3). A mapped width is kept but raised to 3 m per tagged lane,
 and two-way streets never come out under 5 m unless mapped as one lane. Real streets are much wider than their
 carriageway between building lines, so the extra metre does not reach into buildings.
+
+## D19 — Uneven lane splits
+A two-way road with an odd lane count (OSM `lanes=3`) drew only a centre line, so 3 lanes looked like one wide lane
+each way. The importer now reads `lanes:forward` / `lanes:backward`, or counts `turn:lanes:forward` / `:backward`,
+and stores the lanes in the way's direction in road flags2 bits 2–5 (0 = unknown, drawn as before). The road shader
+gets the lane count and that split packed into COLOR.a (lanes + 9 × forward, over 255, safe in 8-bit colours) and
+puts the centre line after the backward lanes, with dividers on both sides. Without split tags an odd count stays a
+plain centre line; guessing the side would be wrong half the time.
+(Bitwy Warszawskiej at Grójecka is the temporary roadworks layout: one carriageway is `highway=construction`, so it
+is not drawn, and the other carries 3 lanes both ways.)
+
+## D20 — Parking lots and squares are paved surfaces
+Parking lots were land-cover paint (`L_PAVED`), which reads as packed dirt. Now `amenity=parking` / `fuel` (not
+underground, multi-storey or rooftop, not on an unpaved surface), `area:highway=*`, `highway=pedestrian|footway|
+service|living_street` with `area=yes`, and `place=square` are extracted to `paved.npz` and built as flat surfaces
+like junctions: the same record with flag 4 (8 = pedestrian paving, drawn as concrete). They shape the ground, have
+collision, sit just under the roads crossing them, and the router and stop-line logic ignore them.

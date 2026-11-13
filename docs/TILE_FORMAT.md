@@ -30,12 +30,14 @@ Tile (tx, tz) covers world x ∈ [tx·2048, (tx+1)·2048), z ∈ [tz·2048, (tz+
 `BDT4`, then:
 
 1. **Roads**: u32 count, each: class u8, flags u8 (1 bridge, 2 tunnel, 4 one-way, 8 unpaved, 16 lit, 32 rail,
-   64 start cap, 128 end cap), flags2 u8 (1 starts at a junction surface, 2 ends at one), width u8 (0.1 m), layer i8,
+   64 start cap, 128 end cap), flags2 u8 (1 starts at a junction surface, 2 ends at one, bits 2–5: lanes in the point direction on a
+   two-way road, 0 = even split; D19), width u8 (0.1 m), layer i8,
    mapped lanes u8 (0 = unknown), distance along the whole way at the first point f32, point count u16, then per
    point x i16 (0.1 m, tile-local), z i16, height u16 (absolute, height units), lift u8 (0.1 m above natural ground).
    Points ≤ 10 m apart. Roads are cut where they enter a junction surface.
-2. **Junctions** (D11): u32 count, each: flags u8 (1 ghost: drawn by another tile, here only to shape the ground;
-   2 elevated), ring count u8, ring sizes (ring count × u16; the first ring is the outline, the rest holes), then per
+2. **Junctions** (D11) and **paved areas** (D20): u32 count, each: flags u8 (1 ghost: drawn by another tile, here
+   only to shape the ground; 2 elevated; 4 paved area — parking, square, carriageway area — not a junction; 8 pedestrian
+   paving), ring count u8, ring sizes (ring count × u16; the first ring is the outline, the rest holes), then per
    point x i16, z i16 (0.1 m, tile-local), height u16 (height units), then u32 index count and that many u16 triangle
    indices into the points.
 3. **Buildings**: u32 count, each: type u8, flags u8 (1 ghost, 2 has triangles, 4 part), roof u8, height u16 (0.1 m),

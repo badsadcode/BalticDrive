@@ -123,6 +123,7 @@ public sealed class MapRouter
         }
         foreach (var j in tile.Junctions)
         {
+            if (j.Paved) continue;   // parking lots and squares are not junctions
             double jx0 = tile.OriginX + j.MinX - 2, jx1 = tile.OriginX + j.MaxX + 2, jz0 = tile.OriginZ + j.MinZ - 2, jz1 = tile.OriginZ + j.MaxZ + 2;
             var here = new List<JunctionEnd>();
             for (int ttz = (int)Math.Floor(jz0 / MapTile.Size); ttz <= (int)Math.Floor(jz1 / MapTile.Size); ttz++)

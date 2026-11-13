@@ -96,7 +96,11 @@ class Polys:
                  attrs=np.array(self.attrs, dtype=attr_dtype))
 
 
-ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'), ('lanes', 'u1')]
+# fwd: lanes in the way's direction on a two-way road when OSM says (lanes:forward, or counted from turn:lanes);
+# 0 = unknown (drawn as an even split). See D19.
+ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'), ('lanes', 'u1'), ('fwd', 'u1')]
+# Paved areas drawn as asphalt (D20): 0 parking or fuel forecourt, 1 pedestrian square, 2 carriageway area
+PAVED_DTYPE = [('kind', 'u1')]
 WATERLINE_DTYPE = [('width_dm', 'u1')]
 LAND_DTYPE = [('cls', 'u1')]
 BUILDING_DTYPE = [('type', 'u1'), ('part', 'u1'), ('roof', 'u1'), ('height_dm', 'u2'),
@@ -117,6 +121,7 @@ class Handler(osmium.SimpleHandler):
         self.waterlines = Lines()
         self.land = Polys()
         self.buildings = Polys()
+        self.paved = Polys()
         self.pois = []      # (kind, x_cm, y_cm, name)
         self.places = []    # (rank, x_cm, y_cm, population, name)
         self.pt_kind = array('B')   # trees, lamps, poles, pylons
@@ -225,6 +230,22 @@ class Handler(osmium.SimpleHandler):
         if tags.get('lit') == 'yes':
             flags |= FLAG_LIT
         lanes = parse_float(tags.get('lanes')) or 0
+        fwd = 0
+        if not (flags & FLAG_ONEWAY) and hw is not None:
+            def count(key):
+                v = parse_float(tags.get(f'lanes:{key}'))
+                if v is None and tags.get(f'turn:lanes:{key}'):
+                    v = tags[f'turn:lanes:{key}'].count('|') + 1
+                return int(v) if v else 0
+            lf, lb = count('forward'), count('backward')
+            if lanes < 1 and lf and lb:
+                lanes = lf + lb
+            if lanes >= 2:
+                if lf and lf < lanes:
+                    fwd = lf
+                elif lb and lb < lanes:
+                    fwd = int(lanes) - lb
+            fwd = max(0, min(8, fwd))
         width = parse_float(tags.get('width'))
         if hw is None:
             width = default_width
@@ -248,7 +269,7 @@ class Handler(osmium.SimpleHandler):
             layer = 0
         layer = max(-5, min(5, layer))
         self.roads.add(lons, lats,
-                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes)))),
+                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd),
                        [nd.ref for nd in w.nodes])
 
     # ---- areas ---------------------------------------------------------------------------
@@ -272,6 +293,9 @@ class Handler(osmium.SimpleHandler):
         cls = LANDUSE(tags)
         if cls is not None:
             self.land.add_area(a, (cls,))
+        kind = paved_kind(tags)
+        if kind is not None:
+            self.paved.add_area(a, (kind,))
         if tags.get('amenity') == 'fuel' or tags.get('shop') or tags.get('place') in PLACE_RANK:
             self.add_area_poi(a, tags)
 
@@ -316,6 +340,26 @@ class Handler(osmium.SimpleHandler):
                                     int(round(min_h * 10)), int(round(roof_h * 10)), has_height))
 
 
+def paved_kind(tags):
+    """Areas that are a sheet of asphalt or paving at ground level (D20), or None."""
+    if tags.get('surface') in UNPAVED:
+        return None
+    lay = tags.get('layer', '0')
+    if lay.lstrip('-').isdigit() and int(lay) != 0:
+        return None
+    if tags.get('amenity') in ('parking', 'fuel'):
+        if tags.get('parking') in ('underground', 'multi-storey', 'rooftop', 'garage_boxes', 'carports'):
+            return None
+        return 0
+    if tags.get('area:highway'):
+        return 1 if tags['area:highway'] in ('footway', 'pedestrian', 'cycleway', 'path', 'steps') else 2
+    if tags.get('highway') in ('pedestrian', 'footway', 'service', 'living_street') and tags.get('area') == 'yes':
+        return 1 if tags['highway'] in ('pedestrian', 'footway') else 2
+    if tags.get('place') == 'square':
+        return 1
+    return None
+
+
 def main():
     pbf, work = sys.argv[1], sys.argv[2]
     os.makedirs(work, exist_ok=True)
@@ -329,6 +373,8 @@ def main():
     h.waterlines.save(os.path.join(work, 'waterlines.npz'), WATERLINE_DTYPE)
     h.land.save(os.path.join(work, 'land.npz'), LAND_DTYPE)
     h.buildings.save(os.path.join(work, 'buildings.npz'), BUILDING_DTYPE)
+    h.paved.save(os.path.join(work, 'paved.npz'), PAVED_DTYPE)
+    print(f'{len(h.paved.attrs)} paved areas (parking, squares, carriageway areas)', flush=True)
     np.save(os.path.join(work, 'pois.npy'), np.array(
         [(k, x, y) for k, x, y, _ in h.pois], dtype=[('kind', 'u1'), ('x', 'i4'), ('y', 'i4')]))
     with open(os.path.join(work, 'poi_names.txt'), 'w', encoding='utf-8') as f:

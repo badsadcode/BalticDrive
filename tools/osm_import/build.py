@@ -42,7 +42,7 @@ PAK_LIMIT = 48 * 1024 * 1024
 
 F_BRIDGE, F_TUNNEL, F_ONEWAY, F_UNPAVED, F_LIT, F_RAIL, F_STARTCAP, F_ENDCAP = 1, 2, 4, 8, 16, 32, 64, 128
 BF_GHOST, BF_TRIS, BF_PART = 1, 2, 4
-F2_JSTART, F2_JEND = 1, 2   # second road flag byte: the piece starts / ends at a junction surface
+F2_JSTART, F2_JEND, F2_ONPAVED = 1, 2, 64   # second road flag byte: the piece starts / ends at a junction surface
 
 ROAD_STEP = 10.0         # road points are at most this far apart (heights follow the ground between them)
 DECK_CLEAR = 6.0         # a bridge's deck above each road, railway or lower bridge it passes over
@@ -425,6 +425,9 @@ def build_roads(work, dem):
     from junctions import build_junctions
     cuts, junctions = build_junctions(xy, off, node, nnodes, attrs, y, lift, log)
     decks = underpass_decks(underpasses, xy, off, attrs, y, junctions)
+    paved = build_paved(work, dem)
+    on_paved = roads_on_paved(paved, xy, off, attrs)
+    junctions = junctions + paved
     jtiles = encode_junctions(junctions)
 
     gx, gz = xy[:, 0], -xy[:, 1]
@@ -433,7 +436,8 @@ def build_roads(work, dem):
     for w in range(nways):
         a, b = off[w], off[w + 1]
         px, pz, py, pl = gx[a:b], gz[a:b], y[a:b], lift[a:b]
-        cls, flags, width_dm, layer, lanes = (int(v) for v in attrs[w])
+        cls, flags, width_dm, layer, lanes = (int(attrs[w][k]) for k in ('cls', 'flags', 'width_dm', 'layer', 'lanes'))
+        fwd = int(attrs[w]['fwd']) if 'fwd' in attrs.dtype.names else 0
         seg = np.hypot(np.diff(px), np.diff(pz))
         al = np.concatenate([[0.0], np.cumsum(seg)])
         parts = cut_way(px, pz, py, pl, al, cuts.get(w))
@@ -450,7 +454,7 @@ def build_roads(work, dem):
             for (tx, tz), i0, i1 in pieces:
                 if not in_scope((tx, tz)):
                     continue
-                f, f2 = flags | (F_BRIDGE if deck and deck[0] else 0), 0
+                f, f2 = flags | (F_BRIDGE if deck and deck[0] else 0), (min(fwd, 15) << 2) | (F2_ONPAVED if w in on_paved else 0)
                 if i0 == 0:
                     if orig_start:
                         f |= F_STARTCAP
@@ -474,6 +478,80 @@ def build_roads(work, dem):
     log(f'roads cut into {sum(len(v) for v in per_tile.values())} pieces over {len(per_tile)} tiles')
     return per_tile, jtiles
 
+
+
+def roads_on_paved(paved, xy, off, attrs):
+    """Minor roads that run mostly across a paved area (parking aisles, lanes over squares): drawn without verges."""
+    if not paved:
+        return set()
+    import shapely
+    polys = [shapely.Polygon(p['xy'][:int(p['ends'][0])]) for p in paved]
+    tree = shapely.STRtree(polys)
+    cand = np.nonzero((attrs['cls'] >= 5) & (attrs['cls'] <= 9) & ((attrs['flags'] & F_RAIL) == 0))[0]
+    way = np.repeat(np.arange(len(attrs)), np.diff(off))
+    sel = np.isin(way, cand)
+    idx = np.nonzero(sel)[0]
+    hit = np.zeros(len(xy), dtype=bool)
+    pi, _ = tree.query(shapely.points(xy[idx]), predicate='intersects')
+    hit[idx[np.unique(pi)]] = True
+    inside = np.bincount(way[hit], minlength=len(attrs))
+    total = np.diff(off)
+    out = set(np.nonzero(inside * 2 > total)[0].tolist())
+    log(f'paved areas: {len(out)} minor roads run across them (drawn without verges)')
+    return out
+
+
+def build_paved(work, dem):
+    """Parking lots, fuel forecourts, squares and carriageway areas (D20) as flat paved surfaces, encoded like
+    junction surfaces (flag 4; 8 = pedestrian paving). Heights from the elevation model at each vertex."""
+    path = os.path.join(work, 'paved.npz')
+    if not os.path.exists(path):
+        return []
+    import shapely
+    import mapbox_earcut as earcut
+    d = np.load(path)
+    xy = d['xy'].astype(np.float64) / 100.0
+    ring_off, ring_inner, feat_ring, kinds = d['ring_off'], d['ring_inner'], d['feat_ring'], d['attrs']['kind']
+    if KEEP is not None:
+        m = 500.0
+        x0, x1 = KEEP[0] * TILE - m, (KEEP[2] + 1) * TILE + m
+        n0, n1 = -((KEEP[3] + 1) * TILE) - m, -(KEEP[1] * TILE) + m
+    out, skipped = [], 0
+    for f in range(len(kinds)):
+        r0, r1 = feat_ring[f], feat_ring[f + 1]
+        outer = xy[ring_off[r0]:ring_off[r0 + 1]]
+        if KEEP is not None and not (x0 <= outer[0, 0] <= x1 and n0 <= outer[0, 1] <= n1):
+            continue
+        holes = [xy[ring_off[r]:ring_off[r + 1]] for r in range(r0 + 1, r1) if ring_inner[r]]
+        try:
+            poly = shapely.make_valid(shapely.Polygon(outer, holes)).buffer(0)
+        except Exception:
+            skipped += 1
+            continue
+        polys = list(poly.geoms) if poly.geom_type == 'MultiPolygon' else [poly] if poly.geom_type == 'Polygon' else []
+        for pg in polys:
+            if pg.area < 30.0 or pg.area > 400_000.0:
+                continue
+            pg = shapely.segmentize(pg.simplify(0.3), 20.0)
+            pg = shapely.geometry.polygon.orient(pg, 1.0)
+            rings = [np.asarray(pg.exterior.coords)[:-1]] + [np.asarray(h.coords)[:-1] for h in pg.interiors]
+            rings = [r for r in rings if len(r) >= 3]
+            verts = np.vstack(rings)
+            if len(verts) > 4000:
+                skipped += 1
+                continue
+            ends = np.cumsum([len(r) for r in rings]).astype(np.uint32)
+            tris = earcut.triangulate_float64(verts, ends)
+            if len(tris) == 0:
+                skipped += 1
+                continue
+            hv = np.asarray(dem.sample_world(verts[:, 0], verts[:, 1]), dtype=np.float64)
+            if not np.isfinite(hv).any():
+                continue
+            hv = np.where(np.isfinite(hv), hv, np.nanmedian(hv))
+            out.append({'xy': verts, 'ends': ends, 'y': hv, 'tris': tris, 'elevated': False, 'paved': int(kinds[f])})
+    log(f'paved areas: {len(out)} surfaces (parking, squares, carriageway areas), {skipped} skipped')
+    return out
 
 
 def underpass_decks(underpasses, xy, off, attrs, y, junctions):
@@ -593,6 +671,8 @@ def encode_junctions(junctions):
             if not in_scope(t):
                 continue
             fl = (0 if t == home else 1) | (2 if j['elevated'] else 0)
+            if j.get('paved') is not None:
+                fl |= 4 | (8 if j['paved'] == 1 else 0)
             rec = bytearray(struct.pack('<BB', fl, len(counts)))
             for c in counts:
                 rec += struct.pack('<H', int(c))

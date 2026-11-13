@@ -102,6 +102,10 @@ public static class MapMesher
     private const float SurfAsphalt = 0f, SurfConcrete = 0.25f, SurfLoose = 0.5f, SurfRail = 1f;
 
     /// <summary>Small height bias per class so overlapping ribbons at junctions never z-fight.</summary>
+    /// <summary>COLOR.a for the road shader: lane count plus 9 x lanes in the point direction (0 = even split), over
+    /// 255 so it survives 8-bit vertex colours.</summary>
+    private static float LaneCode(int lanes, int forward) => (Math.Clamp(lanes, 1, 8) + 9 * Math.Clamp(forward, 0, 8)) / 255f;
+
     private static float ClassBias(byte cls) => cls switch
     {
         RoadClass.Motorway => 0.10f, RoadClass.Trunk => 0.095f, RoadClass.Primary => 0.09f, RoadClass.Secondary => 0.085f,
@@ -190,10 +194,11 @@ public static class MapMesher
     {
         var j = jr.J;
         var mesh = geo.Roads;
-        float bias = 0.105f + (lod > 0 ? 0.06f * lod : 0f);
+        // paved areas sit under every road that crosses them; junction surfaces over them
+        float bias = (j.Paved ? 0.045f : 0.105f) + (lod > 0 ? 0.06f * lod : 0f);
         // The road shader reads UV.x as the offset from the centre line and COLOR.b * 16 as the half width (beyond it:
         // gravel shoulder). A junction is all carriageway: half width 16 m, UV.x kept within ±10 m (wrapping every 40 m).
-        var col = new Color(SurfAsphalt, 0f, 1f, 0.25f);
+        var col = new Color(j.Pedestrian ? SurfConcrete : SurfAsphalt, 0f, 1f, LaneCode(2, 0));
         var uv2 = new Vector2(1000f, 0f);             // far from any junction: no stop lines, and marking style 0 anyway
         static float U(float x, float z) => ((x * 0.5f + z * 0.5f) % 20f + 30f) % 20f - 10f;
         int baseV = mesh.V.Count;
@@ -264,14 +269,15 @@ public static class MapMesher
         bool bridge = road.IsBridge;
         bool loose = road.Unpaved || road.IsRail;
         float surf = road.IsRail ? SurfRail : road.Unpaved ? SurfLoose : SurfAsphalt;
-        var col = new Color(surf, Marking(road), road.HalfWidth / 16f, road.Lanes / 8f);
+        var col = new Color(surf, Marking(road), road.HalfWidth / 16f, LaneCode(road.Lanes, road.LanesForward));
         // A hair of extra height that differs from road to road: where two roads of the same class
         // overlap at a junction their surfaces would otherwise be exactly coplanar and flicker.
         float jitter = (Hash.Of((int)(road.Along[0] * 7f), (int)(road.X[0] * 10f), (int)(road.Z[0] * 10f)) & 7) * 0.0012f;
         float bias = ClassBias(road.Cls) + jitter + (lod > 0 ? 0.06f * lod : 0f);
         float hw = road.HalfWidth;
-        float outer = bridge ? hw + 0.35f : hw + ShoulderWidth;
-        float drop = bridge ? 0f : ShoulderDrop;
+        bool onPaved = road.OnPaved && !bridge;
+        float outer = bridge ? hw + 0.35f : onPaved ? hw + 0.02f : hw + ShoulderWidth;
+        float drop = bridge || onPaved ? 0f : ShoulderDrop;
         var collision = loose ? geo.LooseFaces : geo.PavedFaces;
 
         var p0 = new Vector2(s.Ax, s.Az); var p1 = new Vector2(s.Bx, s.Bz);
@@ -303,8 +309,8 @@ public static class MapMesher
 
         if (!road.IsRail)
         {
-            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, hw, road.Along[0], col, collision, !bridge);
-            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, hw, road.Along[k + 1], col, collision, !bridge);
+            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, hw, road.Along[0], col, collision, !bridge && !onPaved);
+            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, hw, road.Along[k + 1], col, collision, !bridge && !onPaved);
         }
         if (bridge) AddBridgeSides(mesh, geo.PavedFaces, p0, p1, m0, m1, y0, y1, hw);
     }
