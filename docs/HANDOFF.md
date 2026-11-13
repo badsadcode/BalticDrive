@@ -26,8 +26,10 @@ what has been checked on Tom's PC (RTX 3080) and what has not.
   the street beside the ground-level lane at 68650,640204 went from 5.1 m to 0.6 m above ground; the car passes.
 * Trasa Łazienkowska runs in cuttings under Al. Niepodległości, Marszałkowska and Plac na Rozdrożu with the streets
   on short decks above (D16); 157 underpasses, 476 decks, 71 raised junctions across Mazowsze.
-* `--autotest=drive --start=68600,639300 --dest=70500,642500 --seconds=300`: 4.12 km, 9.7 s off road, upright;
-  it ends stuck on a kerb at 69893,641951, where the autopilot cuts a right turn too tight (autopilot, not the map).
+* Streets widened (D18): residential/unclassified 6.5 m, tertiary 7 m, 3.5 m per tagged lane.
+* `--autotest=drive --start=68600,639300 --dest=70500,642500 --seconds=600`: ARRIVED, 8.54 km, 9.8 s off road,
+  upright. The test driver now looks 7 m ahead at low speed and backs off when pinned; it did so twice, at tight
+  corners at 69963,642042 and 70461,642454 (worth a look: buildings may stand right at the kerb there).
 * Exported EXE (dist/BalticDrive) runs the new pack.
 
 ## Not verified
@@ -61,7 +63,6 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   become doubles before routes cross the Baltic.
 * Junctions have their own surfaces (D11); roundabouts and slip roads have not been checked closely.
 * Cuttings have sloped earth sides; retaining walls would look right in town. Floating buildings (D17) fixed in code, not yet confirmed by Tom.
-* The drive autopilot cuts tight right turns into kerbs.
 * Multiplayer: Thornwake's `Net/` (ENet, host-authoritative) not brought over yet.
 * Other regions: the importer takes any Geofabrik extract; elevation outside Poland needs another source
   (Copernicus GLO-30, or national bare-ground models: Lantmäteriet, Kartverket, SDFI, Maa-amet, MML, LGIA, LVM GEO).

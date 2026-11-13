@@ -228,12 +228,20 @@ class Handler(osmium.SimpleHandler):
         width = parse_float(tags.get('width'))
         if hw is None:
             width = default_width
-        elif width is None or width < 2 or width > 25:
-            width = default_width
-            if lanes >= 1:
-                width = max(default_width if lanes >= 2 else 3.2, lanes * 3.3 + 0.6)
-                if lanes == 1 and not (flags & FLAG_ONEWAY):
-                    width = min(default_width, 4.0)
+        else:
+            if width is not None and (width < 2 or width > 25):
+                width = None
+            # a mapped width narrower than its lanes need (or the whole road with its verges mapped narrow) is
+            # raised to 3 m per lane; two-way roads never come out under 5 m unless mapped as a single lane (D18)
+            if width is not None:
+                need = max(1.0, lanes) * 3.0 if lanes >= 1 else (5.0 if not (flags & FLAG_ONEWAY) and cls <= 7 else 3.0)
+                width = max(width, need)
+            else:
+                width = default_width
+                if lanes >= 1:
+                    width = max(default_width if lanes >= 2 else 3.4, lanes * 3.5 + 0.6)
+                    if lanes == 1 and not (flags & FLAG_ONEWAY):
+                        width = min(default_width, 4.5)
         try:
             layer = int(float(tags.get('layer', '0')))
         except ValueError:

@@ -42,9 +42,11 @@ def parse_float(s):
 # ---- roads -----------------------------------------------------------------------------------
 # class id (must match MapRoadClass in scripts/world/map/MapData.cs), default carriageway width (m)
 ROAD_CLASS = {
+    # Town streets are a little wider than their real carriageway: in the game there are no pavements or parked
+    # cars around them and a chase camera behind, and 2.75 m lanes felt tight (D18).
     'motorway': (0, 11.0), 'trunk': (1, 9.0), 'primary': (2, 7.5), 'secondary': (3, 7.0),
-    'tertiary': (4, 6.5), 'unclassified': (5, 5.5), 'residential': (6, 5.5),
-    'living_street': (7, 4.5), 'service': (8, 3.6), 'track': (9, 3.0), 'pedestrian': (7, 4.5),
+    'tertiary': (4, 7.0), 'unclassified': (5, 6.5), 'residential': (6, 6.5),
+    'living_street': (7, 5.5), 'service': (8, 4.0), 'track': (9, 3.0), 'pedestrian': (7, 5.5),
     'motorway_link': (10, 6.0), 'trunk_link': (10, 6.0), 'primary_link': (10, 6.0),
     'secondary_link': (10, 5.5), 'tertiary_link': (10, 5.5),
 }

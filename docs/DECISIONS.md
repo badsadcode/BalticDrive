@@ -110,3 +110,12 @@ Beyond the rings where the ground follows road beds (~500 m), the terrain is the
 buildings sat on the road-shaped height: near roads on embankments or smoothed above the ground, they floated at
 medium distance. Walls now run down to the lower of the road-shaped and natural ground at each corner, and 2 m
 further (was 0.6 m) for the coarser distant terrain.
+
+## D18 — Town streets a little wider than life
+Most OSM streets carry no width or lane count, so the class default decides: residential and unclassified streets
+(42,000 km of Mazowsze) were 5.5 m, 2.75 m a lane. True to life, but in the game there are no pavements, parked cars
+or verges around them and the camera sits behind the car, and Tom found them tight. Defaults now: tertiary 7.0 m,
+residential and unclassified 6.5 m, living street and pedestrian 5.5 m, service 4.0 m (motorway to secondary
+unchanged). Tagged lane counts get 3.5 m a lane (was 3.3). A mapped width is kept but raised to 3 m per tagged lane,
+and two-way streets never come out under 5 m unless mapped as one lane. Real streets are much wider than their
+carriageway between building lines, so the extra metre does not reach into buildings.

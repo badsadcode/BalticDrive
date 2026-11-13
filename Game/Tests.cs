@@ -35,6 +35,8 @@ public sealed class Tests
     private bool _driveStarted;
     private double _driveLimit = 20;
     private int _routeHint;
+    private float _stuckTime, _reverseLeft, _reverseSteer;   // drive test: a car pinned against a kerb backs off and retries
+    private int _reversals;
     private double _driven;
     private bool _map;
     private double _mapTime = -1;
@@ -156,7 +158,8 @@ public sealed class Tests
                     {
                         var here = new Vector2((float)cx, (float)cz);
                         _routeHint = route.Nearest(here, _routeHint, out _);
-                        float look = Math.Clamp(Math.Abs(c.Speed) * 0.9f, 12f, 40f);
+                        // a short look-ahead at low speed so sharp town corners are not cut into the kerb
+                        float look = Math.Clamp(Math.Abs(c.Speed) * 0.9f, 7f, 40f);
                         int i = _routeHint;
                         while (i + 1 < route.Points.Length && route.Along[i] - route.Along[_routeHint] < look) i++;
                         // keep right: aim 1.8 m to the right of the centre line
@@ -185,6 +188,19 @@ public sealed class Tests
                         to.Y = 0;
                         steer = Mathf.Clamp(fwd.Cross(to.Normalized()).Y * 2.5f, -1f, 1f);
                     }
+                    // pinned (wanting to go, not moving): back off for a moment with the wheel the other way
+                    float dt = 1f / Engine.PhysicsTicksPerSecond;
+                    if (_reverseLeft > 0f)
+                    {
+                        _reverseLeft -= dt;
+                        return (0f, 0.7f, _reverseSteer);
+                    }
+                    if (MathF.Abs(c.Speed) < 0.6f) _stuckTime += dt; else _stuckTime = 0f;
+                    if (_stuckTime > 2.5f)
+                    {
+                        _stuckTime = 0f; _reverseLeft = 2.5f; _reverseSteer = -MathF.Sign(steer == 0 ? 1f : steer); _reversals++;
+                        Log.Info("Test", $"drive: stuck at {cx:0},{cz:0}, backing off");
+                    }
                     return (c.Speed < target ? 0.8f : 0f, c.Speed > target + 2 ? 0.5f : 0f, steer);
                 };
                 Log.Info("Test", "drive: start");
@@ -199,7 +215,7 @@ public sealed class Tests
             if (_driveTime < _driveLimit) return;
             Shot("drive_end");
             var (wx, _, wz) = World.WorldOrigin.ToWorld(car.GlobalPosition);
-            Log.Info("Test", $"drive: {_driveTime:F0} s, {_driven / 1000:F2} km, {(_main.Nav?.Destination == null && _driveLimit > 20 ? "ARRIVED, " : "")}{(_main.Nav?.Route != null ? $"{_main.Nav.Remaining / 1000:F2} km left, " : "")}top {_maxSpeed * 3.6:F0} km/h, {_offRoad:F1} s off road, ended at {wx:F0},{wz:F0}, upright {car.GlobalTransform.Basis.Y.Y:F2}");
+            Log.Info("Test", $"drive: {_driveTime:F0} s, {_driven / 1000:F2} km, {(_main.Nav?.Destination == null && _driveLimit > 20 ? "ARRIVED, " : "")}{(_main.Nav?.Route != null ? $"{_main.Nav.Remaining / 1000:F2} km left, " : "")}top {_maxSpeed * 3.6:F0} km/h, {_offRoad:F1} s off road, {_reversals} times stuck, ended at {wx:F0},{wz:F0}, upright {car.GlobalTransform.Basis.Y.Y:F2}");
             _drive = false;
         }
         Log.Info("Test", "done");
