@@ -23,6 +23,7 @@ public partial class Main : Node3D
 	private TerrainStreamer _terrain = null!;
 	private MapContentStreamer _content = null!;
 	private Trees.TreeField _trees = null!;
+	private FarRoads _farRoads = null!;
 	private Sky.Atmosphere _atmosphere = null!;
 	public Sky.Atmosphere Atmosphere => _atmosphere;
 	private FlyCamera _camera = null!;
@@ -50,13 +51,15 @@ public partial class Main : Node3D
 			Args[eq < 0 ? s : s[..eq]] = eq < 0 ? "" : s[(eq + 1)..];
 		}
 
-		BuildEnvironment();
 		_terrain = new TerrainStreamer { Name = "Terrain" };
 		_content = new MapContentStreamer { Name = "MapContent" };
 		_trees = new Trees.TreeField();
+		_farRoads = new FarRoads();
+		AddChild(_farRoads);
 		AddChild(_terrain);
 		AddChild(_content);
 		AddChild(_trees);
+		BuildEnvironment();
 		_camera = new FlyCamera { Name = "Camera", Current = true, Far = 30000f, Near = 0.1f };
 		AddChild(_camera);
 		_hud = new Label { Position = new Vector2(12, 8) };
@@ -85,6 +88,7 @@ public partial class Main : Node3D
 		_terrain.Configure(_world);
 		_content.Configure(_world);
 		_trees.Configure(_world);
+		_farRoads.Configure(_world);
 		_nav = new Navigation(_world.Data);
 		var gps = new GpsHud { Name = "Gps" };
 		_ui.AddChild(gps);
@@ -190,6 +194,7 @@ public partial class Main : Node3D
 		_terrain.Configure(_world!);
 		_content.Configure(_world!);
 		_trees.Configure(_world!);
+		_farRoads.Configure(_world!);
 		float ground = _world!.Height(x, z);
 		_camera.Position = WorldOrigin.ToLocal(x, ground + above, z);
 		_camera.Yaw = Mathf.DegToRad(yawDeg);
@@ -214,6 +219,7 @@ public partial class Main : Node3D
 		(fx, fz) = Focus;
 		_terrain.Update(fx, fz);
 		_content.Update(fx, fz);
+		_farRoads.Update(fx, fz);
 		_trees.Update(fx, fz, GetViewport().GetCamera3D()?.GlobalPosition ?? _camera.GlobalPosition);
 		_atmosphere.Update(delta, GetViewport().GetCamera3D());
 		_camera.GroundHeight = _world.Height(fx, fz);
@@ -245,5 +251,24 @@ public partial class Main : Node3D
 		if (Args.TryGetValue("volfog", out var v)) env.VolumetricFogEnabled = v != "0";
 		if (Args.TryGetValue("haze", out var hz)) { env.FogDensity = .00007f * float.Parse(hz, inv); env.FogAerialPerspective = .26f * float.Parse(hz, inv); }
 		if (Args.TryGetValue("sat", out var st)) env.AdjustmentSaturation = float.Parse(st, inv);
+		// diagnostics: --off=ssao,ssil,glow,fog,water,aa
+		if (Args.TryGetValue("off", out var off))
+			foreach (var f in off.Split(','))
+				switch (f)
+				{
+					case var t when t.StartsWith("tshader="): if (GD.Load<Material>("res://Shaders/terrain.tres") is ShaderMaterial tt) tt.Shader = GD.Load<Shader>(t[8..]); break;
+					case "ssao": env.SsaoEnabled = false; break;
+					case "ssil": env.SsilEnabled = false; break;
+					case "glow": env.GlowEnabled = false; break;
+					case "fog": env.FogEnabled = false; break;
+					case "watershader": if (GD.Load<Material>("res://Shaders/water.tres") is ShaderMaterial wm2) wm2.Shader = new Shader { Code = "shader_type spatial; void fragment() { ALBEDO = vec3(0.1, 0.2, 0.5); }" }; break;
+					case "terrainshader": if (GD.Load<Material>("res://Shaders/terrain.tres") is ShaderMaterial tm) tm.Shader = new Shader { Code = "shader_type spatial; void fragment() { ALBEDO = vec3(0.2, 0.3, 0.1); }" }; break;
+					case "terrainunlit": if (GD.Load<Material>("res://Shaders/terrain.tres") is ShaderMaterial tu) tu.Shader = new Shader { Code = "shader_type spatial; render_mode unshaded; void fragment() { ALBEDO = vec3(0.2, 0.3, 0.1); }" }; break;
+					case "decal": foreach (var ch in _atmosphere.GetChildren()) if (ch is Decal dd) dd.Visible = false; break;
+					case "farroads": _farRoads.Visible = false; break;
+					case "trees": _trees.Visible = false; break;
+					case "content": _content.Visible = false; break;
+					case "water": if (GD.Load<Material>("res://Shaders/water.tres") is ShaderMaterial wm) wm.SetShaderParameter("ssr_steps", 0); break;
+				}
 	}
 }

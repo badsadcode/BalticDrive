@@ -374,6 +374,54 @@ footer a { color: var(--sign); }
         replace the boxes with real buildings.</p>
     </div>
   </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>10</strong></div>
+    <div>
+      <h2>A sky worth looking up at</h2>
+      <div class="date">13 November 2026, evening</div>
+      <p>Until today the sky was Godot's default gradient: a blue wash, a grey horizon, a sun that never moved. Tom
+        wanted lighting that builds atmosphere, volumetric clouds, and later a day and night cycle. Thornwake already
+        had all of that, tuned over weeks of Tom's screenshots and Noor's notes, so it came over to Baltic Drive.</p>
+      <p>The clouds are real volumes. They're drawn behind the world and in front of it, so one day you'll be able to
+        fly into them. They drift with the wind, high cirrus and low scud on their own breezes, and their shadows slide
+        across the fields. The sun is the real sun over Warsaw: it rises in the right place and sets in the right place
+        for the date, and two keys move the clock.</p>
+      <figure class="photo">
+        <img src="img/sunset-vistula.webp" alt="Sunset over Warsaw from the air: orange and pink volumetric clouds over the city, the Vistula reflecting the sky" loading="lazy">
+        <figcaption>19:36 over Saska Kępa. Thornwake's clouds, Warsaw's sunset.</figcaption>
+      </figure>
+      <p>The look itself is Tom's: the settings came straight out of his Thornwake config file, from the warm
+        low sun and cool shade to the glow and the "Fantasy" colour grade at 60 %. One thing had to change. Thornwake's
+        haze is tuned for a character walking in a valley; seen from a car with 20 km of Mazowsze in view, it turned the
+        whole world beige. Here the air is thinner, clear autumn air.</p>
+      <figure class="photo r">
+        <img src="img/morning-haze.webp" alt="Early morning over Warsaw: the low sun glowing through clouds, golden haze over the river and the city" loading="lazy">
+        <figcaption>7:00. Morning haze over the Vistula.</figcaption>
+      </figure>
+      <p>Night is dark but readable: moonlit facades, stars between the clouds. The moon is a stand-in for now, always
+        full. Thornwake's proper moon, with phases, comes later with the weather.</p>
+      <figure class="photo">
+        <img src="img/night-street.webp" alt="A Warsaw street at night: apartment blocks lit by blue moonlight under a cloudy, starry sky" loading="lazy">
+        <figcaption>23:00 on Ochota. Street lamps that actually light up: on the list.</figcaption>
+      </figure>
+      <p><b>Roads to the horizon.</b> With 20 km of view, it became obvious that roads stopped after one kilometre and
+        the landscape beyond was roadless grass. Now every main road and railway runs on to the horizon as a light ribbon
+        that widens with distance, so it never shimmers away. You can follow the S8 or the railway out of Warszawa
+        Zachodnia all the way to the haze.</p>
+      <figure class="photo r">
+        <img src="img/far-roads.webp" alt="Aerial view looking west from central Warsaw: the road and rail network fanning out across the plain to the horizon" loading="lazy">
+        <figcaption>The road network, finally reaching the edge of the world.</figcaption>
+      </figure>
+      <p>And the mystery of the magenta specks on the horizon, there since day one, is solved: a few distant ground
+        pixels had invalid colours, and the tone mapper painted them neon. One clamp, gone.</p>
+      <ul class="facts"><li>volumetric clouds</li><li>the real sun for 52° N</li><li>roads drawn to ~9 km</li><li>60 fps at golden hour</li><li>0 magenta specks</li></ul>
+      <figure class="photo">
+        <img src="img/road-to-horizon.webp" alt="A country road near Kampinos running straight between forests and fields toward a horizon under big sunlit clouds" loading="lazy">
+        <figcaption>Near Kampinos. Graphics don't make a game, but they make you want to drive.</figcaption>
+      </figure>
+    </div>
+  </article>
 </main>
 
 <footer>
@@ -389,7 +437,7 @@ footer a { color: var(--sign); }
     </div>
     <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).
       Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car in the screenshots: Synty POLYGON City.
-      Placeholder models: Quaternius (CC0). Trees: Thornwake Woodland. Title art and logo: Bad Ideas Works. Made with Godot.
+      Placeholder models: Quaternius (CC0). Trees, sky and clouds: Thornwake. Title art and logo: Bad Ideas Works. Made with Godot.
       <a href="https://github.com/badsadcode/BalticDrive">Source on GitHub</a>.</p>
   </div>
 </footer>

@@ -34,7 +34,8 @@ float fbm(vec2 p) {
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wpos.xz += world_offset; // patterns stay fixed to the ground when the origin moves
-	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	vec3 wn = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	wnrm = dot(wn, wn) > 1e-12 ? normalize(wn) : vec3(0.0, 1.0, 0.0);
 }
 
 void fragment() {
@@ -85,7 +86,9 @@ void fragment() {
 	col = mix(col, mud, shore);
 
 	float wet = max(wetness, shore * 0.8);
-	ALBEDO = col * mix(1.0, 0.62, wet) * cloud_shade(wpos.xz, TIME);
+	// (clamped: on distant tiles a few pixels came out invalid — NaN or out of range — and the tone mapper and colour
+	// grade turned them into magenta, green and blue specks on the horizon, D24)
+	ALBEDO = clamp(col * mix(1.0, 0.62, wet) * cloud_shade(wpos.xz, TIME), vec3(0.0), vec3(1.0));
 	ROUGHNESS = mix(0.96, 0.5, wet * (0.4 + 0.6 * dirt_m));
 	SPECULAR = 0.25;
 }

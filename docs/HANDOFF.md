@@ -35,7 +35,6 @@ what has been checked on Tom's PC (RTX 3080) and what has not.
 ## Not verified
 
 * Driving by hand (keyboard feel, chase camera), long motorway runs at 140 km/h, bridges up close, night.
-* Magenta specks at the far horizon in some views (probably distant water or skyline tiles) — not yet traced.
 
 ## How to run and test
 
@@ -55,7 +54,7 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 ## Not done / next
 
-* Far roads (beyond ~1 km) are not drawn; motorways vanish into the distance.
+* Far roads (D24): ribbons out to ~9 km. Far buildings beyond the 3 km skyline are still missing.
 * Tree colours are a fixed mix (some autumn maples and birches); Tom (13 Nov): leave it, seasons and weather will
   drive them in the final game.
 * Ideas from Tom (13 Nov), for later:

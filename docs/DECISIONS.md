@@ -173,3 +173,15 @@ Not ported yet: weather and rain, mist, lightning, the moon's phases and path (a
 stands in), stars' rotation, auroras, forest light shafts, biome moods. The water's reflected sky and sun follow the
 hour (Thornwake's UpdateWaterSky).
 Measured: flying at golden hour, median 16.7 ms (vsync), p99 16.7 ms.
+
+## D24 — Far roads, and the magenta horizon specks
+Detailed roads end at ~1 km (MapContentStreamer); beyond it the landscape had no roads, so motorways and avenues
+dissolved into grass. World/FarRoads.cs builds one light mesh per 2 km map tile out to 4 tiles (~9 km): a ribbon per
+road (main roads and railways to the horizon, residential and unclassified streets to 3.5 km, no tracks, service
+roads, trams or tunnels) at the road's own heights. Shaders/far_road.gdshader widens the ribbon with distance (at
+least ~1 px), pulls it toward the camera in depth so the coarse distant terrain never swallows it, and hands over to
+the detailed roads across a dithered band at 960–1020 m. Cost: none measurable (fly test 16.7 ms median).
+The magenta (and some green and blue) specks on the horizon came from the terrain shader: on distant tiles a few
+pixels' albedo came out invalid, and ACES plus the colour grade turned them into saturated specks (found by turning
+effects off one by one: only replacing the terrain shader removed them). The albedo is now clamped and the world
+normal guarded; 0 specks in the test views.
