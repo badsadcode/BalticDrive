@@ -436,6 +436,7 @@ public static class MapMesher
             if (p.X < 0 || p.X >= size || p.Z < 0 || p.Z >= size) continue;
             if (lod >= 2 && kind != MapPointKind.Pylon) continue;          // small posts are not worth drawing far away
             if (ctx.InBuilding(p.X, p.Z, 0.2f)) continue;
+            if (!StepOffRoad(ctx, ref p.X, ref p.Z)) continue;
             float y = ctx.Height(p.X, p.Z, 0f, out _);
             if (!float.IsNaN(ctx.Water(p.X, p.Z))) continue;
             float yaw = 0f;
@@ -460,6 +461,38 @@ public static class MapMesher
             Write(list, new Transform3D(new Basis(Vector3.Up, yaw), new Vector3(p.X, y, p.Z)), new Color(1, 1, 1));
             if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(p.X, y, p.Z, kind == MapPointKind.Pylon ? 0.45f : 0.12f));
         }
+    }
+
+    /// <summary>
+    /// Posts mapped at the real kerb can stand on our carriageway (streets are drawn a little wider than life, D18):
+    /// move them out to just past the nearest road edge. False when the post still ends up on a road or junction.
+    /// </summary>
+    private static bool StepOffRoad(MapContext ctx, ref float x, ref float z)
+    {
+        const float Clear = 0.7f;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            bool moved = false;
+            foreach (var s in ctx.Segs)
+            {
+                if (!s.Road.Drivable || s.Road.IsBridge) continue;
+                float d = s.Distance(x, z, out float u);
+                if (d >= s.Hw + Clear) continue;
+                float cx = s.Ax + (s.Bx - s.Ax) * u, cz = s.Az + (s.Bz - s.Az) * u;
+                float nx = x - cx, nz = z - cz;
+                if (d < 0.05f) { nx = s.Bz - s.Az; nz = -(s.Bx - s.Ax); d = MathF.Sqrt(nx * nx + nz * nz); if (d < 1e-4f) return false; }
+                else d = MathF.Sqrt(nx * nx + nz * nz);
+                x = cx + nx / d * (s.Hw + Clear);
+                z = cz + nz / d * (s.Hw + Clear);
+                moved = true;
+            }
+            if (!moved) break;
+        }
+        foreach (var s in ctx.Segs)
+            if (s.Road.Drivable && !s.Road.IsBridge && s.Distance(x, z, out _) < s.Hw + 0.2f) return false;
+        foreach (var jr in ctx.Junctions)
+            if (!jr.J.Paved && !jr.J.Elevated && jr.J.Contains(x - jr.OffX, z - jr.OffZ)) return false;
+        return true;
     }
 
     /// <summary>Appends one MultiMesh instance (3x4 transform + colour) to a buffer.</summary>
