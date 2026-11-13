@@ -104,7 +104,8 @@ ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'
               ('turn', 'u1')]
 # Paved areas drawn as asphalt (D20): 0 parking or fuel forecourt, 1 pedestrian square, 2 carriageway area
 PAVED_DTYPE = [('kind', 'u1')]
-BARRIER_DTYPE = [('kind', 'u1'), ('height_dm', 'u1')]
+# raised: on a bridge or viaduct (bridge=yes or layer ≥ 1): the game stands it on the deck, or leaves it out (D25)
+BARRIER_DTYPE = [('kind', 'u1'), ('height_dm', 'u1'), ('raised', 'u1')]
 WATERLINE_DTYPE = [('width_dm', 'u1')]
 LAND_DTYPE = [('cls', 'u1')]
 BUILDING_DTYPE = [('type', 'u1'), ('part', 'u1'), ('roof', 'u1'), ('height_dm', 'u2'),
@@ -193,7 +194,9 @@ class Handler(osmium.SimpleHandler):
                 h = parse_float(tags.get('height'))
                 if h is None or h <= 0.2 or h > 20:
                     h = BARRIER_HEIGHT[kind]
-                self.barriers.add(lons, lats, (kind, int(min(255, round(h * 10)))))
+                lay = tags.get('layer', '0')
+                raised = 1 if tags.get('bridge') not in (None, 'no') or (lay.lstrip('-').isdigit() and int(lay) >= 1) else 0
+                self.barriers.add(lons, lats, (kind, int(min(255, round(h * 10))), raised))
                 self.barrier_gap.extend(self.gates.get(nd.ref, 0) for nd in w.nodes)
         elif tags.get('natural') == 'tree_row':
             # a mapped avenue: one tree roughly every 9 m along the line

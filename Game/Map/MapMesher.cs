@@ -153,7 +153,11 @@ public static class MapMesher
             float mx = (s.Ax + s.Bx) * 0.5f, mz = (s.Az + s.Bz) * 0.5f;
             if (mx < 0 || mx >= size || mz < 0 || mz >= size) continue;
             if (s.Road.IsTram) { if (lod <= 1) AddTramSegment(geo.Roads, ctx, s); }
-            else AddRoadSegment(geo, s, lod);
+            else
+            {
+                AddRoadSegment(geo, s, lod);
+                CuttingMesher.AddSegment(ctx, s, lod, geo.Barriers, collide ? geo.BuildingFaces : null);
+            }
         }
         foreach (var jr in ctx.Junctions)
         {

@@ -137,7 +137,7 @@ def find_underpasses(xy, off, attrs, nodes):
     bridge, not a tunnel, not joined to it) crossing it. Railway tunnels are left alone: the game does not draw them."""
     import shapely
     flags = attrs['flags']
-    is_tunnel = ((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0)
+    is_tunnel = ((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0) & (attrs['cls'] < 8)   # (service-road tunnels: left out, D26)
     tun_idx = np.nonzero(is_tunnel)[0]
     out = defaultdict(list)
     if len(tun_idx) == 0:
@@ -182,7 +182,7 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscal
     if lscale is not None:
         L = L * lscale
     # bridge decks and road tunnels have no ground term: they run straight between their ends and pins
-    free = (((flags & F_BRIDGE) != 0) & ((flags & F_TUNNEL) == 0)) | (((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0))
+    free = (((flags & F_BRIDGE) != 0) & ((flags & F_TUNNEL) == 0)) | (((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0) & (cls < 8))
     # each point owns half of each segment next to it; bridge interiors are free (no ground term)
     share = np.zeros(n)
     np.add.at(share, a, d * 0.5)
@@ -313,7 +313,7 @@ def limit_dips(h, node, nnodes, xy, off, attrs, ground):
     h = h.copy()
     fl = attrs['flags'][way]
     in_tunnel = np.zeros(nnodes, dtype=bool)
-    in_tunnel[node[((fl & F_TUNNEL) != 0) & ((fl & F_RAIL) == 0)]] = True
+    in_tunnel[node[((fl & F_TUNNEL) != 0) & ((fl & F_RAIL) == 0) & (attrs['cls'][way] < 8)]] = True
     sunk = np.nonzero(in_tunnel & (h < gnode - 1.0))[0]
     heap = [(float(h[i]), int(i)) for i in sunk]
     heapq.heapify(heap)
@@ -1234,6 +1234,8 @@ def build_barriers(work):
         # (split_way interpolates the third array at tile crossings: a gap belongs to its own node only)
         gs = np.where(np.isin(np.round(gs), g), gs, 0)
         kind, h = int(attrs['kind'][w]), int(attrs['height_dm'][w])
+        if 'raised' in attrs.dtype.names and attrs['raised'][w]:
+            kind |= 0x80   # (top bit: on a bridge or viaduct)
         for (tx, tz), i0, i1 in pieces:
             if not in_scope((tx, tz)) or i1 - i0 < 1 or i1 - i0 + 1 > 65535:
                 continue

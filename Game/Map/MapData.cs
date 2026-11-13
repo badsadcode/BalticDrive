@@ -104,6 +104,8 @@ public sealed class MapRoad
 public sealed class MapBarrier
 {
     public byte Kind;
+    /// <summary>On a bridge or viaduct (OSM bridge=yes or layer ≥ 1): stands on the deck, or is left out.</summary>
+    public bool Raised;
     public float Height;
     public float[] X = null!, Z = null!, Gap = null!;
     public int Index;
@@ -303,7 +305,8 @@ public sealed class MapTile
             road.X = xs.ToArray(); road.Z = zs.ToArray(); road.Y = ys.ToArray(); road.Lift = ls.ToArray(); road.Along = al.ToArray();
             if (taper) { road.Hw = hs.ToArray(); road.UOff = us.ToArray(); }
             // Railways and trams in tunnels run underground: nothing to draw or drive on.
-            if (road.IsRail && (road.Flags & RoadFlag.Tunnel) != 0) continue;
+            // Service roads and tracks in tunnels (garage ramps, building passages) lead nowhere above ground: left out too (D26).
+            if ((road.IsRail || road.Cls is RoadClass.Service or RoadClass.Track) && (road.Flags & RoadFlag.Tunnel) != 0) continue;
             int index = roads.Count;
             roads.Add(road);
             int segs = Math.Min(road.X.Length - 1, 4095);
@@ -404,7 +407,8 @@ public sealed class MapTile
         Barriers = new MapBarrier[nBarriers];
         for (int i = 0; i < nBarriers; i++)
         {
-            var b = new MapBarrier { Kind = r.ReadByte(), Height = r.ReadByte() * 0.1f, Index = i };
+            byte kb = r.ReadByte();
+            var b = new MapBarrier { Kind = (byte)(kb & 0x7f), Raised = (kb & 0x80) != 0, Height = r.ReadByte() * 0.1f, Index = i };
             int n = r.ReadUInt16();
             b.X = new float[n]; b.Z = new float[n]; b.Gap = new float[n];
             float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue;

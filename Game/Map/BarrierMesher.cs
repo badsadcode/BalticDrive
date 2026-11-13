@@ -49,10 +49,25 @@ public static class BarrierMesher
         }
     }
 
+    /// <summary>The bridge deck under or beside a point: its height there, or NaN when no deck is within reach.</summary>
+    private static float DeckAt(MapContext ctx, float x, float z)
+    {
+        float best = 1e9f, y = float.NaN;
+        foreach (var s in ctx.Segs)
+        {
+            if (!s.Road.IsBridge) continue;
+            float d = s.Distance(x, z, out float u) - s.Hw;
+            if (d > 3.5f || d >= best) continue;
+            best = d; y = s.Ya + (s.Yb - s.Ya) * u + 0.1f;
+        }
+        return y;
+    }
+
     public static void AddBarriers(MapContext ctx, float size, int lod, MeshData mesh, List<Vector3>? collision)
     {
         if (lod > 1) return;
         var xs = new List<float>(); var zs = new List<float>(); var al = new List<float>(); var keep = new List<bool>();
+        var deck = new List<float>();
         foreach (var (b, offX, offZ) in ctx.Barriers)
         {
             int n = b.X.Length;
@@ -92,14 +107,25 @@ public static class BarrierMesher
                 }
             }
             int m = xs.Count;
+            deck.Clear();
             for (int i = 0; i < m; i++)
             {
                 bool ok = true;
+                if (b.Raised)
+                {
+                    // on a viaduct or footbridge: stand on the deck we draw, or not at all (no footbridges yet)
+                    float dy = DeckAt(ctx, xs[i], zs[i]);
+                    deck.Add(dy);
+                    keep.Add(!float.IsNaN(dy));
+                    continue;
+                }
+                deck.Add(float.NaN);
                 for (int g = 0; g < gates && ok; g++) if (MathF.Abs(al[i] - gateAt[g]) < gateW[g] * .5f) ok = false;
                 if (ok)
                 {
                     float edge = ctx.NearestGroundRoad(xs[i], zs[i], out _, out var road);
-                    if (road != null && road.Drivable && edge < 0.4f + look.Thick * .5f) ok = false;
+                    // (railways too: a fence never runs across the tracks)
+                    if (road != null && edge < 0.4f + look.Thick * .5f) ok = false;
                 }
                 if (ok && ctx.Junctions.Count > 0 && ctx.NearestGroundJunction(xs[i], zs[i], out _) < 0.4f) ok = false;
                 keep.Add(ok);
@@ -113,7 +139,7 @@ public static class BarrierMesher
                 if ((!seg || i == m - 2) && start >= 0)
                 {
                     int end = seg ? i + 1 : i;
-                    if (end > start) EmitRun(ctx, mesh, collision, xs, zs, al, start, end, look, height, b.Kind, lod);
+                    if (end > start) EmitRun(ctx, mesh, collision, xs, zs, al, deck, start, end, look, height, b.Kind, lod);
                     start = -1;
                 }
             }
@@ -121,11 +147,12 @@ public static class BarrierMesher
     }
 
     private static void EmitRun(MapContext ctx, MeshData mesh, List<Vector3>? collision, List<float> xs, List<float> zs, List<float> al,
-        int i0, int i1, Look look, float h, byte kind, int lod)
+        List<float> deck, int i0, int i1, Look look, float h, byte kind, int lod)
     {
         int count = i1 - i0 + 1;
         Span<float> ys = count <= 512 ? stackalloc float[count] : new float[count];
-        for (int i = 0; i < count; i++) ys[i] = ctx.Height(xs[i0 + i], zs[i0 + i], 0f, out _) - 0.05f;
+        for (int i = 0; i < count; i++)
+            ys[i] = float.IsNaN(deck[i0 + i]) ? ctx.Height(xs[i0 + i], zs[i0 + i], 0f, out _) - 0.05f : deck[i0 + i];
         var uv2 = new Vector2(h, 0);
         var col = new Color(look.Col.R, look.Col.G, look.Col.B, look.Style);
         float lift = look.Lift;

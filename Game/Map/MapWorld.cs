@@ -146,6 +146,23 @@ public sealed class MapContext
         return best;
     }
 
+    /// <summary>True when another ground road (not <paramref name="road"/>) at about the same height lies within
+    /// <paramref name="reach"/> m of its edge: the point is in a median between two sunk carriageways.</summary>
+    public bool OtherLowRoad(float lx, float lz, MapRoad road, float y, float reach)
+    {
+        var segs = Segs;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            var s = segs[i];
+            if (s.Road == road || s.Road.IsBridge || s.Road.IsTram || s.Road.IsRail) continue;
+            if (lx < MathF.Min(s.Ax, s.Bx) - s.Hw - reach || lx > MathF.Max(s.Ax, s.Bx) + s.Hw + reach ||
+                lz < MathF.Min(s.Az, s.Bz) - s.Hw - reach || lz > MathF.Max(s.Az, s.Bz) + s.Hw + reach) continue;
+            float e = s.Distance(lx, lz, out float u) - s.Hw;
+            if (e < reach && MathF.Abs(s.Ya + (s.Yb - s.Ya) * u - y) < 1.5f) return true;
+        }
+        return false;
+    }
+
     /// <summary>The nearest junction surface that shapes the ground (not elevated ones). Returns the distance to its
     /// outline (negative inside) and the surface height there, or a large value.</summary>
     public float NearestGroundJunction(float lx, float lz, out float y)
@@ -198,7 +215,13 @@ public sealed class MapContext
         }
         if (edge < Shoulder)
         {
-            h = Lerp(roadY, h, Smooth(1.5f, Shoulder, edge));
+            // A road sunk well below the land (an underpass and its ramps) has retaining walls: the ground drops almost
+            // straight down behind them instead of sloping over 9 m (D26, Map/CuttingMesher)
+            float cut = road != null ? Smooth(CuttingMesher.MinDepth, CuttingMesher.MinDepth + 1.5f, h - roadY) : 0f;
+            // between two carriageways of the same sunk road (a median) the ground stays at road level: one cutting
+            if (cut > 0f && edge > 0f && OtherLowRoad(lx, lz, road!, roadY, 7f)) { h = roadY; cut = 1f; edge = 0f; }
+            float s0 = Lerp(1.5f, CuttingMesher.WallOffset - 0.1f, cut), s1 = Lerp(Shoulder, CuttingMesher.WallOffset + 1.4f, cut);
+            h = Lerp(roadY, h, Smooth(s0, s1, edge));
             bool loose = road != null && (road.Unpaved || road.IsRail);
             dirt = MathF.Max(dirt, loose ? 1f - Smooth(-0.2f, 1.1f, edge) : 1f - Smooth(0.3f, 1.7f, edge));
             if (depress > 0f) h -= depress * (1f - Smooth(0.15f, 1.25f, edge));

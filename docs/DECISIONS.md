@@ -197,3 +197,16 @@ or boxes with caps (walls, hedges, noise barriers, retaining walls, jersey barri
 dithered veil with distance, brick, plaster, concrete panels, ribbed noise barrier panels, leafy hedges with a
 ragged top. Near chunks (lod 0) collide; drawn to ~600 m (lod 1, no posts). Bollards (barrier=bollard/block nodes)
 are a new point kind: short posts with collision. Looks are generated, not Synty yet — a later pass can swap pieces.
+
+## D26 — Cut-and-cover underpasses; garage ramps left out; barriers on bridges
+A sunk underpass (D16) made an open earth pit 9 m wide on each side. Now, where a road runs ≥ 1 m below the natural
+ground, MapContext.Height blends the ground to it within ~2.7 m of the carriageway edge instead of 9 m, and
+Map/CuttingMesher.cs lines the cut with concrete retaining walls 1.3 m past the edge (with a coping); where OSM
+calls it a tunnel and there is ≥ 4.8 m of headroom the slot gets a roof slab at ground level (lid on top, a
+concrete ceiling under it). Between two carriageways of the same cutting the median stays at road level and gets no
+walls. Tunnels on service roads and tracks (underground garage ramps, building passages: Tom's pit at 65243,641750)
+lead nowhere a height-map world can show; like railway tunnels they are left out and not sunk.
+Barriers tagged bridge=yes or layer ≥ 1 (railings and guard rails of viaducts and footbridges) stood on the ground
+across the tracks (Tom, 66062,643393 and 64503,642573). The extract keeps that flag (barriers.npz 'raised', the
+kind's top bit in the tiles); the game stands such a barrier on the nearest bridge deck within 3.5 m of its edge, or
+leaves it out (footbridges are not drawn yet). Ground barriers also step aside at railway tracks.
