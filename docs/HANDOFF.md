@@ -62,7 +62,6 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   - A world authoring mode in game that saves to that override layer; the release ships map + edits.
   - Pavements: from `sidewalk=*` / `footway=sidewalk`, else estimated for town streets (~2 m, kerb). Ask Tom
     about kerb height and paving look first.
-* Trees: OSM's mapped trees and forests are not planted yet (Thornwake's tree field and impostors are the candidate).
 * Sky and atmosphere: Godot's procedural sky; Thornwake's Atmosphere is the candidate.
 * Rivers use the lake water style; flow direction from OSM waterways is not fed to the shader yet.
 * `MapRouter` / `MapRoute` / `Navigation` keep world positions as floats: fine within a region (6 cm at 700 km), must

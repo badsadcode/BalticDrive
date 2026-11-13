@@ -66,3 +66,51 @@ caustic_light={
 "type": "float",
 "value": 1.0
 }
+leaf_translucency={
+"type": "float",
+"value": 0.8
+}
+rain_wetness={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+rain_now={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+sun_dir_world={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
+}
+sun_glow={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+tree_camera={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+tree_lod={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+tree_ranges={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+wind={
+"type": "vec4",
+"value": Vector4(0.7, 0.25, 0.7, 0.3)
+}
+wind_field={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+wind_map={
+"type": "sampler2D",
+"value": ""
+}
+wind_map_frame={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}

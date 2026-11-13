@@ -22,6 +22,7 @@ public partial class Main : Node3D
 	private MapWorld? _world;
 	private TerrainStreamer _terrain = null!;
 	private MapContentStreamer _content = null!;
+	private Trees.TreeField _trees = null!;
 	private FlyCamera _camera = null!;
 	private Label _hud = null!;
 	private Tests? _tests;
@@ -50,8 +51,10 @@ public partial class Main : Node3D
 		BuildEnvironment();
 		_terrain = new TerrainStreamer { Name = "Terrain" };
 		_content = new MapContentStreamer { Name = "MapContent" };
+		_trees = new Trees.TreeField();
 		AddChild(_terrain);
 		AddChild(_content);
+		AddChild(_trees);
 		_camera = new FlyCamera { Name = "Camera", Current = true, Far = 30000f, Near = 0.1f };
 		AddChild(_camera);
 		_hud = new Label { Position = new Vector2(12, 8) };
@@ -79,6 +82,7 @@ public partial class Main : Node3D
 		}
 		_terrain.Configure(_world);
 		_content.Configure(_world);
+		_trees.Configure(_world);
 		_nav = new Navigation(_world.Data);
 		var gps = new GpsHud { Name = "Gps" };
 		_ui.AddChild(gps);
@@ -177,6 +181,7 @@ public partial class Main : Node3D
 		WorldOrigin.Reset(x, z);
 		_terrain.Configure(_world!);
 		_content.Configure(_world!);
+		_trees.Configure(_world!);
 		float ground = _world!.Height(x, z);
 		_camera.Position = WorldOrigin.ToLocal(x, ground + above, z);
 		_camera.Yaw = Mathf.DegToRad(yawDeg);
@@ -201,6 +206,7 @@ public partial class Main : Node3D
 		(fx, fz) = Focus;
 		_terrain.Update(fx, fz);
 		_content.Update(fx, fz);
+		_trees.Update(fx, fz, GetViewport().GetCamera3D()?.GlobalPosition ?? _camera.GlobalPosition);
 		_camera.GroundHeight = _world.Height(fx, fz);
 		RenderingServer.GlobalShaderParameterSet("ocean_time", (float)(Time.GetTicksMsec() / 1000.0));
 		var (lat, lon) = Core.Projection.ToGeo(fx, fz);
@@ -209,7 +215,7 @@ public partial class Main : Node3D
 		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {(place != null ? "near " + place.Name : "")}\n" +
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
-					$"map {_content.Cells} cells, {_content.Pending} building\n" +
+					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road");
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
@@ -243,5 +249,7 @@ public partial class Main : Node3D
 			RotationDegrees = new Vector3(-38f, -35f, 0f),
 		};
 		AddChild(sun);
+		// the tree shaders light leaves from behind when looking towards the sun
+		RenderingServer.GlobalShaderParameterSet("sun_dir_world", sun.GlobalTransform.Basis.Z.Normalized());
 	}
 }

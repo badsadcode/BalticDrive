@@ -1,0 +1,5 @@
+Thornwake Woodland vegetation pack (17 trees, 3 levels of detail each, and Canopy.gdshader).
+
+Made for Thornwake, a Bad Ideas Works project, and owned by Tom (github.com/badsadcode). Used in Baltic Drive
+with his permission (13 November 2026). The meshes are original low-poly models and the textures are original
+image-generated maps; see README_Thornwake.md. Not for use outside Bad Ideas Works projects without asking Tom.

@@ -147,3 +147,14 @@ from the kerb side. Such pieces carry a width and a lane offset per point (flags
 lanes for the full width, shifted by that offset, so existing lane lines run straight and the new lane grows
 beside them. The centre line itself does not move (OSM draws each piece through its own middle), so the fixed edge
 drifts half a lane over the taper: barely visible.
+
+## D22 — Trees: Thornwake Woodland, streamed like Thornwake
+Tom chose his own Thornwake Woodland pack (pine, spruce, oak, birch, poplar, willow, autumn birch and maple, three
+levels of detail). Thornwake's tree field is ported (Game/Trees): 128 m cells of MultiMesh 3D trees (detailed model
+near, lighter model to 700 m, dithered hand-over), 1024 m cells of impostors baked at start-up to 3 km, the canopy,
+bark and impostor shaders with their globals (wind, sun, tree ranges). Placement (TreePlacement) is ours: every tree
+OSM maps on its own (street and park trees), plus a world-aligned jittered scatter per land class — forest every
+6.5 m (half pine, then birch, oak, spruce, a few autumn birches), parks and cemeteries sparse, scrub and wetland a
+few. Each tree's position, species, size and turn come from independent hashes of its grid cell, so near and far
+cells agree. Near cells keep trees off roads, junctions and buildings and give trunks collision for the car.
+Measured: Kampinos from 150 m up, 11k 3D + 500k impostor trees at 60 fps; the Warsaw drive test unchanged.
