@@ -56,6 +56,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 ## Not done / next
 
 * Far roads (beyond ~1 km) are not drawn; motorways vanish into the distance.
+* Tree colours are a fixed mix (some autumn maples and birches); Tom (13 Nov): leave it, seasons and weather will
+  drive them in the final game.
 * Ideas from Tom (13 Nov), for later:
   - Override layer keyed by OSM id: replace a building's box with a hand-made model (landmarks first).
   - Fences, walls, gates, bollards, hedges from OSM `barrier=*`, with Synty pieces.
