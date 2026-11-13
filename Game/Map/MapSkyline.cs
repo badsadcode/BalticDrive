@@ -97,6 +97,7 @@ public sealed class MapSkyline
             {
                 float h = ctx.Height(rx[k] - b.Cx, rz[k] - b.Cz, 0f, out _);
                 gMin = MathF.Min(gMin, h); gMax = MathF.Max(gMax, h);
+                gMin = MathF.Min(gMin, ctx.Ground(rx[k] - b.Cx, rz[k] - b.Cz));
             }
             MapMesher.AddBuilding(mesh, faces, b, 0f, 0f, gMin, gMax, Hash.Of(tx, tz, b.Index, 92));
         }

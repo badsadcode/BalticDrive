@@ -40,8 +40,8 @@ def main():
     o += 4
     print(f'tile {tx},{tz}: {nroads} road pieces; roads within {radius:.0f} m of ({lx:.0f},{lz:.0f}):')
     for _ in range(nroads):
-        cls, flags, wdm, layer, lanes, along, n = struct.unpack_from('<BBBbBfH', blob, o)
-        o += struct.calcsize('<BBBbBfH')
+        cls, flags, _f2, wdm, layer, lanes, along, n = struct.unpack_from('<BBBBbBfH', blob, o)
+        o += struct.calcsize('<BBBBbBfH')
         pts = np.frombuffer(blob, dtype=[('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')], count=n, offset=o)
         o += n * 7
         x, z = pts['x'] / 10, pts['z'] / 10
@@ -52,6 +52,13 @@ def main():
         fl = ''.join(c for c, bit in zip('BTOULR', (1, 2, 4, 8, 16, 32)) if flags & bit)
         print(f'  {CLS[cls]:9s} {fl:4s} layer {layer:2d} lanes {lanes} width {wdm / 10:4.1f}  y {y.min():6.1f}..{y.max():6.1f}  '
               f'lift {pts["l"].max() / 10:4.1f}  n {n}  nearest {dist.min():5.1f} m')
+    # junction surfaces (format 4)
+    nj, = struct.unpack_from('<I', blob, o); o += 4
+    for _ in range(nj):
+        _jf, rings = struct.unpack_from('<BB', blob, o); o += 2
+        total = sum(struct.unpack_from(f'<{rings}H', blob, o)); o += 2 * rings + total * 6
+        nt, = struct.unpack_from('<I', blob, o); o += 4 + nt * 2
+    print(f'  {nj} junction surfaces')
     # skip buildings / pois / points to reach the rasters: walk the remaining sections
     nb, = struct.unpack_from('<I', blob, o); o += 4
     for _ in range(nb):

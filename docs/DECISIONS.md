@@ -84,3 +84,29 @@ under 3 GB kept. The datums differ by ~0.2 m in Mazowsze.
 OSM maps some viaducts in 3D as building parts (man_made=bridge, bridge:structure): they stood as 5 m boxes on the
 road. They are skipped (the game draws bridges from the roads), as are underground structures (location=underground,
 negative layer).
+
+## D15 — A bridge deck keeps its clearance only over what it crosses
+Every point of a bridge that passes over a road or railway used to be pinned 6 m above it, end to end. A 220 m
+viaduct crossing Al. Jerozolimskie 29 m from its north end then stayed 6 m up at its south end too, and the ramp
+limiter (D12) held the street beyond it up for another ~120 m — a wall beside the ground-level lane that joins it
+(Tom's car stuck at 68650,640204 near Dworzec Centralny). Now only deck points within the crossed road's half width
++ 8 m (`DECK_MARGIN`) of the crossing are pinned; the rest of the deck has no ground term and slopes down to its
+ends, no steeper than the ramp grade. All crossing points count (a deck crossing the same road twice is pinned at
+both). Real decks do the same: the abutments sit low and the deck climbs over the obstacle.
+
+## D16 — Underpasses: sunk tunnels, cuttings and short decks
+Road tunnels used to be drawn at ground level, crossing the streets above them at grade (Trasa Łazienkowska under
+Al. Niepodległości, Marszałkowska and Plac na Rozdrożu). Now every road tunnel (not railway tunnels: the game does
+not draw those) is free of the ground like a bridge deck, and where it passes under a road or railway it is pinned
+`TUNNEL_DEPTH` (6.5 m) below it. `limit_dips` — the mirror of the ramp limit — lowers its approaches so it dives in
+no steeper than the ramp grade. The game's ground already follows a road's bed, so a sunk road digs its own
+cutting. The road above becomes a short deck (drawn as a bridge, which does not shape the ground) over the cutting's
+width (tunnel half width + the game's 9 m shoulder + 1.5 m, longer at a skew), and junction surfaces over a cutting
+are marked elevated. Long city tunnels under parks or buildings simply run straight between their portals.
+A cutting has sloped earth sides, not retaining walls: good enough until we draw walls.
+
+## D17 — Building walls reach the natural ground
+Beyond the rings where the ground follows road beds (~500 m), the terrain is the plain elevation model, while
+buildings sat on the road-shaped height: near roads on embankments or smoothed above the ground, they floated at
+medium distance. Walls now run down to the lower of the road-shaped and natural ground at each corner, and 2 m
+further (was 0.6 m) for the coarser distant terrain.

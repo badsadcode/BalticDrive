@@ -46,6 +46,9 @@ F2_JSTART, F2_JEND = 1, 2   # second road flag byte: the piece starts / ends at 
 
 ROAD_STEP = 10.0         # road points are at most this far apart (heights follow the ground between them)
 DECK_CLEAR = 6.0         # a bridge's deck above each road, railway or lower bridge it passes over
+DECK_MARGIN = 8.0        # the deck keeps its clearance this far beyond the edges of what it passes over (D15)
+TUNNEL_DEPTH = 6.5       # an underpass road runs this far below the road or railway it passes under (D16)
+GAME_SHOULDER = 9.0      # MapContext.Shoulder in the game: how far beyond a road's edge the ground blends back
 # How far (m) a road's height profile averages the ground, by class: long and smooth for motorways, close to the
 # ground for tracks. See D4.
 SMOOTH = {0: 150.0, 1: 150.0, 2: 90.0, 3: 90.0, 4: 60.0, 5: 60.0, 6: 40.0, 7: 30.0, 8: 35.0, 9: 25.0, 10: 80.0,
@@ -123,11 +126,37 @@ def find_crossings(xy, off, attrs, nodes):
         if np.intersect1d(nodes[off[b]:off[b + 1]], nodes[off[other]:off[other + 1]]).size:
             continue  # joined at a junction, not passing over
         p = shapely.intersection(lines[b], lines[other])
-        c = shapely.get_coordinates(p)
-        if len(c):
-            out[b].append((other, c[0, 0], c[0, 1], max(1, int(layer[b]) - min(0, int(layer[other])))))
+        for c in shapely.get_coordinates(p):
+            out[b].append((other, c[0], c[1], max(1, int(layer[b]) - min(0, int(layer[other])))))
     log(f'{len(bridge_idx)} bridge ways, {len(out)} pass over a road or railway')
     return out, is_bridge
+
+
+def find_underpasses(xy, off, attrs, nodes):
+    """Road tunnels and what they pass under: {tunnel way: [(other way, x, y), ...]} for every road or railway (not a
+    bridge, not a tunnel, not joined to it) crossing it. Railway tunnels are left alone: the game does not draw them."""
+    import shapely
+    flags = attrs['flags']
+    is_tunnel = ((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0)
+    tun_idx = np.nonzero(is_tunnel)[0]
+    out = defaultdict(list)
+    if len(tun_idx) == 0:
+        return out
+    counts = np.diff(off)
+    lines = shapely.linestrings(xy, indices=np.repeat(np.arange(len(attrs)), counts))
+    tree = shapely.STRtree(lines)
+    pairs = tree.query(lines[tun_idx], predicate='intersects')
+    for ti, other in zip(pairs[0], pairs[1]):
+        t = int(tun_idx[ti])
+        other = int(other)
+        if other == t or flags[other] & (F_TUNNEL | F_BRIDGE):
+            continue
+        if np.intersect1d(nodes[off[t]:off[t + 1]], nodes[off[other]:off[other + 1]]).size:
+            continue
+        for c in shapely.get_coordinates(shapely.intersection(lines[t], lines[other])):
+            out[t].append((other, c[0], c[1]))
+    log(f'{len(tun_idx)} road tunnel ways, {len(out)} pass under a road or railway')
+    return out
 
 
 def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscale=None):
@@ -152,7 +181,8 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscal
     L = np.vectorize(SMOOTH.get)(cls).astype(np.float64)
     if lscale is not None:
         L = L * lscale
-    free = ((flags & F_BRIDGE) != 0) & ((flags & F_TUNNEL) == 0)
+    # bridge decks and road tunnels have no ground term: they run straight between their ends and pins
+    free = (((flags & F_BRIDGE) != 0) & ((flags & F_TUNNEL) == 0)) | (((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0))
     # each point owns half of each segment next to it; bridge interiors are free (no ground term)
     share = np.zeros(n)
     np.add.at(share, a, d * 0.5)
@@ -259,6 +289,50 @@ def limit_ramps(h, node, nnodes, xy, off, attrs, ground):
     return h
 
 
+def limit_dips(h, node, nnodes, xy, off, attrs, ground):
+    """The mirror of limit_ramps for underpasses (D16): from every road-tunnel node sunk below the ground, neighbours
+    are lowered to at most h + grade * distance, so the road dives into its cutting no steeper than RAMP_GRADE."""
+    import heapq
+    n = len(xy)
+    last = np.zeros(n, dtype=bool)
+    last[off[1:] - 1] = True
+    a = np.nonzero(~last)[0]
+    a = a[a < n - 1]
+    b = a + 1
+    d = np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1])
+    way = np.repeat(np.arange(len(attrs)), np.diff(off))
+    g = np.vectorize(lambda c: RAMP_GRADE.get(int(c), 0.08))(attrs['cls'][way[a]])
+    u, v = node[a], node[b]
+    uu = np.concatenate([u, v]); vv = np.concatenate([v, u])
+    dd = np.concatenate([d * g, d * g])
+    order = np.argsort(uu, kind='stable')
+    uu, vv, dd = uu[order], vv[order], dd[order]
+    start = np.searchsorted(uu, np.arange(nnodes + 1))
+    gnode = np.full(nnodes, -np.inf)
+    np.maximum.at(gnode, node, ground)
+    h = h.copy()
+    fl = attrs['flags'][way]
+    in_tunnel = np.zeros(nnodes, dtype=bool)
+    in_tunnel[node[((fl & F_TUNNEL) != 0) & ((fl & F_RAIL) == 0)]] = True
+    sunk = np.nonzero(in_tunnel & (h < gnode - 1.0))[0]
+    heap = [(float(h[i]), int(i)) for i in sunk]
+    heapq.heapify(heap)
+    lowered = 0
+    while heap:
+        cur, i = heapq.heappop(heap)
+        if cur > h[i] + 1e-6:
+            continue
+        for k in range(start[i], start[i + 1]):
+            j = int(vv[k])
+            cand = cur + float(dd[k])
+            if cand < h[j] - 0.01:
+                h[j] = cand
+                lowered += 1
+                heapq.heappush(heap, (cand, j))
+    log(f'underpasses: {len(sunk)} tunnel points sunk, {lowered} road points lowered into their cuttings')
+    return h
+
+
 def build_roads(work, dem):
     roads = np.load(os.path.join(work, 'roads.npz'))
     xy0 = roads['xy'].astype(np.float64) / 100.0     # x east, y north
@@ -277,6 +351,7 @@ def build_roads(work, dem):
         xy0, nodes0, attrs = xy0[pts], nodes0[pts], attrs[sel]
         off0 = np.concatenate([[0], np.cumsum(counts)])
     crossings, _ = find_crossings(xy0, off0, attrs, nodes0)
+    underpasses = find_underpasses(xy0, off0, attrs, nodes0)
     xy, off, node, nnodes = densify(xy0, off0, nodes0)
     log(f'{len(attrs)} road/rail ways, {len(xy0)} -> {len(xy)} points after densifying to {ROAD_STEP:.0f} m')
     ground = np.empty(len(xy), dtype=np.float32)
@@ -298,29 +373,58 @@ def build_roads(work, dem):
     h = solve_heights(node, nnodes, xy, off, attrs, ground, lscale=lscale)
     log('road heights solved (pass 1)')
 
-    # Bridges that pass over a road or railway keep a deck DECK_CLEAR above it. Repeated so stacked levels add up
-    # (a level-2 bridge clears the level-1 bridge under it once that one has been raised).
-    for p in range(2 if crossings else 0):
+    # Bridges that pass over a road or railway keep a deck DECK_CLEAR above it, but only over it (plus the crossed
+    # road's half width and DECK_MARGIN): the rest of the deck is free to slope down to its ends, so the ramps
+    # beyond a long bridge are not raised the full clearance (D15). Repeated so stacked levels add up (a level-2
+    # bridge clears the level-1 bridge under it once that one has been raised).
+    for p in range(2 if crossings or underpasses else 0):
         pin_idx, pin_t = [], []
+        # underpasses (D16): the tunnel runs TUNNEL_DEPTH under each road it passes below, over that road's width
+        for tw, lst in underpasses.items():
+            pts_t = slice(off[tw], off[tw + 1])
+            tx_, ty_ = xy[pts_t, 0], xy[pts_t, 1]
+            need = np.full(len(tx_), 1e9)
+            for other, cx, cy in lst:
+                pts = slice(off[other], off[other + 1])
+                k = np.argmin(np.hypot(xy[pts, 0] - cx, xy[pts, 1] - cy))
+                reach = attrs['width_dm'][other] / 20.0 + 4.0
+                dist = np.hypot(tx_ - cx, ty_ - cy)
+                near = dist <= reach
+                if not near.any():
+                    near[np.argmin(dist)] = True
+                need[near] = np.minimum(need[near], h[node[off[other] + k]] - TUNNEL_DEPTH)
+            for i in np.nonzero(need < 1e8)[0]:
+                nd = node[off[tw] + i]
+                pin_idx.append(nd)
+                pin_t.append(min(need[i], h[nd]))
         for bw, lst in crossings.items():
-            need = -1e9
+            pts_b = slice(off[bw], off[bw + 1])
+            bx, by = xy[pts_b, 0], xy[pts_b, 1]
+            need = np.full(len(bx), -1e9)
             for other, cx, cy, _lay in lst:
                 pts = slice(off[other], off[other + 1])
                 k = np.argmin(np.hypot(xy[pts, 0] - cx, xy[pts, 1] - cy))
-                need = max(need, h[node[off[other] + k]] + DECK_CLEAR)
-            sl = node[off[bw]:off[bw + 1]]
-            for nd in sl[1:-1] if len(sl) > 2 else sl:
+                reach = attrs['width_dm'][other] / 20.0 + DECK_MARGIN
+                near = np.hypot(bx - cx, by - cy) <= reach
+                if not near.any():
+                    near[np.argmin(np.hypot(bx - cx, by - cy))] = True
+                need[near] = np.maximum(need[near], h[node[off[other] + k]] + DECK_CLEAR)
+            for i in np.nonzero(need > -1e8)[0]:
+                nd = node[off[bw] + i]
                 pin_idx.append(nd)
-                pin_t.append(max(need, h[nd]))
+                pin_t.append(max(need[i], h[nd]))
         h = solve_heights(node, nnodes, xy, off, attrs, ground,
                           (np.array(pin_idx, dtype=np.int64), np.array(pin_t), 5.0), lscale=lscale)
         log(f'road heights solved (deck pass {p + 1}, {len(pin_idx)} deck points pinned)')
     h = limit_ramps(h, node, nnodes, xy, off, attrs, ground)
+    if underpasses:
+        h = limit_dips(h, node, nnodes, xy, off, attrs, ground)
     y = h[node]
     lift = np.clip(y - ground, 0, 25.5)
 
     from junctions import build_junctions
     cuts, junctions = build_junctions(xy, off, node, nnodes, attrs, y, lift, log)
+    decks = underpass_decks(underpasses, xy, off, attrs, y, junctions)
     jtiles = encode_junctions(junctions)
 
     gx, gz = xy[:, 0], -xy[:, 1]
@@ -332,7 +436,10 @@ def build_roads(work, dem):
         cls, flags, width_dm, layer, lanes = (int(v) for v in attrs[w])
         seg = np.hypot(np.diff(px), np.diff(pz))
         al = np.concatenate([[0.0], np.cumsum(seg)])
-        for sx, sz, sy, sl, s_start, jstart, jend, orig_start, orig_end in cut_way(px, pz, py, pl, al, cuts.get(w)):
+        parts = cut_way(px, pz, py, pl, al, cuts.get(w))
+        if w in decks:
+            parts = split_decks(parts, decks[w])
+        for sx, sz, sy, sl, s_start, jstart, jend, orig_start, orig_end, *deck in parts:
             keep = np.ones(len(sx), dtype=bool)
             keep[1:] = (np.abs(np.diff(sx)) + np.abs(np.diff(sz))) > 0.02
             if keep.sum() < 2:
@@ -343,7 +450,7 @@ def build_roads(work, dem):
             for (tx, tz), i0, i1 in pieces:
                 if not in_scope((tx, tz)):
                     continue
-                f, f2 = flags, 0
+                f, f2 = flags | (F_BRIDGE if deck and deck[0] else 0), 0
                 if i0 == 0:
                     if orig_start:
                         f |= F_STARTCAP
@@ -367,6 +474,78 @@ def build_roads(work, dem):
     log(f'roads cut into {sum(len(v) for v in per_tile.values())} pieces over {len(per_tile)} tiles')
     return per_tile, jtiles
 
+
+
+def underpass_decks(underpasses, xy, off, attrs, y, junctions):
+    """Where a road passes over an underpass's cutting it becomes a short deck (drawn as a bridge, so it does not
+    shape the ground and the cutting runs on underneath): {way: [(from, to) along the way]}. Junction surfaces over
+    a cutting are marked elevated for the same reason (D16)."""
+    import shapely
+    decks = defaultdict(list)
+    sunk = []           # (x, y, height, half width) of tunnel points
+    for tw, lst in underpasses.items():
+        a, b = off[tw], off[tw + 1]
+        line_t = xy[a:b]
+        hw_t = attrs['width_dm'][tw] / 20.0
+        for other, cx, cy in lst:
+            oa, ob = off[other], off[other + 1]
+            pts = xy[oa:ob]
+            ko = int(np.argmin(np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)))
+            kt = int(np.argmin(np.hypot(line_t[:, 0] - cx, line_t[:, 1] - cy)))
+            if y[oa + ko] - y[a + kt] < 3.0:
+                continue        # the tunnel could not sink here (a steep street, a short ramp): leave both alone
+            along = float(shapely.LineString(pts).project(shapely.Point(cx, cy)))
+            # crossing angle from the two directions at the crossing
+            do = pts[min(ko + 1, len(pts) - 1)] - pts[max(ko - 1, 0)]
+            dt = line_t[min(kt + 1, len(line_t) - 1)] - line_t[max(kt - 1, 0)]
+            sin = abs(do[0] * dt[1] - do[1] * dt[0]) / max(1e-6, np.hypot(*do) * np.hypot(*dt))
+            half = min(60.0, (hw_t + GAME_SHOULDER + 1.5) / max(0.3, sin))
+            decks[other].append((along - half, along + half))
+        for k in range(len(line_t)):
+            sunk.append((line_t[k, 0], line_t[k, 1], y[a + k], hw_t))
+    raised = 0
+    if junctions and sunk:
+        from scipy.spatial import cKDTree
+        sk = np.array(sunk)
+        kd = cKDTree(sk[:, :2])
+        for j in junctions:
+            if j['elevated']:
+                continue
+            ring = j['xy'][:int(j['ends'][0])]
+            c = ring.mean(0)
+            rad = float(np.hypot(*(ring - c).T).max()) + GAME_SHOULDER + 12.0
+            near = kd.query_ball_point(c, rad)
+            if not near:
+                continue
+            poly = shapely.Polygon(ring)
+            jy = float(np.mean(j['y']))
+            for i in near:
+                px_, py_, ph, phw = sk[i]
+                if jy - ph > 3.0 and poly.distance(shapely.Point(px_, py_)) <= phw + GAME_SHOULDER:
+                    j['elevated'] = True
+                    raised += 1
+                    break
+    log(f'underpasses: {sum(len(v) for v in decks.values())} decks over cuttings, {raised} junctions raised over them')
+    return decks
+
+
+def split_decks(parts, intervals):
+    """Splits cut_way's parts further at deck intervals; each piece carries a trailing is-deck flag."""
+    for px, pz, py, pl, s0, jstart, jend, ostart, oend in parts:
+        al = s0 + np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(px), np.diff(pz)))])
+        a0, a1 = al[0], al[-1]
+        cuts = sorted({float(v) for iv in intervals for v in iv if a0 + 0.5 < v < a1 - 0.5})
+        bounds = [a0] + cuts + [a1]
+        last = len(bounds) - 2
+        for i in range(len(bounds) - 1):
+            lo, hi = bounds[i], bounds[i + 1]
+            mid = 0.5 * (lo + hi)
+            is_deck = any(a <= mid <= b for a, b in intervals)
+            inside = (al > lo) & (al < hi)
+            ss = np.concatenate([[lo], al[inside], [hi]])
+            yield (np.interp(ss, al, px), np.interp(ss, al, pz), np.interp(ss, al, py), np.interp(ss, al, pl), lo,
+                   jstart if i == 0 else False, jend if i == last else False,
+                   ostart if i == 0 else False, oend if i == last else False, is_deck)
 
 
 def cut_way(px, pz, py, pl, al, intervals):

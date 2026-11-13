@@ -72,6 +72,46 @@ def parse_asc(data):
     return arr, xll, yll, head["cellsize"]
 
 
+_TRANSFORMERS = {}
+
+
+def fetch_bin(s, block, n):
+    """Worker process: download one sheet, average its heights into 10 m cells of the blocks it covers.
+    Returns (bytes, [(block key, flat cell indices, sums, counts), ...])."""
+    from pyproj import Transformer
+    data = get(s["url"], timeout=600)
+    arr, xll, yll, cs = parse_asc(data)
+    nrows, ncols = arr.shape
+    k = max(1, int(round(2.0 / cs)))                    # about one sample per 2 m is plenty for a 10 m cell
+    sub = arr[::k, ::k]
+    jj, ii = np.nonzero(np.isfinite(sub))
+    if len(jj) == 0:
+        return len(data), []
+    xs = xll + ii * k * cs
+    ys = yll + (nrows - 1 - jj * k) * cs
+    crs = s["crs"]
+    if crs != "PL-1992":
+        if crs not in _TRANSFORMERS:
+            zone = int(re.search(r"S(\d+)", crs).group(1))
+            _TRANSFORMERS[crs] = Transformer.from_crs(f"EPSG:{2170 + zone}", "EPSG:2180", always_xy=True)
+        xs, ys = _TRANSFORMERS[crs].transform(xs, ys)
+    vals = sub[jj, ii].astype(np.float64)
+    cell = block / n
+    bx = np.floor(xs / block).astype(np.int64)
+    by = np.floor(ys / block).astype(np.int64)
+    ci = ((xs - bx * block) / cell).astype(np.int64).clip(0, n - 1)
+    cj = ((by * block + block - ys) / cell).astype(np.int64).clip(0, n - 1)
+    out = []
+    keys = bx * 1_000_003 + by
+    for key in np.unique(keys):
+        sel = keys == key
+        flat = cj[sel] * n + ci[sel]
+        u, inv = np.unique(flat, return_inverse=True)
+        out.append(((int(bx[sel][0]) * block, int(by[sel][0]) * block), u.astype(np.int32),
+                    np.bincount(inv, vals[sel]).astype(np.float32), np.bincount(inv).astype(np.float32)))
+    return len(data), out
+
+
 class Block:
     def __init__(self, path, block, n):
         import rasterio
@@ -108,6 +148,7 @@ def main():
     ap.add_argument("folder")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--probe", type=float, default=1500, help="spacing (m) of index queries over holes")
+    ap.add_argument("--reindex", action="store_true", help="ask the sheet index again even if a saved list exists")
     a = ap.parse_args()
     from pyproj import Transformer
     import rasterio
@@ -147,6 +188,8 @@ def main():
         except Exception as e:
             print(f"index query failed at {p}: {e}", flush=True)
             return []
+    if os.path.exists(os.path.join(a.folder, "sheets_wanted.json")) and not a.reindex:
+        probes = []                    # use the saved sheet list (--reindex to ask the index again)
     with cf.ThreadPoolExecutor(16) as ex:
         for k, res in enumerate(ex.map(ask, probes)):
             if res:
@@ -156,6 +199,12 @@ def main():
                 wanted[best["url"]] = best
             if k % 200 == 0:
                 print(f"index {k}/{len(probes)}: {len(wanted)} sheets so far", flush=True)
+    import json
+    cache = os.path.join(a.folder, "sheets_wanted.json")
+    if os.path.exists(cache):          # sheets found by an earlier run's index lookups (lookups take ~30 min)
+        for s in json.load(open(cache)):
+            wanted.setdefault(s["url"], s)
+    json.dump(list(wanted.values()), open(cache, "w"))
     todo = [s for u, s in wanted.items() if u not in done]
     print(f"{len(wanted)} sheets needed, {len(todo)} still to fetch", flush=True)
 
@@ -208,24 +257,31 @@ def main():
         return len(data), int(len(vals))
 
     t0 = time.time()
-    with cf.ThreadPoolExecutor(a.workers) as ex:
-        futs = {ex.submit(fetch, s): s for s in todo}
+    with cf.ProcessPoolExecutor(a.workers) as ex:
+        futs = {ex.submit(fetch_bin, s, block, n): s for s in todo}
         for k, f in enumerate(cf.as_completed(futs)):
             s = futs[f]
             try:
-                nb, _ = f.result()
+                nb, parts = f.result()
                 got_bytes[0] += nb
-                with lock:
-                    done.add(s["url"])
+                for key, flat, sm, cnt in parts:
+                    b = blocks.get(key)
+                    if b is None:
+                        continue
+                    jj, ii = np.divmod(flat, n)
+                    m = b.hole[jj, ii]
+                    b.sum[jj[m], ii[m]] += sm[m]
+                    b.cnt[jj[m], ii[m]] += cnt[m]
+                    b.dirty = True
+                done.add(s["url"])
             except Exception as e:
                 print(f"FAILED {s['url']}: {e}", flush=True)
             if (k + 1) % 25 == 0 or k + 1 == len(todo):
-                with lock:
-                    for b in blocks.values():
-                        if b.dirty:
-                            filled[0] += b.save()
-                            b.dirty = False
-                    open(done_path, "w").write("\n".join(sorted(done)))
+                for b in blocks.values():
+                    if b.dirty:
+                        filled[0] += b.save()
+                        b.dirty = False
+                open(done_path, "w").write("\n".join(sorted(done)))
                 el = time.time() - t0
                 left = sum(int(b.hole.sum()) for b in blocks.values()) * (block / n) ** 2 / 1e6
                 print(f"{k + 1}/{len(todo)} sheets, {got_bytes[0] / 1e9:.1f} GB downloaded, "

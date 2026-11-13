@@ -172,6 +172,8 @@ public static class MapMesher
             {
                 float h = ctx.Height(r.OffX + rx[k], r.OffZ + rz[k], 0f, out _);
                 gMin = MathF.Min(gMin, h); gMax = MathF.Max(gMax, h);
+                // far terrain shows the natural ground, not the road-shaped one: walls reach down to both
+                gMin = MathF.Min(gMin, ctx.Ground(r.OffX + rx[k], r.OffZ + rz[k]));
             }
             AddBuilding(geo.Buildings, geo.BuildingFaces, b, r.OffX, r.OffZ, gMin, gMax,
                 Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.Index, 91));
@@ -604,6 +606,10 @@ public static class MapMesher
     /// Extrudes one footprint. <paramref name="gMin"/>/<paramref name="gMax"/> are the lowest and highest
     /// ground under the outline: walls start below the low point and the floor sits at the high one.
     /// </summary>
+    /// <summary>How far walls run below the lowest ground under the outline, so coarse distant terrain (which can sit
+    /// a metre or more off the sampled ground between its grid points) never shows a gap under a building.</summary>
+    public const float WallSink = 2.0f;
+
     public static void AddBuilding(MeshData mesh, List<Vector3>? collision, MapBuilding b, float offX, float offZ, float gMin, float gMax, uint seed)
     {
         if (b.IsCanopy) { AddCanopy(mesh, collision, b, offX, offZ, gMin, gMax, seed); return; }
@@ -612,7 +618,7 @@ public static class MapMesher
         float floor = gMax;
         // Only pieces of a multi-part building may start above the ground (an upper storey, a
         // spire). A whole outline tagged with a minimum height is almost always a mapping slip.
-        float bottom = b.IsPart && b.MinHeight > 0.05f ? floor + b.MinHeight : gMin - 0.6f;
+        float bottom = b.IsPart && b.MinHeight > 0.05f ? floor + b.MinHeight : gMin - WallSink;
         float top = floor + b.Height;
         bool pitched = b.Roof >= RoofKind.Gabled && b.RoofHeight > 0.2f;
         float eave = pitched ? top - b.RoofHeight : top;
