@@ -64,7 +64,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   - A world authoring mode in game that saves to that override layer; the release ships map + edits.
   - Pavements: from `sidewalk=*` / `footway=sidewalk`, else estimated for town streets (~2 m, kerb). Ask Tom
     about kerb height and paving look first.
-* Sky and atmosphere: Godot's procedural sky; Thornwake's Atmosphere is the candidate.
+* Sky (D23): Thornwake's volumetric sky, sun and light are in; weather, rain, mist, moon phases, forest rays and
+  biome moods are not. Look switches for testing: --grade=N (0 off), --volfog=0, --haze=F, --sat=F.
 * Rivers use the lake water style; flow direction from OSM waterways is not fed to the shader yet.
 * `MapRouter` / `MapRoute` / `Navigation` keep world positions as floats: fine within a region (6 cm at 700 km), must
   become doubles before routes cross the Baltic.

@@ -158,3 +158,18 @@ OSM maps on its own (street and park trees), plus a world-aligned jittered scatt
 few. Each tree's position, species, size and turn come from independent hashes of its grid cell, so near and far
 cells agree. Near cells keep trees off roads, junctions and buildings and give trunks collision for the car.
 Measured: Kampinos from 150 m up, 11k 3D + 500k impostor trees at 60 fps; the Warsaw drive test unchanged.
+
+## D23 — Sky and light: Thornwake's atmosphere, core only
+Ported from Thornwake (Game/Sky, Shaders/Sky): the volumetric sky (Sky.gdshader with SkyCommon and CloudShapes) and
+the same cloud volume drawn in front of the scene (CloudsNear, "cloud renderer v2"), sun shafts, cloud shadows (a
+decal tiled with the sky's noise), light model 1 (sun colour and energy by elevation, warm sun and cool shade, gentle
+eye adaptation) with the temperate and plains light profiles averaged for Mazowsze, the natural look (ACES, white 6)
+and Tom's tuned Thornwake settings as fixed values: cloud quality v2, clouds 0.4, glow 0.6, sun shafts 0.6, the
+"Fantasy" grade at 0.6, SSAO strong, SSIL, 8k soft shadows to 700 m. The sun is the real sun over 52.2° N for a day
+of the year and local solar time ([ and ] move the clock half an hour; --hour, --day, --clouds for screenshots).
+One change from Thornwake: its volumetric fog density (0.002–0.0035) veiled every view over a 20 km landscape (Godot
+applies the fog at its 180 m length to everything beyond), so it is 0.0011 here with sky affect 0.35.
+Not ported yet: weather and rain, mist, lightning, the moon's phases and path (a simple full moon opposite the sun
+stands in), stars' rotation, auroras, forest light shafts, biome moods. The water's reflected sky and sun follow the
+hour (Thornwake's UpdateWaterSky).
+Measured: flying at golden hour, median 16.7 ms (vsync), p99 16.7 ms.

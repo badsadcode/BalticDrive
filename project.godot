@@ -114,3 +114,111 @@ wind_map_frame={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+cloud_state={
+"type": "vec4",
+"value": Vector4(0, 0, 0.45, 0)
+}
+cloud_layers={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+sky_mood={
+"type": "vec4",
+"value": Vector4(1, 1, 1, 0)
+}
+night_sky={
+"type": "vec4",
+"value": Vector4(0, -1, 0, 0.5)
+}
+star_rotation={
+"type": "mat3",
+"value": Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
+}
+sky_extra={
+"type": "vec4",
+"value": Vector4(0, 1, 1, 1)
+}
+sun_true={
+"type": "vec4",
+"value": Vector4(0, 1, 0, 45)
+}
+aurora={
+"type": "float",
+"value": 0.0
+}
+cloud_types={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+weather_frame={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+weather_map={
+"type": "sampler2D",
+"value": ""
+}
+air_map={
+"type": "sampler2D",
+"value": ""
+}
+ray_temporal={
+"type": "float",
+"value": 0.0
+}
+cloud_region={
+"type": "float",
+"value": 0.0
+}
+cloud_sea={
+"type": "float",
+"value": 0.0
+}
+cloud_air={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+lightning={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+cloud_lens={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+relief_frame={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+cloud_front={
+"type": "vec4",
+"value": Vector4(1, 0, 0, 0)
+}
+cloud_more={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 1500)
+}
+cloud_v2={
+"type": "float",
+"value": 0.0
+}
+cloud_light={
+"type": "vec4",
+"value": Vector4(1, 1, 1, 1)
+}
+cloud_light_dir={
+"type": "vec4",
+"value": Vector4(0, 1, 0, 0)
+}
+cloud_fog={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+cloud_fog2={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+cloud_dev={
+"type": "vec4",
+"value": Vector4(1, 0, 0, 0)
+}

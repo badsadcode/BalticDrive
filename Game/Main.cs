@@ -23,6 +23,8 @@ public partial class Main : Node3D
 	private TerrainStreamer _terrain = null!;
 	private MapContentStreamer _content = null!;
 	private Trees.TreeField _trees = null!;
+	private Sky.Atmosphere _atmosphere = null!;
+	public Sky.Atmosphere Atmosphere => _atmosphere;
 	private FlyCamera _camera = null!;
 	private Label _hud = null!;
 	private Tests? _tests;
@@ -151,6 +153,12 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent e)
 	{
+		if (e is InputEventKey { Pressed: true, Keycode: Key.Bracketleft or Key.Bracketright } k)
+		{
+			_atmosphere.Hour = (_atmosphere.Hour + (k.Keycode == Key.Bracketright ? 0.5 : -0.5) + 24) % 24;
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.M } && _mapScreen != null && !_mapScreen.Visible)
 		{
 			_mapScreen.Toggle();
@@ -207,6 +215,7 @@ public partial class Main : Node3D
 		_terrain.Update(fx, fz);
 		_content.Update(fx, fz);
 		_trees.Update(fx, fz, GetViewport().GetCamera3D()?.GlobalPosition ?? _camera.GlobalPosition);
+		_atmosphere.Update(delta, GetViewport().GetCamera3D());
 		_camera.GroundHeight = _world.Height(fx, fz);
 		RenderingServer.GlobalShaderParameterSet("ocean_time", (float)(Time.GetTicksMsec() / 1000.0));
 		var (lat, lon) = Core.Projection.ToGeo(fx, fz);
@@ -216,40 +225,25 @@ public partial class Main : Node3D
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
-					(Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road");
+					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
 	}
 
 	private void BuildEnvironment()
 	{
-		var sky = new ProceduralSkyMaterial
-		{
-			SkyTopColor = new Color(0.32f, 0.47f, 0.66f), SkyHorizonColor = new Color(0.68f, 0.74f, 0.80f),
-			GroundHorizonColor = new Color(0.55f, 0.58f, 0.60f), GroundBottomColor = new Color(0.2f, 0.2f, 0.2f),
-		};
-		var env = new Godot.Environment
-		{
-			BackgroundMode = Godot.Environment.BGMode.Sky,
-			Sky = new Sky { SkyMaterial = sky },
-			AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-			TonemapMode = Godot.Environment.ToneMapper.Filmic,
-			TonemapExposure = 1.1f,
-			FogEnabled = true,
-			FogLightColor = new Color(0.66f, 0.72f, 0.80f),
-			FogDensity = 0.00006f,
-			FogAerialPerspective = 0.6f,
-			SsaoEnabled = true,
-		};
-		AddChild(new WorldEnvironment { Environment = env });
-		var sun = new DirectionalLight3D
-		{
-			Name = "Sun", ShadowEnabled = true, LightEnergy = 1.3f,
-			DirectionalShadowMaxDistance = 600f,
-			RotationDegrees = new Vector3(-38f, -35f, 0f),
-		};
-		AddChild(sun);
-		// the tree shaders light leaves from behind when looking towards the sun
-		RenderingServer.GlobalShaderParameterSet("sun_dir_world", sun.GlobalTransform.Basis.Z.Normalized());
+		_atmosphere = new Sky.Atmosphere { Name = "Atmosphere" };
+		// --hour=HH.H (local solar time) and --day=N (day of the year) for screenshots; T+/- keys change the hour
+		if (Args.TryGetValue("hour", out var h)) _atmosphere.Hour = double.Parse(h, System.Globalization.CultureInfo.InvariantCulture);
+		if (Args.TryGetValue("day", out var d)) _atmosphere.DayOfYear = double.Parse(d, System.Globalization.CultureInfo.InvariantCulture);
+		if (Args.TryGetValue("clouds", out var c)) _atmosphere.Coverage = float.Parse(c, System.Globalization.CultureInfo.InvariantCulture);
+		AddChild(_atmosphere);
+		// look experiments: --grade=N (0 none), --volfog=0, --haze=F, --sat=F
+		var env = _atmosphere.Environment;
+		var inv = System.Globalization.CultureInfo.InvariantCulture;
+		if (Args.TryGetValue("grade", out var g)) env.AdjustmentColorCorrection = g == "0" ? null : Sky.ColorGrading.Lut(int.Parse(g), .6f);
+		if (Args.TryGetValue("volfog", out var v)) env.VolumetricFogEnabled = v != "0";
+		if (Args.TryGetValue("haze", out var hz)) { env.FogDensity = .00007f * float.Parse(hz, inv); env.FogAerialPerspective = .26f * float.Parse(hz, inv); }
+		if (Args.TryGetValue("sat", out var st)) env.AdjustmentSaturation = float.Parse(st, inv);
 	}
 }
