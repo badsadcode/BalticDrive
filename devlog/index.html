@@ -459,6 +459,65 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>261,615 barrier lines</li><li>127,850 gates</li><li>46,789 bollards</li><li>10 kinds of fence and wall</li><li>1 Project Zomboid comparison</li></ul>
     </div>
   </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>12</strong></div>
+    <div>
+      <h2>Buildings with a backstory</h2>
+      <div class="date">14 November 2026, through the night</div>
+      <p>Until now every building in Baltic Drive was a box with windows painted on by a shader. Tonight a lot of
+        Warsaw got real buildings: window openings you can see into, balconies, shop fronts, chimneys and gates.</p>
+      <figure class="photo">
+        <img src="img/kamienica-street.webp" alt="Street-level view of a narrow Warsaw street lined with pre-war tenements: plastered facades with window surrounds, shop fronts with coloured sign boards, grey slab pavements" loading="lazy">
+        <figcaption>A street of kamienice. Every one of them was generated from its OpenStreetMap footprint.</figcaption>
+      </figure>
+      <p>They come from <b>BadBuilding</b>, a new library of ours that grew out of Tom's idea: take a footprint from the
+        map, look at what's around it, and build a whole building that fits. It doesn't just extrude the outline. First
+        it reads the site. Which walls face the street, which ones touch the neighbours (no windows there: that's a
+        firewall), how the ground slopes, and whether there is a courtyard inside. Then it picks a style.</p>
+      <ul>
+        <li><b>PRL blocks:</b> concrete panels, balconies stacked in columns, glass-block strips over the staircases,
+          lift rooms on the roof.</li>
+        <li><b>Kamienice</b> (pre-war tenements): a dressed street front with window surrounds, a cornice and shops on
+          the ground floor, a plain yard at the back, bare brick firewalls with chimney stacks. Not all of them are
+          equally ornate, and a building only gets the rich treatment when the map says it really is pre-war.</li>
+        <li><b>Plain buildings</b> for everything else.</li>
+      </ul>
+      <figure class="photo r">
+        <img src="img/corner-shop.webp" alt="A salmon-pink corner tenement with a row of shop windows under red sign boards, one with its roller shutter down, on a slab pavement corner" loading="lazy">
+        <figcaption>Corner shop, one shutter down. Survival game rule: check the shuttered one first.</figcaption>
+      </figure>
+      <p><b>Noor kept the architecture honest.</b> She and Sage now talk through a question file in the BadBuilding
+        repository, with pictures, and she reviews every step. Her first catch was a courtyard block with no way into
+        the yard. "Residents must arrive by helicopter," she wrote. So now every courtyard gets a <i>brama</i>, a real
+        gate passage through the ground floor that you can drive through, and some of the gates are closed with a
+        small door in one leaf. She also insisted that missing data is never evidence. A building only becomes an
+        ornate tenement when OpenStreetMap knows it is old. And where the map shows shops, the shop fronts go there
+        and nowhere else.</p>
+      <figure class="photo">
+        <img src="img/brama-through.webp" alt="Looking through a gate passage in a grey panel block: open gate leaves against the passage walls, the courtyard beyond" loading="lazy">
+        <figcaption>A brama, from the library's own test gallery. The yard behind it is reachable now.</figcaption>
+      </figure>
+      <div class="quote">"Please don't accidentally give every building a golden dome now."
+        <cite>Noor</cite></div>
+      <p>In the game, the buildings are made on the fly as you drive, on background threads: about 11 milliseconds and
+        4,400 triangles each. A 6 km flight over central Warsaw still holds 60 frames per second. For now they cover
+        flat-roofed town buildings within 600 m, and they're behind a switch: press <b>F7</b> to flip between the new
+        buildings and the old boxes. Houses with pitched roofs, churches and towers keep their old shapes until the
+        library learns roofs. That's next.</p>
+      <figure class="photo r">
+        <img src="img/kamienica-district.webp" alt="Aerial view over a district of tenements and blocks: yellow, white, salmon and brick facades, flat roofs with chimney stacks and parapets, green courtyards between them" loading="lazy">
+        <figcaption>From above: chimneys on the firewalls, parapets, courtyards.</figcaption>
+      </figure>
+      <div class="quote">"If it has balconies and/or chimneys... must be BadBuilding."
+        <cite>Tom</cite></div>
+      <p><b>Also new: pavements and an F9 key.</b> Town streets got 12 cm kerbs and grey slab pavements that turn
+        round the corners. Tom drove into enough odd kerbs to suggest a debug key: F9 now saves a screenshot and a
+        report of everything at that spot, and his dumps fixed kerbs in the middle of the road, pavements on tram
+        tracks and a few gaps.</p>
+      <ul class="facts"><li>7,530 buildings in one test drive</li><li>0 fell back to boxes</li><li>3 building styles</li><li>1 courtyard rescued from helicopter-only access</li><li>0 golden domes</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
