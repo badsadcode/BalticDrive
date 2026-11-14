@@ -97,11 +97,17 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
     buildings already loaded around the player (MapContext), the route line, north marker; cheap per frame.
   - Map screen without pixels: keep the raster for zoomed-out views, switch to vector drawing per visible tile when
     zoomed in (roads as polylines by class, buildings as polygons, cached as 2D meshes per tile so panning stays fast).
+  - Street names on the map screen and the minimap (Tom: "pretty please"), drawn along the roads in the vector view;
+    needs road names in the tiles (same format change as below).
   - Where am I, precisely: street name and nearest house number ("Karowa 14"), then the district or village, then the
     town. Needs road names and building addresses (addr:street, addr:housenumber) in the tiles (format change, map
     rebuild), and the place lookup to prefer the smallest nearby place (suburb, quarter, neighbourhood, village within
     a few km) over the nearest big city within 15 km.
 * **On foot (Tom, 15 Nov), queued after roofs, the crash and Tom's dumps:**
+  **The direction is docs/BalticDrive_OnFoot_Gameplay_Brief.md (Tom and Noor); it wins where the notes below differ:**
+  first- and third-person with first-person aiming down sights, gunplay that feels great (bolt-action rifle, handgun,
+  AK), approachable ballistics, sound layered and replaceable, health/hunger/thirst, outdoor caches chosen by OSM
+  points of interest (no interiors needed), human bandits, everything sparse and generated around the player.
   1. Walking character (Synty, from data/inbox, never committed): third/first person, walk, run, crouch, jump,
      get in and out of the car. Calibrates the interior game scale (D11 in BadBuilding: 1.8 m, camera clearance).
   2. Weapons on a shooting range: aim, shoot, reload, hits on walls and targets; simple ballistics first.
