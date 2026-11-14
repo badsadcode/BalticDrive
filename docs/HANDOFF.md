@@ -65,6 +65,10 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   vertices per triangle, nothing shared: hundreds of thousands of vertices per central chunk), or a race between
   streaming workers and node teardown. Next: read the dump (module and memory), share vertices, run a long fly test
   with --buildings=bb watching memory, and make close/teardown wait for in-flight jobs anyway.
+  **Repro (Tom):** fly far away from the car in free camera, press F ("drive here") → the window closes. Path:
+  Main.SpawnCar → Car.Recover (NearestRoad within 600 m, Warp) on a car that was frozen far away (Car freezes where no
+  ground collision). Script it as a self-test (fly N km, SpawnCar) with F7 on and off; suspects: warping a frozen
+  body, physics on fresh concave collision (degenerate triangles from BadBuilding masses?), origin shift.
 * **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** the square's pedestrian area is drawn over the roads
   crossing it, hiding the carriageways, tram tracks, markings and the car park. Suspect: pedestrian junction surfaces
   get the high junction bias (0.105) in MapMesher.AddJunction, so they sit above every road; they should sit under
