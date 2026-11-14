@@ -116,6 +116,9 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   4. Loot caches: placed from what the world already knows (BadBuilding shop_entrance markers, kiosks, garages,
      gate passages and yards, car parks, fuel stations), a pickup prompt and a small inventory; picked-up caches
      remembered by a stable id (first step of the persistent changes).
+  Parked cars (Tom, Project Zomboid style): fill mapped car parks and parking lanes (amenity=parking, parking:lane /
+  parking:both on streets) with Synty City cars, sparse and generated around the player; some lootable (glovebox,
+  boot), some drivable with keys or fuel to find.
   Sage's small extras: footstep sounds by surface (asphalt, slabs, grass, gravel), a torch at night, a car boot as
   storage, fuel and refuelling at fuel stations (their canopies are already mapped), rain using the existing
   wetness value, open and close the gates (state already in the data), a compass and waypoint on the map screen.
