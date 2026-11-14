@@ -59,6 +59,9 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 * **Open from Tom (14 Nov, late):** F9 dumps in %APPDATA%\BalticDrive\dumps showing missing parts of classic
   buildings, to go through first; and gaps in BadBuilding's top cornices (gzyms) at roof corners.
+* **From Tom's side-by-side comparisons (15 Nov):** zebra crossings (OSM highway=crossing nodes and footway=crossing
+  ways, painted on the road with stop lines), and checking why some parking lots are missing. In BadBuilding: PRL
+  commercial pavilions (an upper floor overhanging the shops on pillars, usually mapped with building:part or min_height).
 
 * Barriers (D25): fences, walls, hedges, guard rails, bollards to ~600 m; generated looks (Synty pieces later), gates
   are openings only.
