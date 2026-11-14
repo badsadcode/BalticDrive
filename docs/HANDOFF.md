@@ -92,6 +92,18 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 * Far roads (D24): ribbons out to ~9 km. Far buildings beyond the 3 km skyline are still missing.
 * Tree colours are a fixed mix (some autumn maples and birches); Tom (13 Nov): leave it, seasons and weather will
   drive them in the final game.
+* **On foot (Tom, 15 Nov), queued after roofs, the crash and Tom's dumps:**
+  1. Walking character (Synty, from data/inbox, never committed): third/first person, walk, run, crouch, jump,
+     get in and out of the car. Calibrates the interior game scale (D11 in BadBuilding: 1.8 m, camera clearance).
+  2. Weapons on a shooting range: aim, shoot, reload, hits on walls and targets; simple ballistics first.
+  3. Bots: patrol, notice, chase, cover, shoot back; navigation per streamed chunk (or along roads and pavements
+     first), never one navmesh for all of Mazowsze.
+  4. Loot caches: placed from what the world already knows (BadBuilding shop_entrance markers, kiosks, garages,
+     gate passages and yards, car parks, fuel stations), a pickup prompt and a small inventory; picked-up caches
+     remembered by a stable id (first step of the persistent changes).
+  Sage's small extras: footstep sounds by surface (asphalt, slabs, grass, gravel), a torch at night, a car boot as
+  storage, fuel and refuelling at fuel stations (their canopies are already mapped), rain using the existing
+  wetness value, open and close the gates (state already in the data), a compass and waypoint on the map screen.
 * Ideas from Tom (13 Nov), for later:
   - BadVegetation (Tom and Noor, 15 Nov; final name Noor's to give; not before roofs and bugs): plants placed by
     vegetation communities, not one by one (Mazowsze: dry sandy pine woods, moist mixed oak-hornbeam forest,
