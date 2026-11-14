@@ -526,6 +526,10 @@ def estimate_pavements(work, xy, off, attrs):
             if not town[k]:
                 continue
             for bit in (0, 1):
+                # one-way roads (mostly one half of a dual carriageway) only on the right of travel: the left is the
+                # median (Tom's dumps: pavements on the tram tracks of Al. Niepodległości)
+                if bit == 0 and flags[w] & F_ONEWAY:
+                    continue
                 if not walk[w] & (4 << bit):
                     out[w] |= 1 << bit
     tagged = int(((walk & 12) != 0).sum())

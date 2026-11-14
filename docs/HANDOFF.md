@@ -63,6 +63,14 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   - Override layer keyed by OSM id: replace a building's box with a hand-made model (landmarks first).
   - Fences, walls, gates, bollards, hedges from OSM `barrier=*`, with Synty pieces.
   - A world authoring mode in game that saves to that override layer; the release ships map + edits.
+  - Buildings with interiors (Tom, 14 Nov): mix BadShip (github.com/badsadcode/BadShip, C#: seed + recipe → modular
+    exterior with sockets, LODs, collision, metadata) and BadLevel (github.com/badsadcode/BadLevel, Python: room
+    graph → floor plans, stairs, doors, validation, gameplay markup) on the OSM footprint, levels and type. Clones
+    beside the project (read-only). Proposal in the chat of 14 Nov: exterior from the footprint for every building,
+    interiors generated on demand from the OSM id when the player comes close.
+  - Interiors under a height map (Tom, 14 Nov): metro stations, basements, bunkers, caves as underground models
+    reached through small openings or doors (OSM has every Warsaw metro station, entrance and line); the
+    cut-and-cover tunnels (D26) are the same trick at ground level.
   - Pavements: from `sidewalk=*` / `footway=sidewalk`, else estimated for town streets (~2 m, kerb). Ask Tom
     about kerb height and paving look first.
 * Sky (D23): Thornwake's volumetric sky, sun and light are in; weather, rain, mist, moon phases, forest rays and

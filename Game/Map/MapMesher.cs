@@ -156,7 +156,7 @@ public static class MapMesher
             if (s.Road.IsTram) { if (lod <= 1) AddTramSegment(geo.Roads, ctx, s); }
             else
             {
-                AddRoadSegment(geo, s, lod);
+                AddRoadSegment(geo, s, lod, ctx);
                 CuttingMesher.AddSegment(ctx, s, lod, geo.Barriers, collide ? geo.BuildingFaces : null);
             }
         }
@@ -231,7 +231,7 @@ public static class MapMesher
                 float len = e.Length();
                 if (len < 0.05f) continue;
                 var outv = new Vector2(e.Y, -e.X) / len * sign;
-                if (lod <= 1 && !j.Paved && CornerPavement(ctx, a, b, outv, out float cw))
+                if (lod <= 1 && !j.Paved && start == 0 && CornerPavement(ctx, a, b, outv, out float cw))
                 {
                     // a street corner between two pavements (D27): kerb up, slabs round the corner, slope to the ground
                     AddCornerPavement(mesh, geo.PavedFaces, a, b, outv, cw);
@@ -254,6 +254,31 @@ public static class MapMesher
     /// An outline edge of a junction surface that is a street corner, not an arm's mouth, with a pavement beside it
     /// (a road with a pavement on that side reaches within its walk width of the edge's outer side).
     /// </summary>
+    /// <summary>
+    /// A side road, driveway, junction surface or paved area crosses this segment's pavement on side <paramref name="sgn"/>
+    /// (−1 left, +1 right of the point order): leave the pavement out there (Tom's dumps: slabs across a side road).
+    /// </summary>
+    private static bool WalkBlocked(MapContext ctx, in MapSeg s, int sgn)
+    {
+        var road = s.Road;
+        float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
+        if (len < 1e-3f) return false;
+        float rx = -dz / len * sgn, rz = dx / len * sgn;
+        float off = s.Hw + road.WalkWidth * .5f;
+        for (float t = 0f; t <= 1.001f; t += .5f)
+        {
+            float px = s.Ax + dx * t + rx * off, pz = s.Az + dz * t + rz * off;
+            foreach (var o in ctx.Segs)
+            {
+                if (o.Road == road || o.Road.IsRail || o.Road.IsBridge) continue;
+                if (o.Distance(px, pz, out _) < o.Hw + .3f) return true;
+            }
+            foreach (var jr in ctx.Junctions)
+                if (!jr.J.Elevated && jr.J.Contains(px - jr.OffX, pz - jr.OffZ)) return true;
+        }
+        return false;
+    }
+
     private static bool CornerPavement(MapContext ctx, Vector3 a, Vector3 b, Vector2 outv, out float width)
     {
         width = 2f;
@@ -275,7 +300,10 @@ public static class MapMesher
             var r = s.Road;
             if (r.Walk == 0 || r.IsBridge || r.IsRail || r.IsTram) continue;
             float d = s.Distance(mx, mz, out _) - s.Hw;
-            if (d < r.WalkWidth + 8f) { width = r.WalkWidth; return true; }
+            if (d >= r.WalkWidth + 8f) continue;
+            float side = (mx - s.Ax) * -(s.Bz - s.Az) + (mz - s.Az) * (s.Bx - s.Ax);
+            if (side >= 0 ? !r.WalkRight : !r.WalkLeft) continue;
+            width = r.WalkWidth; return true;
         }
         return false;
     }
@@ -333,7 +361,7 @@ public static class MapMesher
         return m / MathF.Max(0.45f, m.Dot(sb));
     }
 
-    private static void AddRoadSegment(MapChunkGeometry geo, in MapSeg s, int lod)
+    private static void AddRoadSegment(MapChunkGeometry geo, in MapSeg s, int lod, MapContext ctx)
     {
         var road = s.Road;
         int k = s.Index;
@@ -359,7 +387,7 @@ public static class MapMesher
         float grade = (y1 - y0) / MathF.Max(0.01f, (p1 - p0).Length());
         var up = new Vector3(-grade * d.X, 1f, -grade * d.Y).Normalized();
 
-        bool walkL = road.WalkLeft && lod <= 1 && !onPaved, walkR = road.WalkRight && lod <= 1 && !onPaved;
+        bool walkL = road.WalkLeft && lod <= 1 && !onPaved && !WalkBlocked(ctx, s, -1), walkR = road.WalkRight && lod <= 1 && !onPaved && !WalkBlocked(ctx, s, 1);
         Span<float> off = stackalloc float[] { -outer, -hw, hw, outer };
         Span<float> dy = stackalloc float[] { -drop, 0f, 0f, -drop };
         int first = mesh.V.Count;
