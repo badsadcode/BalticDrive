@@ -90,6 +90,12 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 * Tree colours are a fixed mix (some autumn maples and birches); Tom (13 Nov): leave it, seasons and weather will
   drive them in the final game.
 * Ideas from Tom (13 Nov), for later:
+  - BadVegetation (Tom and Noor, 15 Nov; final name Noor's to give; not before roofs and bugs): plants placed by
+    vegetation communities, not one by one (Mazowsze: dry sandy pine woods, moist mixed oak-hornbeam forest,
+    floodplain willows and alders, abandoned farmland going grass, shrubs, birch, wood); approximate competition
+    (shade under mature trees, light at edges); vegetation history (5 vs 50 years abandoned); urban rules (street
+    trees in pits clear of lamps and driveways, courtyards, allotments, hedges). It describes what grows where and why
+    (species, position, size, age, provenance); engines and games choose their own assets, instancing and LODs.
   - Override layer keyed by OSM id: replace a building's box with a hand-made model (landmarks first).
   - Fences, walls, gates, bollards, hedges from OSM `barrier=*`, with Synty pieces.
   - A world authoring mode in game that saves to that override layer; the release ships map + edits.
