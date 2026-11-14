@@ -119,6 +119,9 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   Parked cars (Tom, Project Zomboid style): fill mapped car parks and parking lanes (amenity=parking, parking:lane /
   parking:both on streets) with Synty City cars, sparse and generated around the player; some lootable (glovebox,
   boot), some drivable with keys or fuel to find.
+  Road pirates (Tom): bandit roadblocks outside the city on the "get out of town" route, placed where the map makes
+  an ambush natural (bridges, forest roads, narrow sections, level crossings): wrecked cars across the road, a few
+  bandits; drive through, turn back, or fight on foot. Sparse and generated ahead of the player.
   Sage's small extras: footstep sounds by surface (asphalt, slabs, grass, gravel), a torch at night, a car boot as
   storage, fuel and refuelling at fuel stations (their canopies are already mapped), rain using the existing
   wetness value, open and close the gates (state already in the data), a compass and waypoint on the map screen.
