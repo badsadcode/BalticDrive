@@ -186,8 +186,11 @@ public static class MapMesher
                 // far terrain shows the natural ground, not the road-shaped one: walls reach down to both
                 gMin = MathF.Min(gMin, ctx.Ground(r.OffX + rx[k], r.OffZ + rz[k]));
             }
-            AddBuilding(geo.Buildings, geo.BuildingFaces, b, r.OffX, r.OffZ, gMin, gMax,
-                Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.Index, 91));
+            uint seed = Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.Index, 91);
+            // whole buildings from the BadBuilding library near the player (D29), the plain extrusions everywhere else
+            if (BadBuildingAdapter.Enabled && lod <= 1 && BadBuildingAdapter.Eligible(b)
+                && BadBuildingAdapter.Add(ctx, r, lod, geo, gMin, seed)) continue;
+            AddBuilding(geo.Buildings, geo.BuildingFaces, b, r.OffX, r.OffZ, gMin, gMax, seed);
         }
     }
 

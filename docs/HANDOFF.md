@@ -44,6 +44,9 @@ Mazowieckie with the elevation already downloaded). Elevation for Mazowieckie (5
 
 Handy places (world metres, x east, z south): Palace of Culture 68891,639498.
 
+The game needs the BadBuilding library cloned beside it (`../BadBuilding`, github.com/badsadcode/BadBuilding): it is a
+project reference (D29). `--buildings=bb` (or F7 in game) switches to its buildings.
+
 ## Architecture in one breath
 
 `tools/osm_import` projects everything with one Baltic-wide Lambert conic (D2), solves road heights on the road graph
@@ -63,6 +66,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   - Override layer keyed by OSM id: replace a building's box with a hand-made model (landmarks first).
   - Fences, walls, gates, bollards, hedges from OSM `barrier=*`, with Synty pieces.
   - A world authoring mode in game that saves to that override layer; the release ships map + edits.
+  - BadBuilding (D29, 14 Nov): its buildings are in the game behind the switch (F7 / `--buildings=bb`), for
+    flat-roofed town buildings within 600 m. Next: roofs, then making it the default once Tom has driven it.
   - Buildings with interiors (Tom, 14 Nov): mix BadShip (github.com/badsadcode/BadShip, C#: seed + recipe → modular
     exterior with sockets, LODs, collision, metadata) and BadLevel (github.com/badsadcode/BadLevel, Python: room
     graph → floor plans, stairs, doors, validation, gameplay markup) on the OSM footprint, levels and type. Clones

@@ -231,3 +231,20 @@ Pavements (D27) stopped at junction surfaces, leaving a dip between two kerbs wh
 outline edges that are street corners (no carriageway continues past them; a tram track only counts where it enters
 through that edge) and have a pavement road within reach now get a kerb, slabs and a slope instead of the sunken
 shoulder, so the pavements join round the corner. Drive test: arrives, 1.9 s off road (was 7.8 before pavements).
+
+## D29 — Buildings from BadBuilding, behind a switch
+The building library (github.com/badsadcode/BadBuilding, cloned beside this folder as `../BadBuilding`) is referenced
+as a project, so it builds with the game. `Game/Map/BadBuildingAdapter.cs` turns each footprint into a request with
+its context: courtyards, neighbouring footprints within 40 m (party walls, slivers), nearby street segments (which
+walls face the street) and the ground under every corner (datum and plinth). The result (real window openings,
+balconies, shop fronts, kamienica street fronts, gate passages) is baked into the chunk's building mesh: each material
+role becomes a vertex colour, glass gets a new surface kind (0.5) in `building.gdshader`, everything else is a blank
+wall or a flat roof, so no shader windows are painted over real ones. Collision is the library's bare mass, which has
+the gate passages cut through it.
+Scope for now: flat-roofed town buildings (generic, apartments, commercial, civic) within LOD 0 and 1 cells (600 m).
+Pitched-roof houses, churches, towers, canopies, building parts and anything over 42 m (the skyline layer) keep the old
+meshes, and so does LOD 2; LOD 1 cells get a skirt under the plinth for the coarser terrain. Off by default:
+`--buildings=bb` or F7 in game switches it, and the HUD shows the counters.
+Measured (central Warsaw, Tom's PC): 10–16 ms and ~4,100–4,600 triangles per building on the worker threads, none fell
+back; a 6 km fly-over at 40 m/s holds 60 fps (median and p99 16.7 ms, 10 frames over 33 ms against 4 with the old
+buildings); the drive test arrives.

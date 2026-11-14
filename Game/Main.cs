@@ -50,6 +50,7 @@ public partial class Main : Node3D
 			int eq = s.IndexOf('=');
 			Args[eq < 0 ? s : s[..eq]] = eq < 0 ? "" : s[(eq + 1)..];
 		}
+		Map.BadBuildingAdapter.Enabled = Args.TryGetValue("buildings", out var bmode) && bmode == "bb";
 
 		_terrain = new TerrainStreamer { Name = "Terrain" };
 		_content = new MapContentStreamer { Name = "MapContent" };
@@ -170,6 +171,16 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F7 } && _world != null)
+		{
+			// BadBuilding buildings on or off (D29): the streamer rebuilds every cell
+			Map.BadBuildingAdapter.Enabled = !Map.BadBuildingAdapter.Enabled;
+			Map.BadBuildingAdapter.ResetStats();
+			_content.Configure(_world);
+			ShowNote(Map.BadBuildingAdapter.Enabled ? "Buildings: BadBuilding" : "Buildings: classic");
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Keycode: Key.Bracketleft or Key.Bracketright } k)
 		{
 			_atmosphere.AdvanceClock(k.Keycode == Key.Bracketright ? 0.5 : -0.5);
@@ -244,6 +255,7 @@ public partial class Main : Node3D
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
+					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
 					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);

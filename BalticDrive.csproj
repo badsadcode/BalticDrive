@@ -7,6 +7,10 @@
     <LangVersion>12</LangVersion>
   </PropertyGroup>
   <ItemGroup>
+    <!-- the building generator library, cloned beside this folder (D29) -->
+    <ProjectReference Include="../BadBuilding/src/BadBuilding.Core/BadBuilding.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Remove="Tests/**" />
     <Compile Remove="data/**" />
     <Compile Remove="map/**" />

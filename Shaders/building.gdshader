@@ -2,7 +2,8 @@ shader_type spatial;
 render_mode cull_back, diffuse_burley;
 
 // Buildings raised from map footprints. One mesh per chunk; the vertex colour carries the tint
-// (RGB) and what the face is (A): 1 wall with windows, 0.66 blank wall, 0.33 pitched roof, 0 flat roof.
+// (RGB) and what the face is (A): 1 wall with windows, 0.66 blank wall, 0.5 real glass (BadBuilding windows, D29),
+// 0.33 pitched roof, 0 flat roof.
 // Walls: UV = (metres along the wall, metres above the floor), UV2 = (wall length, wall height),
 // which lets the windows be spaced to fit each wall exactly.
 
@@ -39,6 +40,7 @@ void fragment() {
 	float is_wall = step(0.5, kind);
 	float has_windows = step(0.85, kind);
 	float is_tiles = step(0.2, kind) * (1.0 - is_wall);
+	float is_glass = 1.0 - step(0.06, abs(kind - 0.5));
 
 	vec2 wall_p = vec2(UV.x, UV.y);
 	float n_big = vnoise(wall_p * 0.35 + wpos.xz * 0.05);
@@ -88,7 +90,9 @@ void fragment() {
 	wall = mix(wall, pane, glass * window);
 	wall = mix(wall, frame_col * 0.8, door_frame * door_bay);
 	wall = mix(wall, door_col, door_leaf * door_bay);
-	float glassy = glass * window * (1.0 - boarded);
+	float glassy = max(glass * window * (1.0 - boarded), is_glass);
+	// real glass from BadBuilding: its tint, a faint sky reflection, no grime
+	wall = mix(wall, tint * 0.9 + vec3(0.012, 0.016, 0.02), is_glass);
 
 	// ---- roofs ----
 	float row = fract(wpos.y * 3.2 + n_big * 0.3);
