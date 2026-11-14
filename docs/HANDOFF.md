@@ -62,6 +62,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 * **From Tom's side-by-side comparisons (15 Nov):** zebra crossings (OSM highway=crossing nodes and footway=crossing
   ways, painted on the road with stop lines), and checking why some parking lots are missing. In BadBuilding: PRL
   commercial pavilions (an upper floor overhanging the shops on pillars, usually mapped with building:part or min_height).
+  Street level: tram overhead wires on their poles (catenary), traffic signs and lights at junctions, more bollards
+  and kerb furniture. Distinctive PRL/brutalist landmarks with upside-down stepped floors are override candidates.
 
 * Barriers (D25): fences, walls, hedges, guard rails, bollards to ~600 m; generated looks (Synty pieces later), gates
   are openings only.
