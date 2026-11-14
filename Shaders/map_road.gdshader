@@ -3,7 +3,7 @@ render_mode cull_back, diffuse_burley;
 
 // Roads of the real-map world. One mesh carries every road in a chunk, so the per-road
 // properties travel in the vertex colour:
-//   R = surface (0 asphalt, 0.25 concrete, 0.5 gravel/dirt, 0.75 bare steel, 1 railway)
+//   R = surface (0 asphalt, 0.25 concrete, 0.5 gravel/dirt, 0.75 bare steel, 0.89 pavement slabs, 1 railway)
 //   G = markings (0 none, 0.33 two-way centre line only, 0.66 two-way with edge lines, 1 one-way lanes)
 //   A = (lane count + 9 * lanes in the point direction) / 255; that second number is 0 for an even split (D19)
 //   B = half width / 16
@@ -113,11 +113,23 @@ void fragment() {
 	col = mix(col, concrete, is_concrete);
 
 	// ---- bare steel (tram rails set into the street) ----
-	float is_steel = step(0.65, surf) * step(surf, 0.85);
+	float is_steel = step(0.65, surf) * step(surf, 0.82);
 	col = mix(col, vec3(0.16, 0.13, 0.11) * (0.8 + 0.4 * n_fine), is_steel);
 
+	// ---- pavement: grey concrete slabs 50 cm (płyty chodnikowe, D27), joints, some darker or cracked ----
+	// UV.x = metres across from the kerb, UV.y = along the street
+	float is_slab = step(0.85, surf) * step(surf, 0.93);
+	vec2 sl = vec2(u, v) / 0.5;
+	vec2 sf = fract(sl);
+	float joint = max(smoothstep(0.05, 0.0, min(sf.x, 1.0 - sf.x)), smoothstep(0.05, 0.0, min(sf.y, 1.0 - sf.y))) * fade;
+	float tone = hash(floor(sl) + 7.3);
+	vec3 slab = vec3(0.30, 0.295, 0.28) * (0.82 + 0.22 * tone + 0.2 * (n_fine - 0.5));
+	slab *= 1.0 - 0.4 * joint;
+	slab *= 1.0 - 0.25 * step(0.93, tone) * smoothstep(0.03, 0.0, abs(vnoise(sl * 3.0) - 0.5));   // the odd cracked slab
+	col = mix(col, slab, is_slab);
+
 	// ---- railway: ballast, sleepers, two rails ----
-	float is_rail = step(0.85, surf);
+	float is_rail = step(0.94, surf);
 	vec3 ballast = mix(vec3(0.085, 0.078, 0.072), vec3(0.16, 0.15, 0.14), n_fine) * (0.8 + 0.3 * n_mid);
 	float sleeper = step(fract(v / 0.62), 0.38) * step(au, 1.25);
 	ballast = mix(ballast, vec3(0.045, 0.036, 0.03), sleeper * 0.85);
@@ -127,7 +139,7 @@ void fragment() {
 
 	// gravel shoulder outside the carriageway
 	float hard = 1.0 - max(max(is_loose, is_rail), is_steel);
-	float shoulder = smoothstep(half_width - 0.1, half_width + 0.25, au + (n_mid - 0.5) * 0.4) * (1.0 - is_concrete) * (1.0 - is_steel);
+	float shoulder = smoothstep(half_width - 0.1, half_width + 0.25, au + (n_mid - 0.5) * 0.4) * (1.0 - is_concrete) * (1.0 - is_steel) * (1.0 - is_slab);
 	vec3 gravel = mix(vec3(0.10, 0.085, 0.065), vec3(0.17, 0.15, 0.12), n_mid) * (0.75 + 0.5 * n_fine);
 	col = mix(col, gravel, shoulder);
 

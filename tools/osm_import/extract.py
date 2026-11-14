@@ -100,8 +100,10 @@ class Polys:
 # 0 = unknown (drawn as an even split). See D19.
 # turn: 1 = the leftmost lane turns left, 2 = the rightmost lane turns right (turn:lanes; picks the side a lane is
 # added on where the lane count changes, D21)
+# walk: pavements (D27) — bit 0 left side has one, bit 1 right side, bit 2 left side tagged, bit 3 right side tagged
+# (left/right of the way's direction; untagged sides are estimated by build.py)
 ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'), ('lanes', 'u1'), ('fwd', 'u1'),
-              ('turn', 'u1')]
+              ('turn', 'u1'), ('walk', 'u1')]
 # Paved areas drawn as asphalt (D20): 0 parking or fuel forecourt, 1 pedestrian square, 2 carriageway area
 PAVED_DTYPE = [('kind', 'u1')]
 # raised: on a bridge or viaduct (bridge=yes or layer ≥ 1): the game stands it on the deck, or leaves it out (D25)
@@ -268,6 +270,24 @@ class Handler(osmium.SimpleHandler):
                 elif lb and lb < lanes:
                     fwd = int(lanes) - lb
             fwd = max(0, min(8, fwd))
+        walk = 0
+        if hw is not None:
+            def side_has(v):
+                return None if v is None else (v in ('yes', 'both', 'separate', 'left', 'right'))
+            both = tags.get('sidewalk') or tags.get('sidewalk:both')
+            left, right = tags.get('sidewalk:left'), tags.get('sidewalk:right')
+            if both in ('both', 'yes', 'separate'):
+                left, right = left or 'yes', right or 'yes'
+            elif both in ('no', 'none'):
+                left, right = left or 'no', right or 'no'
+            elif both == 'left':
+                left, right = left or 'yes', right or 'no'
+            elif both == 'right':
+                left, right = left or 'no', right or 'yes'
+            for bit, v in ((0, left), (1, right)):
+                has = side_has(v)
+                if has is not None:
+                    walk |= (1 << (bit + 2)) | ((1 << bit) if has else 0)
         turn = 0
         tl = tags.get('turn:lanes') or tags.get('turn:lanes:forward')
         if tl:
@@ -299,7 +319,7 @@ class Handler(osmium.SimpleHandler):
             layer = 0
         layer = max(-5, min(5, layer))
         self.roads.add(lons, lats,
-                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd, turn),
+                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd, turn, walk),
                        [nd.ref for nd in w.nodes])
 
     # ---- areas ---------------------------------------------------------------------------

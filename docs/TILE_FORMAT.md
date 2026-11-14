@@ -1,4 +1,4 @@
-# Map packs, format 6
+# Map packs, format 7
 
 Written by `tools/osm_import/build.py`, read by `Game/Map/MapData.cs`. Little-endian throughout. Change both together
 and bump `FORMAT`.
@@ -14,7 +14,7 @@ and bump `FORMAT`.
 | Field | Type |
 | --- | --- |
 | magic | `BDIX` |
-| format | u32 = 6 |
+| format | u32 = 7 |
 | tile size | f32 = 2048 |
 | land raster | u32 = 512 (cells per side, 4 m) |
 | height grid | u32 = 256 (cells per side, 8 m; 257² corner values) |
@@ -27,12 +27,12 @@ Tile (tx, tz) covers world x ∈ [tx·2048, (tx+1)·2048), z ∈ [tz·2048, (tz+
 
 ## Tile blob
 
-`BDT6`, then:
+`BDT7`, then:
 
 1. **Roads**: u32 count, each: class u8, flags u8 (1 bridge, 2 tunnel, 4 one-way, 8 unpaved, 16 lit, 32 rail,
    64 start cap, 128 end cap), flags2 u8 (1 starts at a junction surface, 2 ends at one, bits 2–5: lanes in the point direction on a
    two-way road, 0 = even split; D19; 64 runs across a paved area: no verges; 128 tapered, see below), width u8 (0.1 m), layer i8,
-   mapped lanes u8 (0 = unknown), distance along the whole way at the first point f32, point count u16, then per
+   mapped lanes u8 (0 = unknown), pavements u8 (bit 0 left, bit 1 right of the point order; D27), distance along the whole way at the first point f32, point count u16, then per
    point x i16 (0.1 m, tile-local), z i16, height u16 (absolute, height units), lift u8 (0.1 m above natural ground);
    on tapered pieces (flags2 128, D21) also width u8 (0.1 m, this point) and lane offset i8 (0.1 m: UV.x = lateral
    offset + this, so markings keep the full-width layout). Points ≤ 10 m apart. Roads are cut where they enter a junction surface.

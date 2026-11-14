@@ -100,7 +100,8 @@ public static class MapMesher
     public const float TallBuilding = 42f;   // taller than this is drawn by the skyline layer instead
 
     // Surface codes in vertex colour R, read by shaders/map_road.gdshader.
-    private const float SurfAsphalt = 0f, SurfConcrete = 0.25f, SurfLoose = 0.5f, SurfRail = 1f;
+    private const float SurfAsphalt = 0f, SurfConcrete = 0.25f, SurfLoose = 0.5f, SurfSlab = 0.89f, SurfRail = 1f;
+    public const float Kerb = 0.12f;
 
     /// <summary>Small height bias per class so overlapping ribbons at junctions never z-fight.</summary>
     /// <summary>COLOR.a for the road shader: lane count plus 9 x lanes in the point direction (0 = even split), over
@@ -164,7 +165,7 @@ public static class MapMesher
             var j = jr.J;
             float cx = jr.OffX + j.Cx, cz = jr.OffZ + j.Cz;
             if (j.Ghost || cx < 0 || cx >= size || cz < 0 || cz >= size) continue;
-            AddJunction(geo, jr, lod);
+            AddJunction(geo, jr, lod, ctx);
         }
         AddFurniture(ctx, size, lod, geo, collide);
         BarrierMesher.AddBarriers(ctx, size, lod, geo.Barriers, collide ? geo.BuildingFaces ??= new List<Vector3>() : null);
@@ -196,7 +197,7 @@ public static class MapMesher
     /// A junction surface: the triangulated outline at its own heights (no markings), with a shoulder sloping down
     /// and out along the outline like the road ribbons have, so the ground meets it the same way.
     /// </summary>
-    private static void AddJunction(MapChunkGeometry geo, in MapJunctionRef jr, int lod)
+    private static void AddJunction(MapChunkGeometry geo, in MapJunctionRef jr, int lod, MapContext ctx)
     {
         var j = jr.J;
         var mesh = geo.Roads;
@@ -230,6 +231,12 @@ public static class MapMesher
                 float len = e.Length();
                 if (len < 0.05f) continue;
                 var outv = new Vector2(e.Y, -e.X) / len * sign;
+                if (lod <= 1 && !j.Paved && CornerPavement(ctx, a, b, outv, out float cw))
+                {
+                    // a street corner between two pavements (D27): kerb up, slabs round the corner, slope to the ground
+                    AddCornerPavement(mesh, geo.PavedFaces, a, b, outv, cw);
+                    continue;
+                }
                 var drop = new Vector3(outv.X * ShoulderWidth, -ShoulderDrop, outv.Y * ShoulderWidth);
                 var nrm = new Vector3(outv.X * 0.28f, 1f, outv.Y * 0.28f).Normalized();
                 // shoulder: UV.x from the carriageway edge (16 m) outwards, as on the road ribbons
@@ -241,6 +248,65 @@ public static class MapMesher
             }
             start = end;
         }
+    }
+
+    /// <summary>
+    /// An outline edge of a junction surface that is a street corner, not an arm's mouth, with a pavement beside it
+    /// (a road with a pavement on that side reaches within its walk width of the edge's outer side).
+    /// </summary>
+    private static bool CornerPavement(MapContext ctx, Vector3 a, Vector3 b, Vector2 outv, out float width)
+    {
+        width = 2f;
+        float mx = (a.X + b.X) * .5f, mz = (a.Z + b.Z) * .5f;
+        // an arm's mouth: some carriageway (bridges and tram streets included) continues past the edge, or covers where
+        // the slabs would go
+        foreach (var s in ctx.Segs)
+        {
+            if (s.Road.IsRail && !s.Road.IsTram) continue;
+            // a tram track entering the junction through this edge makes it a mouth too (median gaps); one passing
+            // near a corner does not
+            if (s.Road.IsTram) { if (s.Distance(mx + outv.X * .5f, mz + outv.Y * .5f, out _) < s.Hw) return false; continue; }
+            for (float t = .5f; t <= 2.6f; t += 1f)
+                if (s.Distance(mx + outv.X * t, mz + outv.Y * t, out _) < s.Hw + .2f) return false;
+        }
+        // a corner: a road with a pavement within reach (a corner arc's middle can be ~8 m from the arm's centre line end)
+        foreach (var s in ctx.Segs)
+        {
+            var r = s.Road;
+            if (r.Walk == 0 || r.IsBridge || r.IsRail || r.IsTram) continue;
+            float d = s.Distance(mx, mz, out _) - s.Hw;
+            if (d < r.WalkWidth + 8f) { width = r.WalkWidth; return true; }
+        }
+        return false;
+    }
+
+    private static void AddCornerPavement(MeshData mesh, List<Vector3>? collision, Vector3 a, Vector3 b, Vector2 outv, float w)
+    {
+        var kerbCol = new Color(SurfConcrete, 0f, 1f, LaneCode(1, 0));
+        var slabCol = new Color(SurfSlab, 0f, 1f, LaneCode(1, 0));
+        var earthCol = new Color(SurfLoose, 0f, 1f, LaneCode(1, 0));
+        var uv2 = new Vector2(1000f, 0f);
+        var o = new Vector3(outv.X, 0, outv.Y);
+        float len = new Vector2(b.X - a.X, b.Z - a.Z).Length();
+        var up = new Vector3(0, Kerb, 0);
+        // kerb face
+        int k = mesh.V.Count;
+        mesh.Add(a - new Vector3(0, .02f, 0), -o, new Vector2(0, 0), uv2, kerbCol); mesh.Add(b - new Vector3(0, .02f, 0), -o, new Vector2(0, len), uv2, kerbCol);
+        mesh.Add(b + up, -o, new Vector2(Kerb, len), uv2, kerbCol); mesh.Add(a + up, -o, new Vector2(Kerb, 0), uv2, kerbCol);
+        mesh.Quad(k, k + 1, k + 2, k + 3, -o, collision);
+        // slabs (a little wider than the straight pavements so the corner closes)
+        float ww = w + .4f;
+        int t = mesh.V.Count;
+        mesh.Add(a + up, Vector3.Up, new Vector2(a.X, a.Z), uv2, slabCol); mesh.Add(b + up, Vector3.Up, new Vector2(b.X, b.Z), uv2, slabCol);
+        var bo = b + up + o * ww + new Vector3(0, .03f, 0); var ao = a + up + o * ww + new Vector3(0, .03f, 0);
+        mesh.Add(bo, Vector3.Up, new Vector2(bo.X, bo.Z), uv2, slabCol); mesh.Add(ao, Vector3.Up, new Vector2(ao.X, ao.Z), uv2, slabCol);
+        mesh.Quad(t, t + 1, t + 2, t + 3, Vector3.Up, collision);
+        // slope down behind
+        int s = mesh.V.Count;
+        var drop = o * .7f + new Vector3(0, -.6f, 0);
+        mesh.Add(ao, Vector3.Up, new Vector2(0, 0), uv2, earthCol); mesh.Add(bo, Vector3.Up, new Vector2(0, len), uv2, earthCol);
+        mesh.Add(bo + drop, Vector3.Up, new Vector2(.7f, len), uv2, earthCol); mesh.Add(ao + drop, Vector3.Up, new Vector2(.7f, 0), uv2, earthCol);
+        mesh.Quad(s, s + 1, s + 2, s + 3, Vector3.Up, collision);
     }
 
     // ---- roads ---------------------------------------------------------------------------
@@ -293,6 +359,7 @@ public static class MapMesher
         float grade = (y1 - y0) / MathF.Max(0.01f, (p1 - p0).Length());
         var up = new Vector3(-grade * d.X, 1f, -grade * d.Y).Normalized();
 
+        bool walkL = road.WalkLeft && lod <= 1 && !onPaved, walkR = road.WalkRight && lod <= 1 && !onPaved;
         Span<float> off = stackalloc float[] { -outer, -hw, hw, outer };
         Span<float> dy = stackalloc float[] { -drop, 0f, 0f, -drop };
         int first = mesh.V.Count;
@@ -308,6 +375,9 @@ public static class MapMesher
                 off[0] = -(outer - hw + h); off[1] = -h; off[2] = h; off[3] = outer - hw + h;
                 uo = road.UOff![k + e];
             }
+            // a side with a pavement has no shoulder: the kerb stands at the carriageway edge (D27)
+            if (walkL) { off[0] = off[1]; dy[0] = 0f; }
+            if (walkR) { off[3] = off[2]; dy[3] = 0f; }
             for (int i = 0; i < 4; i++)
             {
                 var n = i == 0 ? (up - new Vector3(m.X, 0, m.Y) * 0.28f).Normalized()
@@ -327,6 +397,47 @@ public static class MapMesher
             if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, road.HalfWidthAt(k + 1), road.Along[k + 1], col, collision, !bridge && !onPaved);
         }
         if (bridge) AddBridgeSides(mesh, geo.PavedFaces, p0, p1, m0, m1, y0, y1, MathF.Max(road.HalfWidthAt(k), road.HalfWidthAt(k + 1)));
+        if (walkL) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, -1);
+        if (walkR) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, 1);
+    }
+
+    /// <summary>
+    /// A pavement along one side of a road segment (D27): a 12 cm concrete kerb at the carriageway edge, a strip of grey
+    /// slabs (<see cref="MapRoad.WalkWidth"/>), and a short slope down to the ground behind it.
+    /// </summary>
+    private static void AddPavement(MeshData mesh, List<Vector3>? collision, MapRoad road, int k, Vector2 p0, Vector2 p1,
+        Vector2 m0, Vector2 m1, float y0, float y1, int sgn)
+    {
+        float w = road.WalkWidth;
+        var kerbCol = new Color(SurfConcrete, 0f, 1f, LaneCode(1, 0));
+        var slabCol = new Color(SurfSlab, 0f, 1f, LaneCode(1, 0));
+        var earthCol = new Color(SurfLoose, 0f, 1f, LaneCode(1, 0));
+        var uv2 = new Vector2(1000f, 0f);
+        // profile across the pavement, outward from the carriageway edge: (offset beyond the edge, height above the road)
+        Span<float> o = stackalloc float[] { 0f, 0f, 0f, w, w, w + 0.7f };
+        Span<float> h = stackalloc float[] { -0.02f, Kerb, Kerb, Kerb + 0.03f, Kerb + 0.03f, -0.45f };
+        int first = mesh.V.Count;
+        for (int e = 0; e < 2; e++)
+        {
+            var p = e == 0 ? p0 : p1; var m = (e == 0 ? m0 : m1) * sgn;
+            float y = e == 0 ? y0 : y1, along = road.Along[k + e], hw = road.HalfWidthAt(k + e);
+            var outward = new Vector3(m.X, 0, m.Y);
+            for (int i = 0; i < 6; i++)
+            {
+                float off = hw + o[i];
+                var nrm = i < 2 ? -outward : i < 4 ? Vector3.Up : (Vector3.Up + outward * 0.6f).Normalized();
+                var c = i < 2 ? kerbCol : i < 4 ? slabCol : earthCol;
+                var uv = i < 2 ? new Vector2(h[i], along) : new Vector2(o[i], along);
+                mesh.Add(new Vector3(p.X + m.X * off, y + h[i], p.Y + m.Y * off), nrm, uv, uv2, c);
+            }
+        }
+        // kerb face (0-1), slab top (2-3), slope (4-5)
+        for (int q = 0; q < 6; q += 2)
+        {
+            int a = first + q, b = first + q + 1, c2 = first + 6 + q + 1, d = first + 6 + q;
+            var facing = q == 0 ? new Vector3(-(m0.X * sgn), 0, -(m0.Y * sgn)) : Vector3.Up;
+            mesh.Quad(a, b, c2, d, facing, collision);
+        }
     }
 
     /// <summary>Rounds off the end of a road so junctions and dead ends have no notches.</summary>

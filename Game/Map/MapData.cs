@@ -92,6 +92,12 @@ public sealed class MapRoad
     public int LanesForward => (Flags2 >> 2) & 15;
     /// <summary>Runs across a paved area (a parking aisle, a lane over a square): drawn without verges (D20).</summary>
     public bool OnPaved => (Flags2 & RoadFlag.OnPaved) != 0;
+    /// <summary>Pavements (D27): bit 0 on the left of the point order, bit 1 on the right.</summary>
+    public byte Walk;
+    public bool WalkLeft => (Walk & 1) != 0 && !IsBridge && !IsRail;
+    public bool WalkRight => (Walk & 2) != 0 && !IsBridge && !IsRail;
+    /// <summary>Pavement width: 3 m along main roads, 2 m along the rest.</summary>
+    public float WalkWidth => Cls <= RoadClass.Secondary ? 3f : 2f;
     public bool StartsAtJunction => (Flags2 & RoadFlag.JunctionStart) != 0;
     public bool EndsAtJunction => (Flags2 & RoadFlag.JunctionEnd) != 0;
 }
@@ -264,7 +270,7 @@ public sealed class MapTile
         Tx = tx; Tz = tz; OriginX = tx * (double)Size; OriginZ = tz * (double)Size;
         using var ms = new MemoryStream(raw);
         using var r = new BinaryReader(ms);
-        if (r.ReadUInt32() != 0x36544442u) throw new InvalidDataException("bad tile magic"); // "BDT6"
+        if (r.ReadUInt32() != 0x37544442u) throw new InvalidDataException("bad tile magic"); // "BDT7"
 
         int nRoads = (int)r.ReadUInt32();
         var roads = new List<MapRoad>(nRoads);
@@ -276,6 +282,7 @@ public sealed class MapTile
             road.HalfWidth = r.ReadByte() * 0.05f;
             road.Layer = r.ReadSByte();
             road.MappedLanes = r.ReadByte();
+            road.Walk = r.ReadByte();
             float along = r.ReadSingle();
             int n = r.ReadUInt16();
             xs.Clear(); zs.Clear(); ys.Clear(); ls.Clear(); al.Clear(); hs.Clear(); us.Clear();
@@ -597,7 +604,7 @@ public sealed class MapPlace
 /// <summary>Opens a map (index + pack files) and hands out tiles on demand. Safe to call from worker threads.</summary>
 public sealed class MapData : IDisposable
 {
-    public const int Format = 6;
+    public const int Format = 7;
     public readonly string Name;
     public readonly string Directory;
     public readonly List<MapPlace> Places = new();

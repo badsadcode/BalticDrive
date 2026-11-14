@@ -210,3 +210,24 @@ Barriers tagged bridge=yes or layer ≥ 1 (railings and guard rails of viaducts 
 across the tracks (Tom, 66062,643393 and 64503,642573). The extract keeps that flag (barriers.npz 'raised', the
 kind's top bit in the tiles); the game stands such a barrier on the nearest bridge deck within 3.5 m of its edge, or
 leaves it out (footbridges are not drawn yet). Ground barriers also step aside at railway tracks.
+
+## D27 — Pavements: grey slabs, 12 cm kerbs (tile format 7)
+Tom chose grey concrete slabs (płyty chodnikowe) and a real 12 cm kerb. Each road side gets a pavement from OSM's
+sidewalk tags (sidewalk, sidewalk:both/left/right; yes/both/separate/left/right count, no/none do not; 'separate'
+means a mapped footway we do not draw, so the pavement is drawn along the road instead). Untagged sides of town
+streets get one: primary to residential, paved, not tunnels, with ≥ 4 buildings within 50 m of the way's middle.
+Stored as a walk byte in each road record (format 7). The road mesh drops its shoulder on that side and adds a kerb
+face, a strip of slabs (3 m along main roads, 2 m elsewhere) and a short slope to the ground; the ground under it is
+flat (NearestGroundRoad counts pavements unless asked not to: fences use the carriageway). The road shader draws the
+slabs (surface code 0.89): 50 cm grid, joints, a little tone per slab, the odd crack. Pavements stop at junction
+surfaces (no kerb arcs round the corners yet) and are drawn to ~600 m.
+
+## D28 — F9 debug dump; pavement corners
+Tom's idea: F9 saves a screenshot and a text file (%APPDATA%\BalticDrive\dumps\dump-YYYYMMDD-HHMMSS.png/.txt) with
+the place (world, lat/lon with a Google Maps link, tile, a --start / --views line to repeat it), the camera, the hour,
+frame timings, the car and GPS, and the map within 40 m: roads (class, flags, lanes, width, heights, lift, pavement
+sides), junctions and paved areas, barriers, counts of buildings and points; and a "Notes" line for what is wrong.
+Pavements (D27) stopped at junction surfaces, leaving a dip between two kerbs where the car got stuck (Tom). Junction
+outline edges that are street corners (no carriageway continues past them; a tram track only counts where it enters
+through that edge) and have a pavement road within reach now get a kerb, slabs and a slope instead of the sunken
+shoulder, so the pavements join round the corner. Drive test: arrives, 1.9 s off road (was 7.8 before pavements).

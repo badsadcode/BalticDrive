@@ -157,6 +157,19 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent e)
 	{
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F9 } && _world != null)
+		{
+			// debug dump (D28): screenshot + everything about this spot, for bug reports
+			try
+			{
+				string path = DebugDump.Take(this);
+				ShowNote($"Dump saved: {path}");
+				Core.Log.Info("Dump", path);
+			}
+			catch (Exception ex) { ShowNote($"Dump failed: {ex.Message}"); }
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Keycode: Key.Bracketleft or Key.Bracketright } k)
 		{
 			_atmosphere.AdvanceClock(k.Keycode == Key.Bracketright ? 0.5 : -0.5);
@@ -231,9 +244,27 @@ public partial class Main : Node3D
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
-					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
+					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
+		if (_note != null && _note.Visible && Time.GetTicksMsec() / 1000.0 > _noteUntil) _note.Visible = false;
+	}
+
+	private Label? _note;
+	private double _noteUntil;
+
+	/// <summary>A short message at the bottom of the screen for a few seconds.</summary>
+	public void ShowNote(string text)
+	{
+		if (_note == null)
+		{
+			_note = new Label { AnchorLeft = 0, AnchorRight = 1, AnchorTop = 1, AnchorBottom = 1, OffsetTop = -70, OffsetBottom = -40, HorizontalAlignment = HorizontalAlignment.Center };
+			_note.AddThemeColorOverride("font_shadow_color", Colors.Black);
+			_ui.AddChild(_note);
+		}
+		_note.Text = text;
+		_note.Visible = true;
+		_noteUntil = Time.GetTicksMsec() / 1000.0 + 6;
 	}
 
 	private void BuildEnvironment()

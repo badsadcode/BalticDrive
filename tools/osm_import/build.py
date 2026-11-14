@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
-FORMAT = 6
+FORMAT = 7
 TILE = 2048.0
 LAND_RES = 512           # land-cover cells per tile side (4 m)
 LAND_CELL = TILE / LAND_RES
@@ -431,6 +431,7 @@ def build_roads(work, dem):
     jtiles = encode_junctions(junctions)
 
     tapers = find_tapers(xy, off, node, nnodes, attrs)
+    walks = estimate_pavements(work, xy, off, attrs)
 
     gx, gz = xy[:, 0], -xy[:, 1]
     per_tile = defaultdict(list)
@@ -441,6 +442,7 @@ def build_roads(work, dem):
         cls, flags, width_dm, layer, lanes = (int(attrs[w][k]) for k in ('cls', 'flags', 'width_dm', 'layer', 'lanes'))
         fwd = int(attrs[w]['fwd']) if 'fwd' in attrs.dtype.names else 0
         tp = tapers.get(w)
+        walk = int(walks[w])
         way_len = float(np.hypot(np.diff(px), np.diff(pz)).sum())
         seg = np.hypot(np.diff(px), np.diff(pz))
         al = np.concatenate([[0.0], np.cumsum(seg)])
@@ -477,7 +479,7 @@ def build_roads(work, dem):
                         wpt = None
                 if wpt is not None:
                     f2 |= F2_TAPER
-                rec = bytearray(struct.pack('<BBBBbBfH', cls, f, f2, width_dm, layer, lanes, float(cum[i0] % 4096.0), n))
+                rec = bytearray(struct.pack('<BBBBbBBfH', cls, f, f2, width_dm, layer, lanes, walk, float(cum[i0] % 4096.0), n))
                 fields = [('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')]
                 if wpt is not None:
                     fields += [('w', 'u1'), ('uo', 'i1')]
@@ -495,6 +497,40 @@ def build_roads(work, dem):
     log(f'roads cut into {sum(len(v) for v in per_tile.values())} pieces over {len(per_tile)} tiles')
     return per_tile, jtiles
 
+
+
+def estimate_pavements(work, xy, off, attrs):
+    """Pavements per road side (D27): OSM's sidewalk tags where given (extract.py 'walk', bits 0/1 = left/right has one,
+    bits 2/3 = tagged), otherwise town streets get them on both sides: primary to residential (not motorways, trunks,
+    links, living streets, service roads or tracks, not bridges' and tunnels' own pavements), not unpaved, with at least
+    4 buildings within 50 m of the way's middle. Returns bits 0/1 per way."""
+    n = len(attrs)
+    walk = attrs['walk'].astype(np.int64) if 'walk' in attrs.dtype.names else np.zeros(n, dtype=np.int64)
+    out = walk & 3
+    cls, flags = attrs['cls'], attrs['flags']
+    cand = (cls >= 2) & (cls <= 6) & ((flags & (F_RAIL | F_UNPAVED | F_TUNNEL)) == 0)
+    need = cand & ((walk & 12) != 12)
+    bpath = os.path.join(work, 'buildings.npz')
+    if need.any() and os.path.exists(bpath):
+        from scipy.spatial import cKDTree
+        b = np.load(bpath)
+        bxy = b['xy'][b['ring_off'][b['feat_ring'][:-1]]].astype(np.float64) / 100.0
+        bxy[:, 1] = -bxy[:, 1]
+        kd = cKDTree(bxy)
+        idx = np.nonzero(need)[0]
+        mid = (off[idx] + off[idx + 1] - 1) // 2
+        pts = np.stack([xy[mid, 0], -xy[mid, 1]], axis=1)
+        counts = kd.query_ball_point(pts, 50.0, return_length=True)
+        town = counts >= 4
+        for k, w in enumerate(idx):
+            if not town[k]:
+                continue
+            for bit in (0, 1):
+                if not walk[w] & (4 << bit):
+                    out[w] |= 1 << bit
+    tagged = int(((walk & 12) != 0).sum())
+    log(f'pavements: {int((out & 1).sum() + (out >> 1 & 1).sum())} road sides ({tagged} ways tagged in OSM)')
+    return out
 
 
 def find_tapers(xy, off, node, nnodes, attrs):
@@ -1311,7 +1347,7 @@ def main():
         r = roads.get(t, [])
         b = buildings.get(t, [])
         p = pois.get(t, [])
-        blob = bytearray(b'BDT6')
+        blob = bytearray(b'BDT7')
         blob += struct.pack('<I', len(r)) + b''.join(r)
         jr = jtiles.get(t, [])
         blob += struct.pack('<I', len(jr)) + b''.join(jr)

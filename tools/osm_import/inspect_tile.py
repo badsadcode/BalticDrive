@@ -40,8 +40,8 @@ def main():
     o += 4
     print(f'tile {tx},{tz}: {nroads} road pieces; roads within {radius:.0f} m of ({lx:.0f},{lz:.0f}):')
     for _ in range(nroads):
-        cls, flags, f2, wdm, layer, lanes, along, n = struct.unpack_from('<BBBBbBfH', blob, o)
-        o += struct.calcsize('<BBBBbBfH')
+        cls, flags, f2, wdm, layer, lanes, _walk, along, n = struct.unpack_from('<BBBBbBBfH', blob, o)
+        o += struct.calcsize('<BBBBbBBfH')
         dt = [('x', '<i2'), ('z', '<i2'), ('y', '<u2'), ('l', 'u1')] + ([('w', 'u1'), ('uo', 'i1')] if f2 & 128 else [])
         pts = np.frombuffer(blob, dtype=dt, count=n, offset=o)
         o += n * (9 if f2 & 128 else 7)

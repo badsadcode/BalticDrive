@@ -123,7 +123,7 @@ public static class BarrierMesher
                 for (int g = 0; g < gates && ok; g++) if (MathF.Abs(al[i] - gateAt[g]) < gateW[g] * .5f) ok = false;
                 if (ok)
                 {
-                    float edge = ctx.NearestGroundRoad(xs[i], zs[i], out _, out var road);
+                    float edge = ctx.NearestGroundRoad(xs[i], zs[i], out _, out var road, false);
                     // (railways too: a fence never runs across the tracks)
                     if (road != null && edge < 0.4f + look.Thick * .5f) ok = false;
                 }

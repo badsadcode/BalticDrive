@@ -129,7 +129,10 @@ public sealed class MapContext
     }
 
     /// <summary>The nearest road that shapes the ground (bridges do not). Returns its edge distance, or a large value.</summary>
-    public float NearestGroundRoad(float lx, float lz, out float roadY, out MapRoad? road)
+    public float NearestGroundRoad(float lx, float lz, out float roadY, out MapRoad? road) => NearestGroundRoad(lx, lz, out roadY, out road, true);
+
+    /// <param name="withWalks">Count a road's pavements as part of it (the ground under them is flat, D27).</param>
+    public float NearestGroundRoad(float lx, float lz, out float roadY, out MapRoad? road, bool withWalks)
     {
         float best = 1e9f; roadY = 0; road = null;
         var segs = Segs;
@@ -141,6 +144,12 @@ public sealed class MapContext
             if (lx < MathF.Min(s.Ax, s.Bx) - pad || lx > MathF.Max(s.Ax, s.Bx) + pad ||
                 lz < MathF.Min(s.Az, s.Bz) - pad || lz > MathF.Max(s.Az, s.Bz) + pad) continue;
             float edge = s.Distance(lx, lz, out float u) - s.Hw;
+            if (withWalks && s.Road.Walk != 0 && edge > -0.5f)
+            {
+                // which side of the road the point is on: right of the point order is (-dz, dx)
+                float side = (lx - s.Ax) * -(s.Bz - s.Az) + (lz - s.Az) * (s.Bx - s.Ax);
+                if (side >= 0 ? s.Road.WalkRight : s.Road.WalkLeft) edge = MathF.Min(edge, MathF.Max(0f, edge - s.Road.WalkWidth - 0.3f));
+            }
             if (edge < best) { best = edge; roadY = s.Ya + (s.Yb - s.Ya) * u; road = s.Road; }
         }
         return best;
