@@ -59,6 +59,11 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 * **Open from Tom (14 Nov, late):** F9 dumps in %APPDATA%\BalticDrive\dumps showing missing parts of classic
   buildings, to go through first; and gaps in BadBuilding's top cornices (gzyms) at roof corners.
+* **Crash on closing the window (Tom, 15 Nov, F7 on, after flying over central Warsaw):** access violation
+  0xc0000005 in the engine, dump in %LOCALAPPDATA%\CrashDumps\BalticDrive.exe.10732.dmp. Likely streaming worker
+  jobs (map cells, terrain, now slower with BadBuilding) still running while Godot tears down. Fix: on close request,
+  stop scheduling, wait for (or abandon safely) the in-flight Tasks before the scene tree goes; then test quitting
+  mid-stream. Also make BadBuilding meshes share vertices (smaller uploads).
 * **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** the square's pedestrian area is drawn over the roads
   crossing it, hiding the carriageways, tram tracks, markings and the car park. Suspect: pedestrian junction surfaces
   get the high junction bias (0.105) in MapMesher.AddJunction, so they sit above every road; they should sit under
