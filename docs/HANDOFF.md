@@ -69,6 +69,9 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   Main.SpawnCar → Car.Recover (NearestRoad within 600 m, Warp) on a car that was frozen far away (Car freezes where no
   ground collision). Script it as a self-test (fly N km, SpawnCar) with F7 on and off; suspects: warping a frozen
   body, physics on fresh concave collision (degenerate triangles from BadBuilding masses?), origin shift.
+* **BadBuilding and classic buildings overlapping (Tom, 15 Nov, stream; he will show it):** suspects: an outline
+  built by BadBuilding while its building:part pieces are still drawn by the classic mesher; balconies, cornices and
+  steps reaching into a neighbour that is too far for a party wall; duplicate or overlapping OSM footprints.
 * **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** the square's pedestrian area is drawn over the roads
   crossing it, hiding the carriageways, tram tracks, markings and the car park. Suspect: pedestrian junction surfaces
   get the high junction bias (0.105) in MapMesher.AddJunction, so they sit above every road; they should sit under
