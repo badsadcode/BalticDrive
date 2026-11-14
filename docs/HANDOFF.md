@@ -57,6 +57,9 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 ## Not done / next
 
+* **Open from Tom (14 Nov, late):** F9 dumps in %APPDATA%\BalticDrive\dumps showing missing parts of classic
+  buildings, to go through first; and gaps in BadBuilding's top cornices (gzyms) at roof corners.
+
 * Barriers (D25): fences, walls, hedges, guard rails, bollards to ~600 m; generated looks (Synty pieces later), gates
   are openings only.
 * Far roads (D24): ribbons out to ~9 km. Far buildings beyond the 3 km skyline are still missing.
