@@ -912,6 +912,43 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>3 crates on the radar</li><li>60 health on coming round</li><li>half your spare rounds lost</li><li>0.9 m → 1.45 m: where the bandit's gun sits</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>25</strong></div>
+    <div>
+      <h2>Buildingception</h2>
+      <div class="date">16 November 2026, just past midnight</div>
+      <p>Tom took Baltic Drive for a long spin and came back with a list. There was a building inside another building,
+        towers floating above Emilii Plater, a wall across the road on the Poniatowski bridge, a crosshair that
+        followed him into the car, and a wish to look around while driving without holding a mouse button. Oh, and
+        "not that many bandits out there. Just please don't spam me with hordes."</p>
+      <figure class="photo">
+        <img src="img/one-building.webp" alt="Before and after on Świętokrzyska: on the left an orange block appears to stand inside a taller white building; on the right the same spot shows one white building" loading="lazy">
+        <figcaption>Buildingception on Świętokrzyska, and the same building in one colour.</figcaption>
+      </figure>
+      <p>The building inside the building turned out to be one building mapped as two parts, with each part picking
+        its own random colour: orange and white. Now the parts of a building share a colour. Chasing it down showed a
+        bigger bug, though. When the map stores a building that pokes into the next map square, it keeps an extra
+        "ghost" copy there, and the ghosts knocked the list of OpenStreetMap ids and street addresses out of step. So
+        after the first ghost, every building in that square wore its neighbour's address. Now each address lands on
+        the right building, and the game knows it's standing at Świętokrzyska 34.</p>
+      <figure class="photo r">
+        <img src="img/wfc-towers.webp" alt="Before and after at the Warsaw Financial Centre: on the left the towers hang in the air with sky beneath them; on the right they stand on a broad glass base" loading="lazy">
+        <figcaption>The Warsaw Financial Centre, before and after.</figcaption>
+      </figure>
+      <p>The floating towers belong to the Warsaw Financial Centre. In OpenStreetMap its towers start at the sixth
+        floor, standing on the building's own outline, which forms the base. Our importer had always thrown outlines
+        away whenever it found parts inside them (normally the parts describe everything), and that took the base out
+        from under the towers. Now an outline is kept when none of its parts reach the ground. That meant rebuilding all
+        11,482 map tiles of Mazowsze, 53 minutes, and the towers stand on their feet again.</p>
+      <p>The wall on the bridge was a concrete wall mapped on the Poniatowski approach that happened to cross the
+        carriageway. Walls on bridges were exempt from the rule that cuts walls where they meet a road; not any more.
+        The car camera now looks all round with the mouse alone and drifts back behind you when you drive on. The
+        crosshair stays outside the car, and bandits turn up a bit more often, but never more than four at a time.</p>
+      <div class="quote">"Just please don't spam me with hordes of bandits. At least not now."
+        <cite>Tom</cite></div>
+      <ul class="facts"><li>11,482 tiles rebuilt</li><li>1 financial centre, grounded</li><li>every address in the right place</li><li>at most 4 bandits</li><li>still 0 kebabs</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>

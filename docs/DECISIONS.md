@@ -643,7 +643,7 @@ Godot's input, as a player would.
     parts);
   * in the importer, an outline is dropped in favour of its parts only if a part inside it reaches the ground.
     Otherwise it's the base the parts stand on: the Warsaw Financial Centre's towers start at level 6 on top of its
-    outline, which is tagged `building=office`. This needs a map rebuild to show.
+    outline, which is tagged `building=office`. Rebuilt the same night (53 minutes): the towers stand on their base.
 * **A wall across the Poniatowski bridge approach:** a concrete wall mapped on a bridge crossed its carriageway.
   Barriers on bridges skipped the rule that cuts barriers where they cross a road. They're now kept only off the
   deck's carriageway (an edge distance over -0.3 m).
