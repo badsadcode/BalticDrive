@@ -315,3 +315,11 @@ their width (at least 8 m) and buildings always, so it reads at a glance; the GP
 times a second, drawn turned with the map each frame), a north mark and your arrow. The disc is a Control drawing a
 filled circle with ClipChildren = Only, so the map drawn by its child is clipped round; the ring and the marks sit in
 a sibling above it. N hides and shows it; it hides while the big map is open.
+
+## D36 — Buildings on the road are left out; the route from the car on
+Tom's dump (a village near Zakroczym): a building stood on the road. Where the centre line of a public road (up to
+residential, and links) runs through a building's outline, the outline is a mapping slip and the building is left out
+(`MapMesher.BlocksRoad`, both the old meshes and BadBuilding). Living and pedestrian streets, service roads, tracks,
+paths, bridges and tunnels do not count: arcades, driveways and gate passages really run under buildings. (The map
+and the minimap still show such a footprint; the importer could drop it for good at the next rebuild.)
+The map screen and the minimap draw the GPS route only from the car's place on it onwards (`Navigation.Progress`).

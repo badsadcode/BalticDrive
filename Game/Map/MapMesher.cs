@@ -183,6 +183,7 @@ public static class MapMesher
             var r = list[i];
             var b = r.B;
             if (b.Ghost || b.Height > TallBuilding && !NearHandled(b)) continue;
+            if (BlocksRoad(ctx, r)) continue;
             float cx = r.OffX + b.Cx, cz = r.OffZ + b.Cz;
             if (cx < 0 || cx >= size || cz < 0 || cz >= size) continue;
             float gMin = float.MaxValue, gMax = float.MinValue;
@@ -205,6 +206,32 @@ public static class MapMesher
                 && BadBuildingAdapter.Add(ctx, r, lod, geo, gMin, seed)) continue;
             AddBuilding(geo.Buildings, geo.BuildingFaces, b, r.OffX, r.OffZ, gMin, gMax, seed);
         }
+    }
+
+    /// <summary>
+    /// A building that a public road's centre line runs through (D36): a mapping slip, usually a village barn traced
+    /// a few metres off or a road drawn over a yard (Tom's dump: a house in the middle of the road). It is left out.
+    /// Living and pedestrian streets, service roads, tracks and paths do not count: arcades, driveways and gate passages
+    /// really go under buildings; nor do
+    /// bridges and tunnels, which pass over or under them.
+    /// </summary>
+    public static bool BlocksRoad(MapContext ctx, in MapBuildingRef r)
+    {
+        var b = r.B;
+        float x0 = r.OffX + b.MinX, x1 = r.OffX + b.MaxX, z0 = r.OffZ + b.MinZ, z1 = r.OffZ + b.MaxZ;
+        foreach (var s in ctx.Segs)
+        {
+            if (s.Road.Cls > RoadClass.Residential && s.Road.Cls != RoadClass.Link || s.Road.IsRail || s.Road.IsTram || s.Road.IsBridge || s.Road.Layer < 0) continue;
+            if (MathF.Max(s.Ax, s.Bx) < x0 || MathF.Min(s.Ax, s.Bx) > x1 || MathF.Max(s.Az, s.Bz) < z0 || MathF.Min(s.Az, s.Bz) > z1) continue;
+            float len = MathF.Sqrt((s.Bx - s.Ax) * (s.Bx - s.Ax) + (s.Bz - s.Az) * (s.Bz - s.Az));
+            int steps = Math.Max(1, (int)(len / 1.5f));
+            for (int k = 0; k <= steps; k++)
+            {
+                float t = k / (float)steps;
+                if (b.Contains(s.Ax + (s.Bx - s.Ax) * t - r.OffX, s.Az + (s.Bz - s.Az) * t - r.OffZ)) return true;
+            }
+        }
+        return false;
     }
 
     // ---- junctions -----------------------------------------------------------------------

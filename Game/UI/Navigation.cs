@@ -22,6 +22,8 @@ public sealed class Navigation
 
     public Vector2? Destination { get; private set; }
     public MapRoute? Route { get; private set; }
+    /// <summary>The route point nearest the car: the map and the minimap draw the route from here on (D36).</summary>
+    public int Progress => _hint;
     public bool Routing => _task != null;
     /// <summary>Metres left along the route.</summary>
     public float Remaining { get; private set; }

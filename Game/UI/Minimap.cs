@@ -97,10 +97,12 @@ public partial class Minimap : Control
             var route = _m._nav.Route;
             if (route != null && route.Points.Length > 1)
             {
-                var line = new List<Vector2>();
+                var line = new List<Vector2> { c };
                 float r2 = (float)(reach * reach);
-                foreach (var p in route.Points)
+                // from the car onwards only (D36)
+                for (int k = Math.Clamp(_m._nav.Progress + 1, 0, route.Points.Length - 1); k < route.Points.Length; k++)
                 {
+                    var p = route.Points[k];
                     double dx = p.X - x, dz = p.Y - z;
                     if (dx * dx + dz * dz < r2 * 1.2f) line.Add(ToDisc(p.X, p.Y));
                     else if (line.Count > 1) break;

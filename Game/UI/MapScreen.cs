@@ -248,8 +248,9 @@ public partial class MapScreen : Control
         if (route != null && route.Points.Length > 1)
         {
             int stride = Math.Max(1, (int)(mpp / 2.5f));
-            var line = new List<Vector2>(route.Points.Length / stride + 2);
-            for (int i = 0; i < route.Points.Length; i += stride) line.Add(ToScreen(route.Points[i].X, route.Points[i].Y));
+            var line = new List<Vector2>(route.Points.Length / stride + 3) { ToScreen(here.X, here.Z) };
+            // only what is still ahead: from the car's place on the route onwards (D36)
+            for (int i = Math.Clamp(_nav.Progress + 1, 0, route.Points.Length - 1); i < route.Points.Length; i += stride) line.Add(ToScreen(route.Points[i].X, route.Points[i].Y));
             line.Add(ToScreen(route.Points[^1].X, route.Points[^1].Y));
             DrawPolyline(line.ToArray(), new Color(0, 0, 0, 0.75f), 7f, true);
             DrawPolyline(line.ToArray(), new Color(0.35f, 0.75f, 1f), 4f, true);
