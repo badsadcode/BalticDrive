@@ -653,6 +653,39 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>17 animation clips</li><li>1 red hoodie</li><li>2 cameras (shoulder and eyes)</li><li>4.5 m: how close to the car you need to be to get in</li><li>0 kebabs found yet</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>16</strong></div>
+    <div>
+      <h2>Three guns and no hands</h2>
+      <div class="date">15 November 2026, late afternoon</div>
+      <p>The on-foot brief says the shooting has to feel great, so we started with how a gun is held before anything gets
+        shot. Press 1, 2 or 3 and a Mosin-style bolt-action, an AK or a pistol appears in front of your eyes. Right mouse
+        raises it to your eye, and you look down the real sights. Aiming is always first person, even from the
+        over-the-shoulder camera. Let go and you're back where you were.</p>
+      <figure class="photo">
+        <img src="img/guns-ak-fire.webp" alt="First-person view down the sights of an AK rifle on a wide Warsaw street, a brass casing flying out to the right, the ammo count 30 / 90 in the corner" loading="lazy">
+        <figcaption>The AK in the middle of a shot: front sight on target, a casing on its way out.</figcaption>
+      </figure>
+      <p>There are no animations for any of this yet, so everything is done in code. The gun sways against the mouse and bobs as you
+        walk. Recoil pushes the view up and the gun back into your shoulder, then both settle. Reloading tips the gun
+        and drops the magazine out. The Mosin's bolt really works, because it's a separate part of the model: after
+        each shot it goes up, back, forward and down again.</p>
+      <p>Bullets aren't instant. Each one flies at its gun's real muzzle speed (the Mosin at 860 m/s, the pistol at a
+        lazy 360) and drops under gravity, checked against the world every frame. Where one lands it kicks up dust the colour of the
+        ground and leaves a mark. The bangs and clicks are placeholders made in code, built in layers (crack, thump,
+        tail) so real recordings can replace them one at a time.</p>
+      <figure class="photo r">
+        <img src="img/guns-sights.webp" alt="Two first-person views: on the left looking down a Mosin rifle with its bolt handle sticking out to the right, on the right a pistol held at arm's length with its sights lined up on the street" loading="lazy">
+        <figcaption>Sight pictures, measured off the models: the Mosin (still a bit busy) and the pistol at arm's length.</figcaption>
+      </figure>
+      <p>Tom caught the AK with its magazine sticking out sideways during a test run. The asset pack's prefab has the
+        magazine, slide and trigger turned 90° about Y. They're now squared up when you pick the gun up.</p>
+      <p><b>What's next.</b> Hands (the guns float in the air for now), something to shoot at, and real sounds.</p>
+      <div class="quote">"I noticed during your test that the ammo clip for the AK is sideways."
+        <cite>Tom</cite></div>
+      <ul class="facts"><li>3 guns</li><li>0 hands</li><li>860 m/s</li><li>1 magazine sideways, now straight</li><li>still 0 kebabs</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
@@ -667,7 +700,7 @@ footer a { color: var(--sign); }
       </div>
     </div>
     <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).
-      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car and walker in the screenshots: Synty POLYGON City; animations: Synty Base Locomotion.
+      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car and walker in the screenshots: Synty POLYGON City; animations: Synty Base Locomotion; guns: Synty POLYGON War and POLYGON Battle Royale.
       Placeholder models: Quaternius (CC0). Trees, sky and clouds: Thornwake. Title art and logo: Bad Ideas Works. Made with Godot.
       <a href="https://github.com/badsadcode/BalticDrive">Source on GitHub</a>.</p>
   </div>
