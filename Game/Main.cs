@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using BalticDrive.Core;
 using BalticDrive.Map;
 using BalticDrive.UI;
@@ -221,6 +222,38 @@ public partial class Main : Node3D
 		_ui.AddChild(_prompt);
 	}
 
+	private float _downTime = -1;
+	private string _downCause = "";
+	public bool PlayerDown => _downTime >= 0;
+
+	/// <summary>
+	/// Going down (D50): the screen goes dark over a second and a half; then you come round beside your car with your
+	/// pack gone and the bandits moved on, and the screen clears again.
+	/// </summary>
+	private void UpdateDown(float dt)
+	{
+		if (_downTime < 0 || _hurt == null || _walker == null) return;
+		float before = _downTime;
+		_downTime += dt;
+		float dark = _downTime < 1.6f ? _downTime / 1.6f : MathF.Max(0, 1 - (_downTime - 2.6f) / 1.2f);
+		_hurt.Color = new Color(0.05f * (1 - dark), 0, 0, Mathf.Clamp(dark, 0, 1));
+		if (before < 2.0f && _downTime >= 2.0f)
+		{
+			foreach (var b in _bandits!.All) b.QueueFree();
+			_bandits.Clear();
+			if (_car != null)
+			{
+				var t = _car.GlobalTransform;
+				_walker.GlobalPosition = t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f;
+				_walker.Velocity = Vector3.Zero;
+			}
+			string lost = _walker.Body.WakeUp();
+			string what = _downCause switch { "starved" => "You collapsed from hunger", "dehydrated" => "You collapsed from thirst", _ => "You were shot and left for dead" };
+			ShowNote($"{what}. You come round by your car{(lost.Length > 0 ? " — " + lost : "")}.");
+		}
+		if (_downTime > 3.8f) { _downTime = -1; _hurt.Color = new Color(0.7f, 0, 0, 0); }
+	}
+
 	private void UpdateSurvival(double now)
 	{
 		if (_world == null) return;
@@ -228,6 +261,11 @@ public partial class Main : Node3D
 		{
 			_caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud();
 			_bandits = new OnFoot.BanditField(_world, _caches); AddChild(_bandits);
+			// crates and bodies on the radar while on foot (D50)
+			if (_minimap != null)
+				_minimap.Markers = () => OnFoot && _caches != null
+					? _caches.Live.Select(c => { var (wx, _, wz) = WorldOrigin.ToWorld(c.GlobalPosition); return (wx, wz, c.Key.StartsWith("drop:") ? 2 : c.Kind == MapPoiKind.Medical ? 1 : 0, c.Opened); }).ToList()
+					: Enumerable.Empty<(double, double, int, bool)>();
 			// hit: the screen edge flashes red (D47)
 			_hurt = new ColorRect { Color = new Color(0.7f, 0, 0, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
 			_hurt.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -237,9 +275,10 @@ public partial class Main : Node3D
 		{
 			_bandits.Player = _walker;
 			_walker.Body.Hurt += a => { if (_hurt != null) _hurt.Color = _hurt.Color with { A = Mathf.Clamp(_hurt.Color.A + a / 60f, 0, 0.5f) }; };
-			_walker.Body.Down += () => { foreach (var b in _bandits.All) b.QueueFree(); _bandits.Clear(); };
+			_walker.Body.Down += cause => { _downCause = cause; _downTime = 0; };
 		}
-		if (_hurt != null && _hurt.Color.A > 0) _hurt.Color = _hurt.Color with { A = MathF.Max(0, _hurt.Color.A - (float)GetProcessDeltaTime() * 0.8f) };
+		if (_hurt != null && _hurt.Color.A > 0 && _downTime < 0) _hurt.Color = _hurt.Color with { A = MathF.Max(0, _hurt.Color.A - (float)GetProcessDeltaTime() * 0.8f) };
+		UpdateDown((float)GetProcessDeltaTime());
 		_bandits!.Update(now);
 		bool on = OnFoot && _walker != null;
 		_bars!.Visible = on;

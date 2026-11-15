@@ -74,6 +74,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         AddChild(_model);
         var (skel, tree) = CharacterRig.Build(_model, Looks[_rng.Next(Looks.Length)], out _cycle);
         _tree = tree;
+        _skel = skel;
+        _headBone = skel?.FindBone("Head") ?? -1;
         if (skel == null)
             _model.AddChild(new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.33f, Height = 1.8f }, Position = new Vector3(0, 0.9f, 0),
                 MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.4f, 0.25f, 0.2f) } });
@@ -159,7 +161,19 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         Engage();
     }
 
-    private Vector3 Eye => GlobalPosition + Vector3.Up * (_crouch ? 1.05f : 1.6f);
+    /// <summary>Where the bandit looks from: the head as the animation has it (a guessed height, switched the moment
+    /// it decided to crouch, put the gun at its chest while the body was still standing).</summary>
+    private Vector3 Eye
+    {
+        get
+        {
+            if (_skel != null && _headBone >= 0)
+                return _skel.GlobalTransform * _skel.GetBoneGlobalPose(_headBone).Origin + Vector3.Up * 0.06f;
+            return GlobalPosition + Vector3.Up * (_crouch ? 1.05f : 1.6f);
+        }
+    }
+    private Skeleton3D? _skel;
+    private int _headBone = -1;
 
     private void Sense(Walker? player)
     {
@@ -390,6 +404,13 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     }
 
     public bool Dead => State == Mode.Dead;
+    /// <summary>Self-tests: the gun's height above the feet, and the head bone's.</summary>
+    public string Heights()
+    {
+        var sk = _model.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+        float head = sk == null ? -1 : (sk.GlobalTransform * sk.GetBoneGlobalPose(sk.FindBone("Head")).Origin).Y - GlobalPosition.Y;
+        return $"gun {_holder.GlobalPosition.Y - GlobalPosition.Y:F2} m, head {head:F2} m, eye used {Eye.Y - GlobalPosition.Y:F2} m, crouch {_crouch}";
+    }
     public float DeadFor => _deadTime;
 }
 

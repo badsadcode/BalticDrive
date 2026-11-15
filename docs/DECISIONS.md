@@ -602,3 +602,21 @@ Also fixed: since the change that leaves the mouse free in test runs (D47), V, E
 Godot's input, as a player would.
 
 `--autotest=tpgun`: each gun in third person (standing, walking, sprinting, firing), seen from the side.
+
+## D50 — Polish: crates on the radar, a real death, rifles at the cheek
+
+* **Radar:** while on foot, the radar marks nearby crates (an amber box; white with a red cross at medical places)
+  and bodies to search (a small cross), grey once opened. Bandits are not shown: spotting them is the player's job.
+  `Minimap.Markers` is a list of world points with a kind; Main feeds it from the crate field.
+* **Death** replaces the blackout placeholder (D46). Going down (shot, starved or dehydrated):
+  * the screen darkens over 1.6 s;
+  * you come round beside your car at 60 health, with hunger and thirst at least 40;
+  * the pack is gone (food, water, medkits) and half the spare rounds of every gun, but the guns and what's in
+    their magazines stay;
+  * the bandits move on (are removed), and a note says what happened and what was lost.
+  Damage is ignored while down.
+* **Bandits' rifles at the cheek:** a bandit's eye is now the head bone's position as animated. It used to be a fixed
+  guess (1.6 m standing, 1.05 m crouched) switched the moment it decided to crouch, which held the gun at chest
+  height while the body still stood. Logged: the gun at 0.9 m with the head at 1.57 m; now 1.45 m. With the muzzle at
+  the face they also clear cover better: the fight test ended at 43 hp instead of 100. To be felt out in play.
+* `--autotest=death`: the crates on the radar, then down, dark, and awake by the car with the pack gone.

@@ -41,6 +41,10 @@ public partial class Minimap : Control
 
     private Frame _frame = null!;
 
+    /// <summary>Things to mark (D50): world x, z and a kind. Kinds: 0 a crate, 1 a medical crate, 2 a body to search;
+    /// <c>Done</c> greys it out (opened).</summary>
+    public Func<IEnumerable<(double X, double Z, int Kind, bool Done)>>? Markers;
+
     public override void _Draw() => DrawCircle(new Vector2(Radius, Radius), Radius, Colors.White);   // the clip mask
 
     public override void _Process(double delta)
@@ -134,6 +138,29 @@ public partial class Minimap : Control
                     }
             }
             foreach (var l in _labels) StreetLabels.Draw(this, _m._font, 11, l, Paper);
+            // supplies (D50): a little box, a red cross for medical ones, a mark for a body; grey once opened
+            if (_m.Markers != null)
+                foreach (var (mx, mz, kind, done) in _m.Markers())
+                {
+                    var p = ToDisc(mx, mz);
+                    if (p.DistanceTo(c) > Radius - 6) continue;
+                    var ink = done ? new Color(0.55f, 0.55f, 0.52f, 0.8f) : kind == 1 ? new Color(0.95f, 0.95f, 0.95f) : new Color(0.98f, 0.72f, 0.25f);
+                    if (kind == 2)
+                    {
+                        DrawLine(p - new Vector2(4, 4), p + new Vector2(4, 4), new Color(0, 0, 0, 0.8f), 4f);
+                        DrawLine(p - new Vector2(4, -4), p + new Vector2(4, -4), new Color(0, 0, 0, 0.8f), 4f);
+                        DrawLine(p - new Vector2(4, 4), p + new Vector2(4, 4), ink, 2f);
+                        DrawLine(p - new Vector2(4, -4), p + new Vector2(4, -4), ink, 2f);
+                        continue;
+                    }
+                    DrawRect(new Rect2(p - new Vector2(5.5f, 4.5f), new Vector2(11, 9)), new Color(0, 0, 0, 0.8f));
+                    DrawRect(new Rect2(p - new Vector2(4.5f, 3.5f), new Vector2(9, 7)), ink);
+                    if (kind == 1 && !done)
+                    {
+                        DrawRect(new Rect2(p - new Vector2(1f, 3f), new Vector2(2, 6)), new Color(0.85f, 0.15f, 0.15f));
+                        DrawRect(new Rect2(p - new Vector2(3f, 1f), new Vector2(6, 2)), new Color(0.85f, 0.15f, 0.15f));
+                    }
+                }
         }
     }
 

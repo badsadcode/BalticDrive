@@ -41,11 +41,11 @@ public sealed partial class Survival : Node
         if (Hunger < 35 && Food > 0) { Food--; Hunger = MathF.Min(100, Hunger + 40); Say($"You eat the {_lastFood}"); }
         if (Thirst < 35 && Water > 0) { Water--; Thirst = MathF.Min(100, Thirst + 45); Say("You drink a bottle of water"); }
         // health: empty stomach or bottle hurts, a looked-after body heals up to 70 by itself, a medkit all the way
-        if (Hunger <= 0) Health -= dt * 0.25f;
-        if (Thirst <= 0) Health -= dt * 0.4f;
+        if (Hunger <= 0) { Health -= dt * 0.25f; _cause = "starved"; }
+        if (Thirst <= 0) { Health -= dt * 0.4f; _cause = "dehydrated"; }
         if (Hunger > 50 && Thirst > 50 && Health < 70) Health = MathF.Min(70, Health + dt * 0.15f);
         if (_healing > 0) { float h = MathF.Min(_healing, dt * 12f); _healing -= h; Health = MathF.Min(100, Health + h); }
-        if (Health <= 0) { Health = 0; BlackOut(); }
+        if (Health <= 0) { Health = 0; Fall(); }
     }
 
     public void UseMedkit()
@@ -60,15 +60,20 @@ public sealed partial class Survival : Node
     /// <summary>A bullet or a fall (D47: bandits).</summary>
     public void Damage(float amount)
     {
+        if (IsDown) return;
         Health -= amount;
+        _cause = "shot";
         Hurt?.Invoke(amount);
-        if (Health <= 0) { Health = 0; BlackOut(); }
+        if (Health <= 0) { Health = 0; Fall(); }
     }
 
     /// <summary>Damage taken (for the red flash).</summary>
     public event Action<float>? Hurt;
-    /// <summary>The player blacked out (bandits lose interest).</summary>
-    public event Action? Down;
+    /// <summary>The player went down (D50): what did it ("shot", "starved", "dehydrated"). The game fades out, moves
+    /// you to your car and calls <see cref="WakeUp"/>.</summary>
+    public event Action<string>? Down;
+    public bool IsDown { get; private set; }
+    private string _cause = "shot";
 
     /// <summary>What a cache gave you; returns the lines worth saying.</summary>
     public string Take(Loot l)
@@ -85,15 +90,24 @@ public sealed partial class Survival : Node
         return said.Count == 0 ? (full ? "Nothing you can carry" : "Empty") : "Found " + string.Join(", ", said) + (full ? " (pockets full)" : "");
     }
 
-    private bool _down;
-    private void BlackOut()
+    private void Fall()
     {
-        if (_down) return;
-        _down = true;
-        Say("You black out… and come round later, sore");
-        Down?.Invoke();
-        Health = 40; Hunger = MathF.Max(Hunger, 40); Thirst = MathF.Max(Thirst, 40);
-        _down = false;
+        if (IsDown) return;
+        IsDown = true;
+        _healing = 0;
+        Down?.Invoke(_cause);
+    }
+
+    /// <summary>Coming round (D50): 60 health, hunger and thirst at least 40, and the pack gone: food, water, medkits,
+    /// and half the spare rounds of every gun. The guns and what's in them stay.</summary>
+    public string WakeUp()
+    {
+        IsDown = false;
+        Health = 60; Hunger = MathF.Max(Hunger, 40); Thirst = MathF.Max(Thirst, 40);
+        int lost = Food + Water + Medkits;
+        Food = Water = Medkits = 0;
+        int rounds = _w.Guns.LoseHalfReserve();
+        return lost + rounds == 0 ? "" : $"your pack is gone{(rounds > 0 ? $", and {rounds} rounds" : "")}";
     }
 
     private void Say(string s) => Said?.Invoke(s);

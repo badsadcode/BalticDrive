@@ -236,6 +236,19 @@ public partial class Weapons : Node3D
         return take;
     }
 
+    /// <summary>Going down (D50): half of every gun's spare rounds are gone; returns how many.</summary>
+    public int LoseHalfReserve()
+    {
+        int lost = 0;
+        foreach (var id in _ammo.Keys.ToList())
+        {
+            var (mag, res) = _ammo[id];
+            lost += res - res / 2;
+            _ammo[id] = (mag, res / 2);
+        }
+        return lost;
+    }
+
     public void StartReload()
     {
         if (_def == null || _reload >= 0 || _boltCycle >= 0) return;

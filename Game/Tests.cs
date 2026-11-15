@@ -31,6 +31,8 @@ namespace BalticDrive;
 /// hold their guns).</item>
 /// <item><c>--autotest=tpgun</c> — third person with each gun (D49): standing, walking, sprinting, firing, seen
 /// from the side.</item>
+/// <item><c>--autotest=death</c> — crates on the radar (D50), then going down: the screen goes dark, you come round
+/// by the car with the pack gone.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -96,6 +98,7 @@ public sealed class Tests
         _banditTest = Main.Args.GetValueOrDefault("autotest", "").Split(',').Contains("bandits");
         _banditLook = Main.Args.GetValueOrDefault("autotest", "").Contains("banditlook");
         _tpGun = Main.Args.GetValueOrDefault("autotest", "").Contains("tpgun");
+        _death = Main.Args.GetValueOrDefault("autotest", "").Contains("death");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -257,9 +260,44 @@ public sealed class Tests
         }
     }
 
-    private bool _banditLook, _tpGun;
+    private bool _banditLook, _tpGun, _death;
+    private double _deathTime = -1;
     private double _tpTime = -1;
     private double _lookTime = -1;
+
+    /// <summary>Crates on the radar and going down (D50).</summary>
+    private void DeathTest(double delta)
+    {
+        if (_deathTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _death = false; return; }
+            _deathTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        double before = _deathTime;
+        _deathTime += delta;
+        bool Now(double t) => before < t && _deathTime >= t;
+        if (Now(5))
+        {
+            Log.Info("Test", $"death: {_main.Caches!.Live.Count()} crates near, on the radar");
+            Shot("death_radar");
+            // walk away from the car a bit and fill the pack
+            var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+            w.GlobalPosition += fwd * 30 + Vector3.Up * 0.3f;
+            w.Body.Food = 3; w.Body.Water = 2; w.Body.Medkits = 1;
+        }
+        if (Now(6.5)) { Log.Info("Test", $"death: before: {w.Body.Health:0} hp, food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; {_main.Car!.GlobalPosition.DistanceTo(w.GlobalPosition):0} m from the car"); w.Body.Damage(500); }
+        if (Now(7.6)) Shot("death_dark");
+        if (Now(11))
+        {
+            Log.Info("Test", $"death: after: {w.Body.Health:0} hp, food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; {_main.Car!.GlobalPosition.DistanceTo(w.GlobalPosition):0} m from the car; down {_main.PlayerDown}");
+            Shot("death_awake");
+            Log.Info("Test", "death: done");
+            _death = false;
+        }
+    }
 
     /// <summary>The gun in the walker's hands in third person (D49).</summary>
     private void TpGunTest(double delta)
@@ -330,7 +368,7 @@ public sealed class Tests
         if (_lookTime > 0.7 && f.All.Count > 0) { w.Face(f.All[0].GlobalPosition + Vector3.Up * 1.0f); w.CameraOrbit = 0.5f; }
         if (Now(1.0)) { Shot("banditlook_relaxed"); Log.Info("Test", $"banditlook: {f.All[0].State}, {f.All[0].Gun.Id}"); }
         if (Now(1.2)) w.Crouch(false);
-        if (Now(4.0)) { Shot("banditlook_aiming"); Log.Info("Test", $"banditlook: {f.All[0].State}; you {w.Body.Health:0} hp"); }
+        if (Now(4.0)) { Shot("banditlook_aiming"); Log.Info("Test", $"banditlook: {f.All[0].State}; you {w.Body.Health:0} hp; {f.All[0].Heights()}"); }
         if (Now(4.5)) { w.CameraOrbit = 2.6f; }
         if (Now(5.0)) { Shot("banditlook_side"); Log.Info("Test", "banditlook: done"); _banditLook = false; }
     }
@@ -511,6 +549,7 @@ public sealed class Tests
         if (_banditTest && _main.Car != null) { BanditTest(delta); return; }
         if (_banditLook && _main.Car != null) { BanditLook(delta); return; }
         if (_tpGun && _main.Car != null) { TpGunTest(delta); return; }
+        if (_death && _main.Car != null) { DeathTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)
