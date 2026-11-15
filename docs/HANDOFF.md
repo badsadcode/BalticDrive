@@ -63,6 +63,11 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 * **BadBuilding and classic buildings overlapping (Tom, 15 Nov, stream; he will show it):** suspects: an outline
   built by BadBuilding while its building:part pieces are still drawn by the classic mesher; balconies, cornices and
   steps reaching into a neighbour that is too far for a party wall; duplicate or overlapping OSM footprints.
+* **Stepped shorelines (15 Nov):** the importer carves river and lake beds on the 8 m land-cover water mask
+  (build.py _heights_tile: any wet cell wets a height corner, h = min(h, level - depth)), so banks end in 8 m stair
+  steps of land. Fix in the importer: carve by a smooth signed distance to the real water polygons (and their
+  shoreline), not the raster mask; needs a map rebuild. (Barriers and buildings over water now stand on the water
+  surface instead of the carved bed: D31.)
 * **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** the square's pedestrian area is drawn over the roads
   crossing it, hiding the carriageways, tram tracks, markings and the car park. Suspect: pedestrian junction surfaces
   get the high junction bias (0.105) in MapMesher.AddJunction, so they sit above every road; they should sit under

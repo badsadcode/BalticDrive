@@ -61,7 +61,12 @@ public static class BadBuildingAdapter
         for (int q = 1; q < b.RX.Length; q++) holes.Add(Ring(b.RX[q], b.RZ[q], r.OffX - ox, r.OffZ - oz));
         // the ground under every corner, absolute (the library sets its floor on the highest and its plinth to the lowest)
         var ground = new List<float>(b.RX[0].Length);
-        for (int k = 0; k < b.RX[0].Length; k++) ground.Add(ctx.Height(r.OffX + b.RX[0][k], r.OffZ + b.RZ[0][k], 0f, out _));
+        for (int k = 0; k < b.RX[0].Length; k++)
+        {
+            float px = r.OffX + b.RX[0][k], pz = r.OffZ + b.RZ[0][k];
+            float g = ctx.Height(px, pz, 0f, out _), w = ctx.Water(px, pz);
+            ground.Add(float.IsNaN(w) || w < g ? g : w);   // on the water surface, not the carved bed (barges)
+        }
 
         // context: footprints and streets within reach
         var neighbours = new List<BB.Model.Ring>();

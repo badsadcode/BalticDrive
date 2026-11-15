@@ -152,7 +152,13 @@ public static class BarrierMesher
         int count = i1 - i0 + 1;
         Span<float> ys = count <= 512 ? stackalloc float[count] : new float[count];
         for (int i = 0; i < count; i++)
-            ys[i] = float.IsNaN(deck[i0 + i]) ? ctx.Height(xs[i0 + i], zs[i0 + i], 0f, out _) - 0.05f : deck[i0 + i];
+        {
+            if (!float.IsNaN(deck[i0 + i])) { ys[i] = deck[i0 + i]; continue; }
+            // on the ground, or on the water surface where the ground is a carved river or lake bed (quay walls,
+            // fences along the bank: they stood half sunk on the bottom)
+            float g = ctx.Height(xs[i0 + i], zs[i0 + i], 0f, out _), w = ctx.Water(xs[i0 + i], zs[i0 + i]);
+            ys[i] = (float.IsNaN(w) || w < g ? g : w) - 0.05f;
+        }
         var uv2 = new Vector2(h, 0);
         var col = new Color(look.Col.R, look.Col.G, look.Col.B, look.Style);
         float lift = look.Lift;

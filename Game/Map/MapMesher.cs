@@ -181,10 +181,15 @@ public static class MapMesher
             var rx = b.RX[0]; var rz = b.RZ[0];
             for (int k = 0; k < rx.Length; k++)
             {
-                float h = ctx.Height(r.OffX + rx[k], r.OffZ + rz[k], 0f, out _);
+                float px = r.OffX + rx[k], pz = r.OffZ + rz[k];
+                // over water (moored barges, pontoons, quays) a building stands on the surface, not on the carved bed
+                float w = ctx.Water(px, pz);
+                float h = ctx.Height(px, pz, 0f, out _);
+                if (!float.IsNaN(w) && w > h) h = w;
                 gMin = MathF.Min(gMin, h); gMax = MathF.Max(gMax, h);
                 // far terrain shows the natural ground, not the road-shaped one: walls reach down to both
-                gMin = MathF.Min(gMin, ctx.Ground(r.OffX + rx[k], r.OffZ + rz[k]));
+                float nat = ctx.Ground(px, pz);
+                if (float.IsNaN(w) || nat >= w) gMin = MathF.Min(gMin, nat);
             }
             uint seed = Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.Index, 91);
             // whole buildings from the BadBuilding library near the player (D29), the plain extrusions everywhere else

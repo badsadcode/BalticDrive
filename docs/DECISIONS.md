@@ -257,3 +257,10 @@ removal in the terrain streamer crashed with an access violation. The car asked 
 on, to tell paved from loose ground. It now casts a short ray down from each wheel in contact instead, which only
 returns live bodies. 8 rounds in both modes, no crash; the drive test still arrives with 2.9 s off road.
 Also: BadBuilding meshes now share vertices (one per library vertex and material) instead of three per triangle.
+
+## D31 — Things on the water stand on the water
+Tom: walls, fences and sometimes buildings stood in the water. The ground under rivers and lakes is a carved bed
+(1–3 m below the surface), and barriers and buildings were set on that ground, so quay walls and bank fences stood
+half sunk and moored barges (floating bars, mapped as buildings) stood on the river bottom. Barrier points and building
+corners now take the water surface where it is above the ground. The stepped banks (the bed is carved on the 8 m
+land-cover grid) are an importer fix still to do (HANDOFF).
