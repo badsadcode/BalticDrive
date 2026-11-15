@@ -26,7 +26,30 @@ public partial class Walker : CharacterBody3D
     public bool Crouching { get; private set; }
     public float Speed { get; private set; }
     public float Yaw { get; private set; }
-    public Camera3D ActiveCamera => FirstPerson ? _fp : _tp;
+    public Camera3D ActiveCamera => FirstPerson || _aimOverride ? _fp : _tp;
+    public Camera3D FirstPersonCamera => _fp;
+    /// <summary>The guns (D40).</summary>
+    public Weapons Guns { get; private set; } = null!;
+    private bool _aimOverride;
+    /// <summary>Aiming is always first person (the brief): while set, the eye camera is used whatever the chosen view.</summary>
+    public bool AimOverride
+    {
+        get => _aimOverride;
+        set
+        {
+            if (_aimOverride == value) return;
+            _aimOverride = value;
+            _model.Visible = !(FirstPerson || value);
+            if (Active) ActiveCamera.Current = true;
+        }
+    }
+
+    /// <summary>A shot's kick on the view: up by <paramref name="pitch"/>, sideways by <paramref name="yaw"/> (radians).</summary>
+    public void AddRecoil(float pitch, float yaw)
+    {
+        _pitch = Mathf.Clamp(_pitch + pitch, -1.35f, 1.2f);
+        Yaw += yaw;
+    }
     /// <summary>Extra yaw for the third-person camera only (self-test side views); walking still follows <see cref="Yaw"/>.</summary>
     public float CameraOrbit;
 
@@ -62,6 +85,8 @@ public partial class Walker : CharacterBody3D
         _arm.AddChild(_tp);
         _fp = new Camera3D { Name = "FirstPerson", Fov = 75, Far = 20000, Position = new Vector3(0, 1.66f, -0.12f) };
         AddChild(_fp);
+        Guns = new Weapons(this) { Name = "Weapons" };
+        AddChild(Guns);
         WorldOrigin.Shifted += OnShifted;
         Deactivate();
     }
@@ -229,7 +254,7 @@ public partial class Walker : CharacterBody3D
     public void SetView(bool firstPerson)
     {
         FirstPerson = firstPerson;
-        _model.Visible = !firstPerson;   // (a body seen from inside its own head: later, with arms and weapons)
+        _model.Visible = !(firstPerson || _aimOverride);   // (a body seen from inside its own head: later, with arms and weapons)
         ActiveCamera.Current = true;
     }
 
@@ -283,7 +308,7 @@ public partial class Walker : CharacterBody3D
         Speed = new Vector2(Velocity.X, Velocity.Z).Length();
 
         // the body turns toward where it walks (third person), or with the camera (first person)
-        if (FirstPerson) _bodyYaw = Yaw;
+        if (FirstPerson || _aimOverride) _bodyYaw = Yaw;
         else if (Speed > 0.3f) _bodyYaw = Mathf.LerpAngle(_bodyYaw, MathF.Atan2(-Velocity.X, -Velocity.Z), 1f - MathF.Exp(-10f * dt));
         Rotation = new Vector3(0, _bodyYaw, 0);
     }

@@ -9,6 +9,8 @@
 /dist/
 # Synty Store assets: licensed for use in the game, NOT for redistribution — never in this public repo.
 /Assets/Synty/
+# licensed Synty packs that insist on their own folder (Battle Royale): never public either
+/Assets/PolygonBattleRoyale/
 /builds/
 
 # .NET and editor output

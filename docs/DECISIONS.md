@@ -360,3 +360,32 @@ The walker loads them into an AnimationLibrary and drives an AnimationTree: a st
 body's frame: idle, walk, run, sprint forward, walk and run back and sideways), a crouching one (idle, forward,
 back), a crouch blend and a fall blend after 0.12 s in the air. The skeleton gets the unique name the tracks use
 (owner = the model). Without the pack the procedural WalkCycle (D38) still stands in.
+
+## D40 — First-person gun handling, all procedural
+
+The on-foot brief asks for three guns that feel great (a Mosin-style bolt-action, an AK-style rifle, a pistol), aiming
+always in first person, and approachable ballistics. There are no arms or weapon animations yet, so everything is code
+(`Game/OnFoot/Weapons.cs`):
+* **Models:** the Mosin from Synty POLYGON War (its bolt is a separate part, so the bolt really cycles; its texture is
+  assigned in code because the FBX points at a missing .psd), the AK (Rifle_Assault_03) and the pistol (Pistol_Heavy_01)
+  from POLYGON Battle Royale (slide and magazine are separate parts). Collision bodies are stripped from held guns.
+  Rifle_Assault_03's prefab has its magazine, slide and trigger turned 90° about Y (Tom spotted the sideways magazine);
+  parts are squared up to the gun's frame on equip. All licensed: git-ignored, never committed.
+* **Each gun is a `WeaponDef`:** fire mode, rate, muzzle velocity, magazine, reload time, recoil, ADS field of view, and
+  the hip pose, rear sight, muzzle and ejection points measured from the model (a top-profile scan of each mesh).
+* **Handling:** RMB aims down the sights and forces first person while held (the walker returns to its own view
+  after). The rear sight sits on the eye line (a rifle at the cheek, a pistol at arm's length). The gun sways against
+  the look and bobs with the walk (both damped when aiming). Recoil kicks the view up and sideways and punches the gun
+  back; both spring back. Reload dips and rolls the gun and drops the magazine. The Mosin's bolt cycles (up, back,
+  forward, down) after the trigger is let go.
+* **Bullets** are simulated, not hitscan: muzzle velocity plus the walker's own velocity, gravity and a little drag,
+  ray-stepped every frame against ground, roads, buildings, vehicles and props. They move with the world origin.
+  Hip fire spreads; aimed fire barely does. Hits throw dust coloured by surface and leave a mark (the last 60 stay).
+* **Sound:** generated placeholders (the brief: NoorSounds bleeps are fine), layered as crack + thump + tail for the
+  shot and clicks for mechanisms, so real recordings can replace each layer.
+* **Keys:** 1 Mosin, 2 AK, 3 pistol (the same key again holsters), LMB fire, RMB aim, R reload. HUD: a crosshair for
+  hip fire and the ammo count.
+* `--autotest=shoot` checks each gun (hip, aim, fire, reload) with screenshots and the hits in the log.
+
+Later: arms (first-person hands on the guns), third-person aiming with IK, real sounds, Mosin stripper-clip reloads,
+sight-picture tuning, damage.

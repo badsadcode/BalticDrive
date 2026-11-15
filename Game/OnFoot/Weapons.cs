@@ -1,0 +1,542 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using BalticDrive.World;
+using Godot;
+
+namespace BalticDrive.OnFoot;
+
+/// <summary>How a gun fires (D40).</summary>
+public enum FireMode { Semi, Auto, Bolt }
+
+/// <summary>
+/// One gun's identity (D40, the on-foot brief: a Mosin-style bolt-action, an AK-style rifle, a pistol). Model space:
+/// the barrel along +Z, Y up (Synty's convention); <see cref="Sight"/> is the point on the rear sight that the eye
+/// looks along when aiming; <see cref="Muzzle"/> the barrel's end; both in the model's own units.
+/// </summary>
+public sealed record WeaponDef(
+    string Id, string Name, string Scene, float Scale, FireMode Mode, float Rpm, float MuzzleVelocity,
+    int Magazine, int Reserve, float ReloadTime, float RecoilPitch, float RecoilYaw, float Kick, float AimFov,
+    Vector3 Hip, Vector3 Sight, Vector3 Muzzle, Vector3 Ejection, string? Slide, string? Mag, string? Bolt, string? Flash,
+    float Boom, float Pitch, string? Texture = null, float Eye = 0.18f)
+{
+    public static readonly WeaponDef[] All =
+    {
+        new("mosin", "Mosin rifle", "res://Assets/Synty/PolygonWar/SM_Wep_Russian_Rifle_01.fbx", 0.111f, FireMode.Bolt, 50, 860,
+            5, 25, 3.4f, 0.055f, 0.012f, 0.09f, 55, new Vector3(0.17f, -0.17f, -0.32f), new Vector3(0, 0.61f, 2.6f), new Vector3(0, 0.4f, 8.2f),
+            new Vector3(0.3f, 0.45f, 0.9f), null, null, "SM_Wep_Russian_Rifle_01_Bolt", null, 1.0f, 0.75f, "res://Assets/Synty/PolygonWar/PolygonWar_Texture_01_A.png", Eye: 0.42f),
+        new("ak", "AK rifle", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Rifle_Assault_03.tscn", 1f, FireMode.Auto, 600, 715,
+            30, 90, 2.6f, 0.012f, 0.008f, 0.035f, 58, new Vector3(0.16f, -0.16f, -0.3f), new Vector3(0, 0.142f, 0.02f), new Vector3(0, 0.1f, 0.62f),
+            new Vector3(0.03f, 0.12f, 0.2f), "SM_Wep_Rifle_Assault_Slide_03", "SM_Wep_Rifle_Assault_Mag_03", null, "SM_Wep_Rifle_Assault_Flash_03", 0.75f, 1.0f),
+        new("pistol", "Pistol", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Pistol_Heavy_01.tscn", 1f, FireMode.Semi, 400, 360,
+            8, 32, 1.8f, 0.03f, 0.01f, 0.05f, 62, new Vector3(0.15f, -0.14f, -0.36f), new Vector3(0, 0.1f, -0.06f), new Vector3(0, 0.07f, 0.13f),
+            new Vector3(0.02f, 0.08f, 0.0f), "SM_Wep_Pistol_Heavy_Slide_01", "SM_Wep_Pistol_Heavy_Mag_01", null, null, 0.55f, 1.35f, Eye: 0.42f),
+    };
+}
+
+/// <summary>
+/// First-person gun handling (D40), all procedural: the gun hangs in front of the eye camera and gets its life from
+/// code: aim down the sights (RMB, always first person), sway against the look, bob with the walk, recoil that kicks
+/// the view and the gun and springs back, a slide or bolt that cycles, a magazine that drops on reload, muzzle flash,
+/// ejected casings, bullets that fly with travel time and drop, and impacts that throw dust coloured by what they hit.
+/// Sounds are generated placeholders, layered (shot, mechanism, tail) so real recordings can replace them.
+/// </summary>
+public partial class Weapons : Node3D
+{
+    private readonly Walker _w;
+    private Camera3D _eye = null!;
+    private Node3D _holder = null!, _model = null!;
+    private WeaponDef? _def;
+    private readonly Dictionary<string, (int Mag, int Reserve)> _ammo = new();
+    private Node3D? _slide, _mag, _bolt, _flash;
+    private Vector3 _slideRest, _magRest, _boltRest;
+    private Quaternion _boltRot;
+    private OmniLight3D _flashLight = null!;
+    private AudioStreamPlayer _shot = null!, _mech = null!;
+    private readonly Dictionary<string, AudioStreamWav> _sounds = new();
+
+    // state
+    private float _aim, _cooldown, _reload = -1, _boltCycle = -1, _flashTime, _swayX, _swayY, _bobPhase;
+    private Vector3 _kickPos; private Vector3 _kickRot;
+    private bool _triggerHeld, _needBolt;
+    public bool Aiming { get; private set; }
+    public string Status => _def == null ? "" : $"{_def.Name}  {_ammo[_def.Id].Mag} / {_ammo[_def.Id].Reserve}" + (_reload >= 0 ? "  reloading" : _needBolt ? "  (bolt)" : "");
+    public WeaponDef? Current => _def;
+    /// <summary>Self-tests: hold the trigger / the aim from code.</summary>
+    public bool TestTrigger, TestAim;
+    /// <summary>Self-tests: shots fired, bullets that hit something, the last hit (where, what, how far, flight time).</summary>
+    public int Fired, Hits;
+    public string LastHit = "";
+    private Label _hudAmmo = null!;
+    private Control _cross = null!;
+
+    private readonly List<Bullet> _bullets = new();
+    private readonly List<Casing> _casings = new();
+    private readonly Queue<Node3D> _marks = new();
+    private sealed class Bullet { public Vector3 P, From, V; public float Life; }
+    private sealed class Casing { public Node3D N = null!; public Vector3 V, Spin; public float Life; }
+
+    public Weapons(Walker w) { _w = w; }
+
+    public override void _Ready()
+    {
+        _eye = _w.FirstPersonCamera;
+        _holder = new Node3D { Name = "Holder" };
+        _eye.AddChild(_holder);
+        _flashLight = new OmniLight3D { LightColor = new Color(1f, 0.75f, 0.4f), LightEnergy = 0, OmniRange = 6, ShadowEnabled = false };
+        _holder.AddChild(_flashLight);
+        _shot = new AudioStreamPlayer { Bus = "Master", VolumeDb = -4 };
+        _mech = new AudioStreamPlayer { Bus = "Master", VolumeDb = -8 };
+        AddChild(_shot); AddChild(_mech);
+        foreach (var d in WeaponDef.All) _ammo[d.Id] = (d.Magazine, d.Reserve);
+        // HUD: a small crosshair (hip fire only: aiming uses the sights) and the ammo
+        var ui = new CanvasLayer { Name = "GunHud", Layer = 2 };
+        AddChild(ui);
+        _cross = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _cross.SetAnchorsPreset(Control.LayoutPreset.Center);
+        _cross.Draw += () =>
+        {
+            var c = new Color(1, 1, 1, 0.8f);
+            foreach (var d in new[] { Vector2.Up, Vector2.Down, Vector2.Left, Vector2.Right })
+                _cross.DrawLine(d * 6, d * 13, c, 2);
+            _cross.DrawCircle(Vector2.Zero, 1.5f, c);
+        };
+        ui.AddChild(_cross);
+        _hudAmmo = new Label { HorizontalAlignment = HorizontalAlignment.Right };
+        _hudAmmo.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight, Control.LayoutPresetMode.Minsize, 10);
+        _hudAmmo.OffsetBottom = -36;
+        _hudAmmo.GrowHorizontal = Control.GrowDirection.Begin;
+        _hudAmmo.GrowVertical = Control.GrowDirection.Begin;
+        _hudAmmo.AddThemeFontSizeOverride("font_size", 22);
+        _hudAmmo.AddThemeColorOverride("font_shadow_color", Colors.Black);
+        ui.AddChild(_hudAmmo);
+        WorldOrigin.Shifted += OnShifted;
+    }
+
+    public override void _ExitTree() => WorldOrigin.Shifted -= OnShifted;
+
+    private void OnShifted(double dx, double dz)
+    {
+        var d = new Vector3((float)dx, 0, (float)dz);
+        foreach (var b in _bullets) b.P -= d;
+        foreach (var c in _casings) if (IsInstanceValid(c.N)) c.N.GlobalPosition -= d;
+        foreach (var m in _marks) if (IsInstanceValid(m)) m.GlobalPosition -= d;
+    }
+
+    // ---- equipping -----------------------------------------------------------------------------------------------
+
+    public void Equip(string? id)
+    {
+        bool same = _def?.Id == id;   // the same key again holsters the gun
+        if (_model != null) { _model.QueueFree(); _model = null!; }
+        _def = id == null || same ? null : WeaponDef.All.FirstOrDefault(d => d.Id == id);
+        _slide = _mag = _bolt = _flash = null;
+        _reload = -1; _boltCycle = -1; _needBolt = false;
+        if (_def == null) return;
+        var model = new Node3D { Name = _def.Id };
+        if (ResourceLoader.Exists(_def.Scene) && ResourceLoader.Load<PackedScene>(_def.Scene) is { } scene)
+        {
+            var inst = scene.Instantiate<Node3D>();
+            foreach (var body in inst.FindChildren("*", "CollisionObject3D", true, false)) body.QueueFree();   // no collision on a held gun
+            model.AddChild(inst);
+            if (_def.Texture != null && ResourceLoader.Load<Texture2D>(_def.Texture) is { } tex)
+            {
+                var mat = new StandardMaterial3D { AlbedoTexture = tex, Roughness = 0.6f };
+                foreach (var mi in inst.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>()) mi.MaterialOverride = mat;
+            }
+            // some Battle Royale prefabs (Rifle_Assault_03) come with their parts turned 90° about Y: the magazine
+            // sideways. The parts are modelled in the gun's own frame (as in every other prefab), so square them up.
+            foreach (var part in inst.GetChildren().OfType<MeshInstance3D>())
+                if (!part.Basis.Orthonormalized().IsEqualApprox(Basis.Identity)) part.Basis = Basis.Identity;
+            Node3D? Part(string? name) => name == null ? null : inst.FindChild(name, true, false) as Node3D;
+            _slide = Part(_def.Slide); _mag = Part(_def.Mag); _bolt = Part(_def.Bolt); _flash = Part(_def.Flash);
+            if (_slide != null) _slideRest = _slide.Position;
+            if (_mag != null) _magRest = _mag.Position;
+            if (_bolt != null) { _boltRest = _bolt.Position; _boltRot = _bolt.Quaternion; }
+            if (_flash != null) _flash.Visible = false;
+        }
+        else model.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(0.05f, 0.08f, 0.5f) }, Position = new Vector3(0, 0, 0.25f) });
+        // the barrel along the eye's -Z: turn the model round, scale it to metres
+        model.Scale = Vector3.One * _def.Scale;
+        model.RotationDegrees = new Vector3(0, 180, 0);
+        foreach (var gi in model.FindChildren("*", "GeometryInstance3D", true, false).OfType<GeometryInstance3D>())
+            gi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+        _holder.AddChild(model);
+        _model = model;
+        _flashLight.Position = MuzzleLocal();
+        Play(_mech, "equip");
+    }
+
+    /// <summary>The muzzle in the holder's frame (the model is turned and scaled inside it).</summary>
+    private Vector3 MuzzleLocal() => _def == null ? Vector3.Zero : new Vector3(-_def.Muzzle.X, _def.Muzzle.Y, -_def.Muzzle.Z) * _def.Scale;
+    private Vector3 SightLocal() => _def == null ? Vector3.Zero : new Vector3(-_def.Sight.X, _def.Sight.Y, -_def.Sight.Z) * _def.Scale;
+
+    // ---- input ---------------------------------------------------------------------------------------------------
+
+    public override void _UnhandledInput(InputEvent e)
+    {
+        if (!_w.Active) return;
+        if (e is InputEventKey { Pressed: true, Echo: false } k)
+        {
+            if (k.Keycode == Key.Key1) Equip("mosin");
+            else if (k.Keycode == Key.Key2) Equip("ak");
+            else if (k.Keycode == Key.Key3) Equip("pistol");
+            else if (k.Keycode == Key.R) StartReload();
+        }
+        if (e is InputEventMouseButton mb && Input.MouseMode == Input.MouseModeEnum.Captured)
+        {
+            if (mb.ButtonIndex == MouseButton.Left) _triggerHeld = mb.Pressed;
+            if (mb.ButtonIndex == MouseButton.Right) Aiming = mb.Pressed;
+        }
+        if (e is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
+        {
+            // sway: the gun lags behind the look
+            _swayX = Mathf.Clamp(_swayX - mm.Relative.X * 0.0006f, -0.06f, 0.06f);
+            _swayY = Mathf.Clamp(_swayY + mm.Relative.Y * 0.0006f, -0.06f, 0.06f);
+        }
+    }
+
+    public void StartReload()
+    {
+        if (_def == null || _reload >= 0 || _boltCycle >= 0) return;
+        var (mag, res) = _ammo[_def.Id];
+        if (mag >= _def.Magazine || res <= 0) return;
+        _reload = 0;
+        Play(_mech, "reload");
+    }
+
+    // ---- per frame -----------------------------------------------------------------------------------------------
+
+    public override void _Process(double delta)
+    {
+        float dt = (float)delta;
+        UpdateBullets(dt);
+        UpdateCasings(dt);
+        bool show = _def != null && _w.Active;
+        _hudAmmo.Visible = show;
+        _hudAmmo.Text = Status;
+        if (!show) { _holder.Visible = false; _cross.Visible = false; _w.AimOverride = false; return; }
+        bool aim = (Aiming || TestAim) && _reload < 0;
+        // aiming is always first person (the brief); the walker goes back to its own view on release
+        _w.AimOverride = aim;
+        _holder.Visible = _w.FirstPerson || aim;
+        _aim = Mathf.MoveToward(_aim, aim ? 1f : 0f, dt / 0.16f);
+        _cross.Visible = _aim < 0.5f;
+        _eye.Fov = Mathf.Lerp(75f, _def.AimFov, Smooth(_aim));
+
+        _cooldown -= dt;
+        bool trigger = _triggerHeld || TestTrigger;
+        if (trigger && _cooldown <= 0 && _reload < 0 && _boltCycle < 0 && !_needBolt)
+        {
+            if (_ammo[_def.Id].Mag > 0) Fire();
+            else if (!_dryClicked) { Play(_mech, "dry"); _dryClicked = true; }
+        }
+        if (!trigger) _dryClicked = false;
+        if (_def.Mode != FireMode.Auto && !trigger) _semiReady = true;
+        // the bolt: worked once the trigger is let go (Mosin)
+        if (_needBolt && !trigger && _cooldown <= 0 && _reload < 0) { _needBolt = false; _boltCycle = 0; Play(_mech, "bolt"); }
+        if (_boltCycle >= 0) { _boltCycle += dt / 0.85f; if (_boltCycle >= 1) _boltCycle = -1; }
+        if (_reload >= 0)
+        {
+            _reload += dt / _def.ReloadTime;
+            if (_reload >= 1)
+            {
+                var (mag, res) = _ammo[_def.Id];
+                int take = Math.Min(_def.Magazine - mag, res);
+                _ammo[_def.Id] = (mag + take, res - take);
+                _reload = -1;
+                _needBolt = false;   // loading works the bolt
+            }
+        }
+
+        // the gun's pose: hip or sights, then sway, bob, recoil, reload dip
+        var hip = _def.Hip;
+        var ads = new Vector3(0, 0, -_def.Eye) - SightLocal();        // the rear sight on the eye's line (a rifle at the cheek, a pistol at arm's length)
+        var pos = hip.Lerp(ads, Smooth(_aim));
+        float walk = _w.Speed > 0.3f && _w.IsOnFloor() ? 1f : 0f;
+        _bobPhase += dt * _w.Speed * 2.1f;
+        float bobAmt = walk * Mathf.Lerp(1f, 0.25f, _aim) * Mathf.Clamp(_w.Speed / 4.2f, 0, 1.5f);
+        pos += new Vector3(MathF.Cos(_bobPhase) * 0.012f, -MathF.Abs(MathF.Sin(_bobPhase)) * 0.014f, 0) * bobAmt;
+        _swayX = Mathf.Lerp(_swayX, 0, 1f - MathF.Exp(-8f * dt));
+        _swayY = Mathf.Lerp(_swayY, 0, 1f - MathF.Exp(-8f * dt));
+        float swayK = Mathf.Lerp(1f, 0.35f, _aim);
+        pos += new Vector3(_swayX, _swayY, 0) * swayK;
+        // recoil springs back
+        _kickPos = _kickPos.Lerp(Vector3.Zero, 1f - MathF.Exp(-14f * dt));
+        _kickRot = _kickRot.Lerp(Vector3.Zero, 1f - MathF.Exp(-11f * dt));
+        pos += _kickPos;
+        var rot = new Vector3(_kickRot.X, _kickRot.Y + _swayX * 2f * swayK, _kickRot.Z - _swayX * 3f * swayK);
+        // reload: the gun dips and tilts, the magazine drops out and comes back
+        if (_reload >= 0)
+        {
+            float r = MathF.Sin(MathF.Min(1f, _reload) * MathF.PI);
+            pos += new Vector3(-0.04f, -0.09f, 0.03f) * r;
+            rot += new Vector3(0.15f, 0.05f, 0.3f) * r;
+            // the magazine drops 25 cm out of the gun in the middle of the reload
+            float drop = Mathf.Clamp(r * 1.6f - 0.6f, 0f, 1f);
+            if (_mag != null) _mag.Position = _magRest + new Vector3(0, -0.25f * drop / _def.Scale, 0);
+        }
+        else if (_mag != null) _mag.Position = _magRest;
+        // bolt cycle (Mosin): up, back, forward, down; the rifle tilts toward it
+        if (_boltCycle >= 0 && _bolt != null)
+        {
+            float c = _boltCycle;
+            float up = c < 0.2f ? c / 0.2f : c > 0.8f ? (1 - c) / 0.2f : 1f;
+            float back = c < 0.2f ? 0 : c < 0.5f ? (c - 0.2f) / 0.3f : c < 0.8f ? 1 - (c - 0.5f) / 0.3f : 0;
+            _bolt.Quaternion = _boltRot * new Quaternion(Vector3.Forward, -1.3f * up);
+            _bolt.Position = _boltRest + new Vector3(0, 0, -1.1f * back);
+            rot += new Vector3(0.05f, 0, 0.35f) * MathF.Sin(c * MathF.PI);
+        }
+        // slide (pistol, AK): snaps back on the shot
+        if (_slide != null) _slide.Position = _slideRest + new Vector3(0, 0, -_slideBack / _def.Scale);
+        _slideBack = Mathf.MoveToward(_slideBack, 0, dt * 0.9f);
+
+        _holder.Position = pos;
+        _holder.Rotation = rot;
+        _flashTime -= dt;
+        _flashLight.LightEnergy = _flashTime > 0 ? 6f : 0f;
+        if (_flash != null) _flash.Visible = _flashTime > 0;
+    }
+
+    private bool _dryClicked, _semiReady = true;
+    private float _slideBack;
+
+    private static float Smooth(float t) => t * t * (3 - 2 * t);
+
+    private void Fire()
+    {
+        var d = _def!;
+        if (d.Mode != FireMode.Auto && !_semiReady) return;
+        _semiReady = false;
+        var (mag, res) = _ammo[d.Id];
+        _ammo[d.Id] = (mag - 1, res);
+        _cooldown = d.Mode == FireMode.Bolt ? 0.3f : 60f / d.Rpm;   // a bolt gun waits for its bolt instead
+        if (d.Mode == FireMode.Bolt) _needBolt = true;
+        // the bullet leaves along the view (where the sights point), with the eye's spread when hip-firing
+        var basis = _eye.GlobalTransform.Basis;
+        var dir = -basis.Z;
+        float spread = Mathf.Lerp(0.012f, 0.0006f, _aim);
+        dir = (dir + basis.X * (float)GD.RandRange(-spread, spread) + basis.Y * (float)GD.RandRange(-spread, spread)).Normalized();
+        var from = _aim > 0.5f ? _eye.GlobalPosition : _holder.ToGlobal(MuzzleLocal());
+        _bullets.Add(new Bullet { P = from, From = from, V = dir * d.MuzzleVelocity + _w.Velocity, Life = 4f });
+        Fired++;
+        // recoil: the view climbs and wanders, the gun punches back and up
+        _w.AddRecoil(d.RecoilPitch * (float)GD.RandRange(0.8, 1.2), d.RecoilYaw * (float)GD.RandRange(-1.0, 1.0));
+        _kickPos += new Vector3(0, 0.01f, d.Kick);
+        _kickRot += new Vector3(d.RecoilPitch * 2.2f, 0, (float)GD.RandRange(-0.03, 0.03));
+        _slideBack = d.Slide != null ? 0.035f : 0;
+        _flashTime = 0.045f;
+        if (_flash != null) _flash.Rotation = _flash.Rotation with { Z = (float)GD.RandRange(0, MathF.Tau) };
+        Play(_shot, d.Id + "_shot");
+        if (d.Mode != FireMode.Bolt) EjectCasing();
+    }
+
+    // ---- bullets, impacts, casings -------------------------------------------------------------------------------
+
+    private void UpdateBullets(float dt)
+    {
+        if (_bullets.Count == 0) return;
+        var space = GetWorld3D().DirectSpaceState;
+        var q = new PhysicsRayQueryParameters3D
+        {
+            CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props,
+            Exclude = new Godot.Collections.Array<Rid> { _w.GetRid() },
+        };
+        for (int i = _bullets.Count - 1; i >= 0; i--)
+        {
+            var b = _bullets[i];
+            var v = b.V + Vector3.Down * 9.81f * dt;           // drop
+            v *= 1f - 0.0006f * v.Length() * dt;               // a touch of drag
+            var next = b.P + v * dt;
+            q.From = b.P; q.To = next;
+            var hit = space.IntersectRay(q);
+            b.Life -= dt;
+            if (hit.Count > 0)
+            {
+                var at = (Vector3)hit["position"]; var n = (Vector3)hit["normal"];
+                string surface = hit["collider"].AsGodotObject() is Node c && c.HasMeta("surface") ? c.GetMeta("surface").AsString() : "hard";
+                Impact(at, n, surface);
+                Hits++;
+                LastHit = $"{surface} at {at.DistanceTo(b.From):F1} m after {4f - b.Life:F3} s";
+                _bullets.RemoveAt(i);
+                continue;
+            }
+            b.P = next; b.V = v;
+            if (b.Life <= 0) _bullets.RemoveAt(i);
+        }
+    }
+
+    private void Impact(Vector3 at, Vector3 n, string surface)
+    {
+        var dust = surface switch
+        {
+            "ground" or "loose" => new Color(0.42f, 0.33f, 0.22f),
+            "paved" => new Color(0.55f, 0.55f, 0.53f),
+            _ => new Color(0.72f, 0.7f, 0.65f),
+        };
+        var p = new CpuParticles3D
+        {
+            Emitting = false, OneShot = true, Amount = 14, Lifetime = 0.6, Explosiveness = 0.95f,
+            Direction = Vector3.Up, Spread = 35, InitialVelocityMin = 1.5f, InitialVelocityMax = 4.5f, Gravity = new Vector3(0, -9, 0),
+            ScaleAmountMin = 0.6f, ScaleAmountMax = 1.4f, Color = dust,
+            Mesh = new SphereMesh { Radius = 0.025f, Height = 0.05f, RadialSegments = 6, Rings = 3, Material = new StandardMaterial3D { VertexColorUseAsAlbedo = true, Roughness = 1 } },
+        };
+        GetTree().Root.AddChild(p);
+        p.GlobalPosition = at;
+        p.LookAt(at + n + new Vector3(0.001f, 0.0013f, 0), Vector3.Up);
+        p.RotateObjectLocal(Vector3.Right, -MathF.PI / 2);
+        p.Emitting = true;
+        GetTree().CreateTimer(1.0).Timeout += () => { if (IsInstanceValid(p)) p.QueueFree(); };
+        // a mark that stays a while
+        var mark = new MeshInstance3D
+        {
+            Mesh = new QuadMesh { Size = new Vector2(0.07f, 0.07f) },
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.06f, 0.055f, 0.05f), Roughness = 1, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded },
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
+        GetTree().Root.AddChild(mark);
+        mark.GlobalPosition = at + n * 0.01f;
+        if (MathF.Abs(n.Dot(Vector3.Up)) > 0.98f) mark.LookAt(mark.GlobalPosition - n, Vector3.Forward); else mark.LookAt(mark.GlobalPosition - n, Vector3.Up);
+        _marks.Enqueue(mark);
+        while (_marks.Count > 60) { var old = _marks.Dequeue(); if (IsInstanceValid(old)) old.QueueFree(); }
+        Play3D(at, surface == "hard" ? "hit_hard" : "hit_soft");
+    }
+
+    private static Mesh? _casingMesh;
+
+    private void EjectCasing()
+    {
+        _casingMesh ??= new CylinderMesh { TopRadius = 0.0055f, BottomRadius = 0.0055f, Height = 0.03f, RadialSegments = 6, Rings = 1,
+            Material = new StandardMaterial3D { AlbedoColor = new Color(0.78f, 0.6f, 0.25f), Metallic = 0.8f, Roughness = 0.35f } };
+        var c = new MeshInstance3D { Mesh = _casingMesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        GetTree().Root.AddChild(c);
+        var d = _def!;
+        c.GlobalPosition = _holder.ToGlobal(new Vector3(MathF.Abs(d.Ejection.X), d.Ejection.Y, -d.Ejection.Z) * d.Scale);   // out of the right side
+        var basis = _eye.GlobalTransform.Basis;
+        _casings.Add(new Casing
+        {
+            N = c, Life = 1.2f,
+            V = basis.X * (float)GD.RandRange(1.6, 2.4) + basis.Y * (float)GD.RandRange(1.0, 1.6) + basis.Z * 0.3f + _w.Velocity,
+            Spin = new Vector3((float)GD.RandRange(-20, 20), (float)GD.RandRange(-20, 20), (float)GD.RandRange(-20, 20)),
+        });
+    }
+
+    private void UpdateCasings(float dt)
+    {
+        for (int i = _casings.Count - 1; i >= 0; i--)
+        {
+            var c = _casings[i];
+            c.Life -= dt;
+            if (c.Life <= 0 || !IsInstanceValid(c.N)) { if (IsInstanceValid(c.N)) c.N.QueueFree(); _casings.RemoveAt(i); continue; }
+            c.V += Vector3.Down * 9.81f * dt;
+            c.N.GlobalPosition += c.V * dt;
+            c.N.Rotation += c.Spin * dt;
+        }
+    }
+
+    // ---- placeholder sounds (D40): generated, layered, replaceable -------------------------------------------------
+
+    private void Play(AudioStreamPlayer p, string key)
+    {
+        p.Stream = Sound(key);
+        p.PitchScale = (float)GD.RandRange(0.95, 1.05);
+        p.Play();
+    }
+
+    private void Play3D(Vector3 at, string key)
+    {
+        var p = new AudioStreamPlayer3D { Stream = Sound(key), UnitSize = 4, MaxDistance = 120, VolumeDb = -6 };
+        GetTree().Root.AddChild(p);
+        p.GlobalPosition = at;
+        p.Play();
+        p.Finished += p.QueueFree;
+    }
+
+    private AudioStreamWav Sound(string key)
+    {
+        if (_sounds.TryGetValue(key, out var s)) return s;
+        var def = WeaponDef.All.FirstOrDefault(d => key.StartsWith(d.Id + "_"));
+        s = key switch
+        {
+            _ when key.EndsWith("_shot") && def != null => Synth.Shot(def.Boom, def.Pitch),
+            "bolt" => Synth.Clicks(new[] { 0.0f, 0.18f, 0.42f, 0.66f }, 1.0f),
+            "reload" => Synth.Clicks(new[] { 0.1f, 0.6f, 1.2f }, 0.8f),
+            "equip" => Synth.Clicks(new[] { 0.0f, 0.12f }, 0.6f),
+            "dry" => Synth.Clicks(new[] { 0.0f }, 1.4f),
+            "hit_hard" => Synth.Hit(0.9f),
+            _ => Synth.Hit(0.5f),
+        };
+        _sounds[key] = s;
+        return s;
+    }
+}
+
+/// <summary>Generated placeholder sounds ("NoorSounds bleeps and bloops", the brief): a shot is a noise crack, a low
+/// thump and a decaying tail; mechanisms are short metallic clicks.</summary>
+public static class Synth
+{
+    private const int Rate = 22050;
+
+    private static AudioStreamWav Wav(float[] x)
+    {
+        var bytes = new byte[x.Length * 2];
+        for (int i = 0; i < x.Length; i++)
+        {
+            short v = (short)Math.Clamp(x[i] * 32000f, -32768f, 32767f);
+            bytes[i * 2] = (byte)(v & 0xff); bytes[i * 2 + 1] = (byte)((v >> 8) & 0xff);
+        }
+        return new AudioStreamWav { Format = AudioStreamWav.FormatEnum.Format16Bits, MixRate = Rate, Stereo = false, Data = bytes };
+    }
+
+    public static AudioStreamWav Shot(float boom, float pitch)
+    {
+        var rng = new Random(7);
+        int n = (int)(Rate * (0.35f + boom * 0.9f));
+        var x = new float[n];
+        float lp = 0, lp2 = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)Rate;
+            float noise = (float)(rng.NextDouble() * 2 - 1);
+            lp += (noise - lp) * 0.35f * pitch;      // the crack: bright noise, gone in a few milliseconds
+            lp2 += (noise - lp2) * 0.04f;            // the tail: darker noise, slower
+            float crack = lp * MathF.Exp(-t * 90f / pitch);
+            float thump = MathF.Sin(MathF.Tau * (55f + 40f * MathF.Exp(-t * 30f)) * t / pitch) * MathF.Exp(-t * 22f) * boom;
+            float tail = lp2 * 3f * MathF.Exp(-t * (6f / boom)) * boom * 0.5f;
+            x[i] = (crack * 1.4f + thump * 0.9f + tail) * MathF.Min(1f, t * 3000f);
+        }
+        return Wav(x);
+    }
+
+    public static AudioStreamWav Clicks(float[] at, float sharp)
+    {
+        var rng = new Random(3);
+        int n = (int)(Rate * (at.Max() + 0.15f));
+        var x = new float[n];
+        foreach (var t0 in at)
+        {
+            int s = (int)(t0 * Rate);
+            for (int i = 0; i < Rate * 0.06f && s + i < n; i++)
+            {
+                float t = i / (float)Rate;
+                x[s + i] += ((float)(rng.NextDouble() * 2 - 1) * 0.5f + MathF.Sin(MathF.Tau * 2600f * sharp * t) * 0.5f) * MathF.Exp(-t * 120f) * 0.6f;
+            }
+        }
+        return Wav(x);
+    }
+
+    public static AudioStreamWav Hit(float hard)
+    {
+        var rng = new Random(11);
+        int n = (int)(Rate * 0.25f);
+        var x = new float[n];
+        float lp = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)Rate;
+            lp += ((float)(rng.NextDouble() * 2 - 1) - lp) * (0.1f + 0.4f * hard);
+            x[i] = lp * MathF.Exp(-t * 40f) * 0.8f;
+        }
+        return Wav(x);
+    }
+}

@@ -16,6 +16,8 @@ namespace BalticDrive;
 /// start and report frame times and holes (frames where the ground under the camera was missing).</item>
 /// <item><c>--autotest=walk</c> — out of the car (E), walk 5 s, sprint 3 s, crouch 2 s, first person, walk back
 /// to the car and get in, with screenshots on the way (D38).</item>
+/// <item><c>--autotest=shoot</c> — out of the car, then each gun in turn (D40): hip view, aim down the sights, fire
+/// (a burst for the AK), reload; screenshots of each and the bullets' hits in the log.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -45,7 +47,9 @@ public sealed class Tests
     private double _driven;
     private bool _map;
     private bool _respawn;
-    private bool _walk;
+    private bool _walk, _shoot;
+    private double _shootTime = -1;
+    private int _shootShot;
     private double _walkTime = -1;
     private int _walkShot;
     private Vector3 _walkFrom;
@@ -65,9 +69,49 @@ public sealed class Tests
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
+        _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The shooting test (D40): 8 s per gun.</summary>
+    private void Shoot(double delta)
+    {
+        if (_shootTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "shoot: could not get out of the car"); _shoot = false; return; }
+            _main.Walker!.SetView(true);
+            _shootTime = 0;
+            return;
+        }
+        var g = _main.Walker!.Guns;
+        double before = _shootTime;
+        _shootTime += delta;
+        string[] ids = { "mosin", "ak", "pistol" };
+        int gun = (int)(_shootTime / 8);
+        if (gun >= ids.Length)
+        {
+            Log.Info("Test", $"shoot: done, {g.Fired} fired, {g.Hits} hit");
+            g.TestAim = g.TestTrigger = false;
+            _shoot = false;
+            return;
+        }
+        double t = _shootTime - gun * 8, b = before - gun * 8;
+        bool Now(double x) => b < x && t >= x;
+        string id = ids[gun];
+        if (g.Current?.Id != id && t < 0.5) { g.Equip(id); Log.Info("Test", $"shoot: {id} equipped"); }
+        if (Now(0.8)) Shot($"shoot_{id}_hip");
+        if (Now(1.0)) g.TestAim = true;
+        if (Now(1.8)) Shot($"shoot_{id}_aim");
+        if (Now(2.0)) g.TestTrigger = true;
+        if (Now(id == "ak" ? 2.5 : 2.05)) g.TestTrigger = false;
+        if (Now(2.02)) Shot($"shoot_{id}_fire");
+        if (Now(3.2)) { Log.Info("Test", $"shoot: {id}: {g.Status}; fired {g.Fired}, hits {g.Hits}, last: {g.LastHit}"); g.TestAim = false; }
+        if (Now(3.6)) g.StartReload();
+        if (Now(3.6 + (g.Current?.ReloadTime ?? 2) * 0.5)) Shot($"shoot_{id}_reload");
+        if (Now(7.6)) Log.Info("Test", $"shoot: {id} after reload: {g.Status}");
     }
 
     private bool Settled => _main.Terrain.Settled && _main.Content.Pending == 0 && _main.Terrain.PendingCollision == 0;
@@ -162,6 +206,7 @@ public sealed class Tests
             Log.Info("Test", $"walk: done, driving {wcar.Driving}");
             _walk = false;
         }
+        if (_shoot && _main.Car != null) { Shoot(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)
