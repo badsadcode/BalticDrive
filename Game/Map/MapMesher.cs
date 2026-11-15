@@ -302,7 +302,7 @@ public static class MapMesher
     /// A side road, driveway, junction surface or paved area crosses this segment's pavement on side <paramref name="sgn"/>
     /// (−1 left, +1 right of the point order): leave the pavement out there (Tom's dumps: slabs across a side road).
     /// </summary>
-    private static bool WalkBlocked(MapContext ctx, in MapSeg s, int sgn)
+    internal static bool WalkBlocked(MapContext ctx, in MapSeg s, int sgn)
     {
         var road = s.Road;
         float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
@@ -383,11 +383,21 @@ public static class MapMesher
 
     // ---- roads ---------------------------------------------------------------------------
 
+    /// <summary>The direction of road piece <paramref name="k"/>. A zero-length piece (a duplicate point, as where a
+    /// road is cut at a junction surface) borrows its nearest real neighbour's: it used to point due north, which bent
+    /// the corner beside it and threw a pavement diagonally across the road (Tom's dump on Tamka).</summary>
     private static Vector2 Dir(MapRoad r, int k)
     {
-        var d = new Vector2(r.X[k + 1] - r.X[k], r.Z[k + 1] - r.Z[k]);
-        float len = d.Length();
-        return len > 1e-5f ? d / len : new Vector2(0, 1);
+        int last = r.X.Length - 2;
+        for (int step = 0; step <= last; step++)
+            foreach (int i in new[] { k - step, k + step })
+            {
+                if (i < 0 || i > last) continue;
+                var d = new Vector2(r.X[i + 1] - r.X[i], r.Z[i + 1] - r.Z[i]);
+                float len = d.Length();
+                if (len > 0.01f) return d / len;
+            }
+        return new Vector2(0, 1);
     }
 
     /// <summary>Sideways (right of travel) offset direction at a road point, lengthened on bends so the edges stay parallel.</summary>
@@ -408,6 +418,10 @@ public static class MapMesher
     private static void AddRoadSegment(MapChunkGeometry geo, in MapSeg s, int lod, MapContext ctx)
     {
         var road = s.Road;
+        // a zero-length piece has nothing to draw (its neighbours meet at the shared point), unless it carries the
+        // road's end cap
+        bool capped = (s.Index == 0 && (road.Flags & RoadFlag.StartCap) != 0) || (s.Index == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0);
+        if (!capped && (s.Bx - s.Ax) * (s.Bx - s.Ax) + (s.Bz - s.Az) * (s.Bz - s.Az) < 1e-4f) return;
         int k = s.Index;
         var mesh = geo.Roads;
         bool bridge = road.IsBridge;

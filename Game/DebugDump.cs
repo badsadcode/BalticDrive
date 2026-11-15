@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Globalization;
 using System.IO;
@@ -89,6 +90,26 @@ public static class DebugDump
                               $"walk {(r.WalkLeft ? "L" : "")}{(r.WalkRight ? "R" : "")}{(r.Walk == 0 ? "-" : "")}  y {F(r.Y.Min(), 2)}..{F(r.Y.Max(), 2)} lift {F(r.Lift.Max(), 1)}  " +
                               $"nearest {F(best)} m (y there {F(near.Ya, 2)}), {r.X.Length} points");
             }
+            // pavements near the focus (D27): which sides got one, and what the overlap check saw
+            sb.AppendLine("Pavement pieces within 25 m (side: kept/blocked, then the free space beside the kerb at 0, ¼, ½, ¾, 1):");
+            foreach (var sg in ctx.Segs.Where(sg => sg.Road.Walk != 0 && sg.Distance(0, 0, out _) < 25))
+                foreach (int sgn in new[] { -1, 1 })
+                {
+                    if (sgn < 0 ? !sg.Road.WalkLeft : !sg.Road.WalkRight) continue;
+                    bool blocked = MapMesher.WalkBlocked(ctx, sg, sgn);
+                    float dx = sg.Bx - sg.Ax, dz = sg.Bz - sg.Az, len = MathF.Sqrt(dx * dx + dz * dz);
+                    float rx = -dz / len * sgn, rz = dx / len * sgn, off = sg.Hw + sg.Road.WalkWidth * .5f;
+                    var free = new List<string>();
+                    for (float t = 0f; t <= 1.001f; t += .25f)
+                    {
+                        float px = sg.Ax + dx * t + rx * off, pz = sg.Az + dz * t + rz * off;
+                        float m = float.MaxValue;
+                        foreach (var o in ctx.Segs)
+                            if (o.Road != sg.Road && !o.Road.IsRail && !o.Road.IsBridge) m = MathF.Min(m, o.Distance(px, pz, out _) - o.Hw);
+                        free.Add(F(m, 1));
+                    }
+                    sb.AppendLine($"  {ClassName(sg.Road.Cls)} piece {sg.Index} ({F(sg.Ax)},{F(sg.Az)})→({F(sg.Bx)},{F(sg.Bz)}) hw {F(sg.Hw, 2)} {(sgn < 0 ? "left" : "right")}: {(blocked ? "blocked" : "KEPT")}  free {string.Join(" ", free)}");
+                }
             int jn = 0;
             foreach (var jr in ctx.Junctions)
             {

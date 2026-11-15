@@ -567,3 +567,16 @@ combat"; "sparse, local, generated around the player".
 **Not yet:** the gun at the cheek (arms can't reach, so it's held at chest height); real cover beside walls (the cover
 search is random sampling); hearing their own wounded; districts with different danger; a real death (still the
 blackout placeholder).
+
+## D48 — Zero-length road pieces (Tom's dump on Tamka: a pavement across the road)
+
+On Tamka at the Dobra junction a pavement slab ran diagonally across the carriageway. The cause was a road piece of
+zero length: the road was cut where it enters the junction surface, and the cut left a duplicate end point. Its
+direction was taken as due north, which bent the corner (miter) at the end of the previous piece. The zero-length
+piece itself then drew a pavement quad between two different directions: the diagonal slab. The pavement overlap
+check (D27) didn't stop it either, because it treats a zero-length piece as never blocked.
+* A zero-length piece now borrows the direction of its nearest real neighbour, so corners next to it stay true.
+* Zero-length pieces aren't drawn, unless they carry the road's end cap.
+* The F9 dump now lists the pavement pieces within 25 m: which sides were kept or blocked, and the free space beside
+  the kerb along each. `--views=... --dump` writes a dump at each view from a self-test.
+Fixed in the game, so existing map packs benefit. The importer could also drop duplicate points at the next rebuild.

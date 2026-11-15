@@ -371,7 +371,7 @@ public sealed class Tests
         if (_view < _views.Count && _views.Count > 0)
         {
             if (_view >= 0 && _settledFor < 1.5) return;
-            if (_view >= 0) Shot($"view{_view:00}");
+            if (_view >= 0) { Shot($"view{_view:00}"); if (Main.Args.ContainsKey("dump")) Log.Info("Test", "dump: " + DebugDump.Take(_main)); }
             _view++;
             if (_view < _views.Count)
             {
