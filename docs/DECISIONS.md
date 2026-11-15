@@ -348,3 +348,15 @@ swinging with the speed, knees bending on the forward swing, a bob, crouch and a
 space, so it does not depend on the rig's bone axes. The prefab leaves its meshes' skeleton path empty (unbound
 meshes draw the rest pose), so the walker binds them. Real clips (a CC0 humanoid library retargeted onto the same
 skeleton) can replace the cycle later. Self-test: `--autotest=walk` (out, run, sprint, curve, first person, back in).
+
+## D39 — Real locomotion clips (Synty Base Locomotion)
+Tom brought the Synty ANIMATION Base Locomotion pack (FBX source files on Synty's own rig). Seventeen masculine in-place
+clips (standing and crouching idle; walk, run, sprint forward; walk, run and crouch back; walk and run sideways;
+jumps, a short fall, a soft landing) are copied into Assets/Synty/AnimationBaseLocomotion (git-ignored, licence
+note beside them) with .import files carrying the retarget settings from the City pack's own Characters.fbx.import:
+the same BoneMap onto Godot's SkeletonProfileHumanoid (UpperLeg_L → LeftUpperLeg, …) and rest fixer, so the clips
+come out with tracks on %GeneralSkeleton and the profile's bone names, and play on the City character unchanged.
+The walker loads them into an AnimationLibrary and drives an AnimationTree: a standing BlendSpace2D (velocity in the
+body's frame: idle, walk, run, sprint forward, walk and run back and sideways), a crouching one (idle, forward,
+back), a crouch blend and a fall blend after 0.12 s in the air. The skeleton gets the unique name the tracks use
+(owner = the model). Without the pack the procedural WalkCycle (D38) still stands in.

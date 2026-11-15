@@ -35,6 +35,9 @@ public partial class Walker : CharacterBody3D
     private Camera3D _tp = null!, _fp = null!;
     private float _pitch = -0.15f, _bodyYaw;
     private WalkCycle? _cycle;
+    private AnimationTree? _tree;
+    private float _airTime, _crouchBlend;
+    public const string ClipFolder = "res://Assets/Synty/AnimationBaseLocomotion/";
 
     public override void _Ready()
     {
@@ -90,9 +93,12 @@ public partial class Walker : CharacterBody3D
                     }
                 ClearOwner(skel);
                 _model.AddChild(skel);
+                // the clips address it as %GeneralSkeleton: a unique name under the model
+                skel.Owner = _model;
+                skel.UniqueNameInOwner = true;
                 // Synty characters face +Z; the walker faces -Z like every Godot node
                 _model.RotationDegrees = new Vector3(0, 180, 0);
-                _cycle = new WalkCycle(skel);
+                if (!BuildAnimations()) _cycle = new WalkCycle(skel);
                 return;
             }
             prefab.QueueFree();
@@ -104,6 +110,89 @@ public partial class Walker : CharacterBody3D
             Position = new Vector3(0, Height * 0.5f, 0),
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.25f, 0.3f, 0.45f) },
         });
+    }
+
+    /// <summary>
+    /// The Synty Base Locomotion clips (D39), imported onto the humanoid skeleton with Synty's own bone map, blended by
+    /// an AnimationTree: standing (idle, walk, run, sprint forwards; walk and run back and sideways) and crouching
+    /// (idle, forward, back) blend spaces by the velocity in the body's frame, crouch and fall blends on top.
+    /// False when the clips are not installed (the procedural <see cref="WalkCycle"/> stands in).
+    /// </summary>
+    private bool BuildAnimations()
+    {
+        var lib = new AnimationLibrary();
+        bool Clip(string key, string file, bool loop = true)
+        {
+            string path = ClipFolder + file + ".fbx";
+            if (!ResourceLoader.Exists(path) || ResourceLoader.Load<PackedScene>(path) is not { } scene) return false;
+            var inst = scene.Instantiate<Node>();
+            var player = inst.FindChildren("*", "AnimationPlayer", true, false).OfType<AnimationPlayer>().FirstOrDefault();
+            var name = player?.GetAnimationList().FirstOrDefault();
+            if (player == null || name == null) { inst.QueueFree(); return false; }
+            var anim = (Animation)player.GetAnimation(name).Duplicate();
+            inst.QueueFree();
+            anim.LoopMode = loop ? Animation.LoopModeEnum.Linear : Animation.LoopModeEnum.None;
+            lib.AddAnimation(key, anim);
+            return true;
+        }
+        if (!Clip("idle", "A_Idle_Standing_Masc") || !Clip("walk", "A_Walk_F_Masc") || !Clip("run", "A_Run_F_Masc")) return false;
+        Clip("sprint", "A_Sprint_F_Masc"); Clip("walk_b", "A_Walk_BckStrafeB_Masc"); Clip("run_b", "A_Run_BckStrafeB_Masc");
+        Clip("walk_l", "A_Walk_FwdStrafeL_Masc"); Clip("walk_r", "A_Walk_FwdStrafeR_Masc");
+        Clip("run_l", "A_Run_FwdStrafeL_Masc"); Clip("run_r", "A_Run_FwdStrafeR_Masc");
+        Clip("crouch_idle", "A_Idle_Crouching_Masc"); Clip("crouch_f", "A_Crouch_FwdStrafeF_Masc"); Clip("crouch_b", "A_Crouch_BckStrafeB_Masc");
+        Clip("fall", "A_InAir_FallShort_Masc");
+
+        var animPlayer = new AnimationPlayer { Name = "AnimationPlayer" };
+        _model.AddChild(animPlayer);
+        animPlayer.RootNode = new NodePath("..");
+        animPlayer.AddAnimationLibrary("", lib);
+
+        AnimationNodeAnimation A(string key) => new() { Animation = lib.HasAnimation(key) ? key : "idle" };
+        var stand = new AnimationNodeBlendSpace2D { MinSpace = new Vector2(-7, -7), MaxSpace = new Vector2(7, 7) };
+        stand.AddBlendPoint(A("idle"), Vector2.Zero);
+        stand.AddBlendPoint(A("walk"), new Vector2(0, WalkSpeed));
+        stand.AddBlendPoint(A("run"), new Vector2(0, RunSpeed));
+        stand.AddBlendPoint(A("sprint"), new Vector2(0, SprintSpeed));
+        stand.AddBlendPoint(A("walk_b"), new Vector2(0, -WalkSpeed));
+        stand.AddBlendPoint(A("run_b"), new Vector2(0, -RunSpeed));
+        stand.AddBlendPoint(A("walk_l"), new Vector2(-WalkSpeed, 0));
+        stand.AddBlendPoint(A("walk_r"), new Vector2(WalkSpeed, 0));
+        stand.AddBlendPoint(A("run_l"), new Vector2(-RunSpeed, 0));
+        stand.AddBlendPoint(A("run_r"), new Vector2(RunSpeed, 0));
+        var crouch = new AnimationNodeBlendSpace2D { MinSpace = new Vector2(-3, -3), MaxSpace = new Vector2(3, 3) };
+        crouch.AddBlendPoint(A("crouch_idle"), Vector2.Zero);
+        crouch.AddBlendPoint(A("crouch_f"), new Vector2(0, CrouchSpeed));
+        crouch.AddBlendPoint(A("crouch_b"), new Vector2(0, -CrouchSpeed));
+        var bt = new AnimationNodeBlendTree();
+        bt.AddNode("stand", stand);
+        bt.AddNode("crouchbs", crouch);
+        bt.AddNode("crouch", new AnimationNodeBlend2());
+        bt.AddNode("fall", A("fall"));
+        bt.AddNode("air", new AnimationNodeBlend2());
+        bt.ConnectNode("crouch", 0, "stand");
+        bt.ConnectNode("crouch", 1, "crouchbs");
+        bt.ConnectNode("air", 0, "crouch");
+        bt.ConnectNode("air", 1, "fall");
+        bt.ConnectNode("output", 0, "air");
+        _tree = new AnimationTree { Name = "AnimationTree", TreeRoot = bt };
+        _model.AddChild(_tree);
+        _tree.AnimPlayer = _tree.GetPathTo(animPlayer);
+        _tree.Active = true;
+        return true;
+    }
+
+    private void UpdateAnimations(float dt)
+    {
+        if (_tree == null) return;
+        // velocity in the body's frame: x to the right, y forward
+        var local = Transform.Basis.Inverse() * Velocity;
+        var v = new Vector2(local.X, -local.Z);
+        _tree.Set("parameters/stand/blend_position", v);
+        _tree.Set("parameters/crouchbs/blend_position", v);
+        _crouchBlend = Mathf.MoveToward(_crouchBlend, Crouching ? 1f : 0f, dt * 5f);
+        _tree.Set("parameters/crouch/blend_amount", _crouchBlend);
+        _airTime = IsOnFloor() ? 0f : _airTime + dt;
+        _tree.Set("parameters/air/blend_amount", Mathf.Clamp((_airTime - 0.12f) * 6f, 0f, 1f));
     }
 
     private static void ClearOwner(Node n)
@@ -213,6 +302,7 @@ public partial class Walker : CharacterBody3D
     {
         UpdateCamera((float)delta);
         _cycle?.Update((float)delta, Speed, Crouching, IsOnFloor());
+        UpdateAnimations((float)delta);
     }
 
     private void UpdateCamera(float dt)
