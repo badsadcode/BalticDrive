@@ -330,3 +330,21 @@ industrial buildings, and pitched roofs (gabled, hipped, pyramidal), with the ro
 tile (the importer's own guess for houses counts as mapped); domes, churches, towers, canopies and building parts keep
 the old meshes. Pitched roofs are drawn with the building shader's tiled surface. Measured over the western suburbs:
 houses cost about 4 ms and 1,400 triangles each; a 6 km fly-over holds 60 fps (1 frame over 33 ms).
+
+## D38 — On foot, first steps
+Following docs/BalticDrive_OnFoot_Gameplay_Brief.md. `Game/OnFoot/Walker.cs`: a CharacterBody3D capsule (0.35 m
+radius, 1.8 m, layer Characters = 32) walking the streamed world: run 4.2 m/s by default, Shift sprint 6.6, Alt walk
+1.7, Ctrl crouch 1.5, Space jump; it waits where ground collision is not loaded (like the car) and follows origin
+shifts. Third person on a SpringArm3D over the right shoulder (pulled in by walls and the ground), first person at the
+eye (V toggles; the body is hidden in first person until arms and weapons come); the mouse is captured on foot (Esc
+releases, a click takes it back). The body turns toward where it walks, or with the camera in first person.
+E gets out of the car by the driver's door (only when it has stopped) and back in within 4.5 m; an empty car brakes
+and holds its handbrake. F from foot goes to the free camera. The HUD, the minimap and the map follow whoever has
+the controls.
+The look is the Synty POLYGON City "Male Hoodie" character (from the licensed pack in Assets/Synty, never committed;
+a capsule without it). The packs bring characters but no locomotion clips, so `WalkCycle` animates the humanoid
+skeleton (Godot's profile names: Hips, LeftUpperLeg…) in code: arms brought down from the rest pose, legs and arms
+swinging with the speed, knees bending on the forward swing, a bob, crouch and air poses, all as rotations in model
+space, so it does not depend on the rig's bone axes. The prefab leaves its meshes' skeleton path empty (unbound
+meshes draw the rest pose), so the walker binds them. Real clips (a CC0 humanoid library retargeted onto the same
+skeleton) can replace the cycle later. Self-test: `--autotest=walk` (out, run, sprint, curve, first person, back in).

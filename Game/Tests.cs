@@ -14,6 +14,8 @@ namespace BalticDrive;
 /// save a screenshot to <c>--shots=dir</c>.</item>
 /// <item><c>--autotest=fly</c> — fly 6 km in a straight line at <c>--speed=</c> m/s (default 40, ~145 km/h) from the
 /// start and report frame times and holes (frames where the ground under the camera was missing).</item>
+/// <item><c>--autotest=walk</c> — out of the car (E), walk 5 s, sprint 3 s, crouch 2 s, first person, walk back
+/// to the car and get in, with screenshots on the way (D38).</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -43,6 +45,10 @@ public sealed class Tests
     private double _driven;
     private bool _map;
     private bool _respawn;
+    private bool _walk;
+    private double _walkTime = -1;
+    private int _walkShot;
+    private Vector3 _walkFrom;
     private int _round, _rounds;
     private double _roundFlown, _roundWait = -1, _distance;
     private double _mapTime = -1;
@@ -58,6 +64,7 @@ public sealed class Tests
         _map = Main.Args.GetValueOrDefault("autotest", "").Contains("map");
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
+        _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -115,6 +122,45 @@ public sealed class Tests
                 _fly = false;
             }
             else return;
+        }
+        if (_walk && _main.Car is { } wcar)
+        {
+            if (_walkTime < 0)
+            {
+                if (_settledFor < 1.5) return;
+                if (!_main.ToggleOnFoot()) { Log.Error("Test", "walk: could not get out of the car"); _walk = false; return; }
+                _walkTime = 0;
+                _walkFrom = _main.Walker!.GlobalPosition;
+                Log.Info("Test", "walk: out of the car");
+                _main.Walker.Autopilot = w =>
+                {
+                    double t = _walkTime;
+                    if (t < 5) return (new Vector2(0, 1), false);          // walk... (run speed)
+                    if (t < 8) return (new Vector2(0, 1), true);           // sprint
+                    if (t < 10) return (new Vector2(0.6f, 0.8f), false);   // a curve
+                    return (new Vector2(0, 0), false);
+                };
+                return;
+            }
+            _walkTime += delta;
+            var wk = _main.Walker!;
+            double[] shots = { 0.6, 2.5, 6.5, 9.5, 11.0 };
+            wk.CameraOrbit = _walkTime is > 1.5 and < 7.5 ? 1.5f : 0f;   // side view for the run and the sprint shots
+            if (_walkShot < shots.Length && _walkTime >= shots[_walkShot])
+            {
+                Shot($"walk_{_walkShot}");
+                Log.Info("Test", $"walk: {_walkTime:F1} s, {wk.Speed * 3.6f:F1} km/h, {wk.GlobalPosition.DistanceTo(_walkFrom):F1} m from where it got out, on floor {wk.IsOnFloor()}");
+                _walkShot++;
+                if (_walkShot == 1) Log.Info("Test", "walk pose: " + wk.DebugPose());
+                if (_walkShot == 4) wk.SetView(true);
+            }
+            if (_walkTime < 12) return;
+            // back to the car the quick way, then in
+            wk.Autopilot = null;
+            wk.GlobalPosition = wcar.GlobalPosition - wcar.GlobalTransform.Basis.X * 1.8f;
+            Log.Info("Test", _main.ToggleOnFoot() ? "walk: back in the car" : "walk: could not get back in");
+            Log.Info("Test", $"walk: done, driving {wcar.Driving}");
+            _walk = false;
         }
         if (_respawn)
         {

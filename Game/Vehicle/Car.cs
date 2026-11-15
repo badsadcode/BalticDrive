@@ -309,6 +309,12 @@ public partial class Car : VehicleBody3D
             steerIn = (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left) ? 1f : 0f) - (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right) ? 1f : 0f);
             handbrake = Input.IsKeyPressed(Key.Space);
         }
+        else
+        {
+            // nobody at the wheel (the driver got out, D38): the car stays put
+            brakeIn = 1f;
+            handbrake = true;
+        }
 
         // What each wheel stands on. Not VehicleWheel3D.GetContactBody(): after a teleport or when the streamer unloads
         // the ground under a wheel it can hand back a freed body, and touching that crashed the game (fly far, press F).

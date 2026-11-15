@@ -95,7 +95,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   first- and third-person with first-person aiming down sights, gunplay that feels great (bolt-action rifle, handgun,
   AK), approachable ballistics, sound layered and replaceable, health/hunger/thirst, outdoor caches chosen by OSM
   points of interest (no interiors needed), human bandits, everything sparse and generated around the player.
-  1. Walking character (Synty, from data/inbox, never committed): third/first person, walk, run, crouch, jump,
+  1. DONE (D38): walking, sprint, crouch, jump, third/first person, in and out of the car, procedural walk cycle.
+     Next: real animation clips (retarget a CC0 humanoid library), then weapons. Was: Walking character (Synty, from data/inbox, never committed): third/first person, walk, run, crouch, jump,
      get in and out of the car. Calibrates the interior game scale (D11 in BadBuilding: 1.8 m, camera clearance).
   2. Weapons on a shooting range: aim, shoot, reload, hits on walls and targets; simple ballistics first.
   3. Bots: patrol, notice, chase, cover, shoot back; navigation per streamed chunk (or along roads and pavements

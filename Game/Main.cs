@@ -32,6 +32,7 @@ public partial class Main : Node3D
 	private Car? _car;
 	private Navigation? _nav;
 	private MapScreen? _mapScreen;
+	private OnFoot.Walker? _walker;
 	private Minimap? _minimap;
 	private CanvasLayer _ui = null!;
 	/// <summary>True while the free camera is in charge (F toggles; views tests and --fly start in it).</summary>
@@ -101,22 +102,10 @@ public partial class Main : Node3D
 		// the round radar in the corner (D35)
 		_minimap = new Minimap { Name = "Minimap" };
 		_ui.AddChild(_minimap);
-		_minimap.Setup(_world, _nav, () =>
-		{
-			var (x, z) = Focus;
-			var f = !Flying && _car != null ? -_car.GlobalTransform.Basis.Z : -_camera.GlobalTransform.Basis.Z;
-			var d = new Vector2(f.X, f.Z);
-			return (x, z, d.LengthSquared() > 1e-4f ? d.Normalized() : new Vector2(0, -1), !Flying && _car != null ? _car.Speed * 3.6f : 0f);
-		});
+		_minimap.Setup(_world, _nav, Subject);
 		_mapScreen = new MapScreen { Name = "MapScreen" };
 		_ui.AddChild(_mapScreen);
-		_mapScreen.Setup(_world, _nav, () =>
-		{
-			var (x, z) = Focus;
-			var f = !Flying && _car != null ? -_car.GlobalTransform.Basis.Z : -_camera.GlobalTransform.Basis.Z;
-			var d = new Vector2(f.X, f.Z);
-			return (x, z, d.LengthSquared() > 1e-4f ? d.Normalized() : new Vector2(0, -1));
-		}, (x, z) =>
+		_mapScreen.Setup(_world, _nav, () => { var (x, z, f, _) = Subject(); return (x, z, f); }, (x, z) =>
 		{
 			Teleport(x, z, 40f, Mathf.RadToDeg(_camera.Yaw), -12f);
 			if (!Flying) SpawnCar(x, z);
@@ -153,6 +142,9 @@ public partial class Main : Node3D
 	public MapContentStreamer Content => _content;
 	public FlyCamera Camera => _camera;
 	public Car? Car => _car;
+	public OnFoot.Walker? Walker => _walker;
+	/// <summary>Walking (D38): the walker has the controls.</summary>
+	public bool OnFoot => _walker?.Active ?? false;
 	public Navigation? Nav => _nav;
 	public MapScreen? MapView => _mapScreen;
 
@@ -164,6 +156,7 @@ public partial class Main : Node3D
 			_car = new Car { Name = "Car", Map = _world, HasGround = _terrain.HasGround, Model = Car.ChooseModel(Args.GetValueOrDefault("car")) };
 			AddChild(_car);
 		}
+		_walker?.Deactivate();
 		_car.Recover(x, z);
 		_car.Driving = true;
 		_car.SetView(false);
@@ -201,6 +194,12 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.E } && _world != null && !Flying)
+		{
+			ToggleOnFoot();
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.N } && _minimap != null)
 		{
 			_minimapOn = !_minimapOn;
@@ -216,9 +215,47 @@ public partial class Main : Node3D
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null) ToggleFreeCamera();
 	}
 
+	/// <summary>E (D38): out of the car on the driver's side, or back in when standing by it.</summary>
+	public bool ToggleOnFoot()
+	{
+		if (_car == null || Flying) return false;
+		if (OnFoot)
+		{
+			if (_walker!.GlobalPosition.DistanceTo(_car.GlobalPosition) > 4.5f) { ShowNote("Walk up to the car to get in (E)"); return false; }
+			_walker.Deactivate();
+			_car.Driving = true;
+			_car.SetView(false);
+			return true;
+		}
+		if (MathF.Abs(_car.Speed) > 2f) { ShowNote("Stop the car first"); return false; }
+		_walker ??= CreateWalker();
+		_car.Driving = false;
+		var t = _car.GlobalTransform;
+		// out by the driver's door (left), facing the way the car faces
+		var at = t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f;
+		_walker.Activate(at, _car.Rotation.Y);
+		return true;
+	}
+
+	private OnFoot.Walker CreateWalker()
+	{
+		var w = new OnFoot.Walker { Name = "Walker", HasGround = _terrain.HasGround };
+		AddChild(w);
+		return w;
+	}
+
 	/// <summary>F: from the car to the free camera, or from the free camera back to driving at the nearest road.</summary>
 	public void ToggleFreeCamera()
 	{
+		if (OnFoot)
+		{
+			Flying = true;
+			_camera.GlobalTransform = _walker!.ActiveCamera.GlobalTransform;
+			_camera.Yaw = _camera.Rotation.Y; _camera.Pitch = _camera.Rotation.X;
+			_walker.Deactivate();
+			_camera.Current = true;
+			return;
+		}
 		if (Flying)
 		{
 			var (x, _, z) = WorldOrigin.ToWorld(_camera.GlobalPosition);
@@ -248,11 +285,23 @@ public partial class Main : Node3D
 		_camera.Pitch = Mathf.DegToRad(pitchDeg);
 	}
 
+	/// <summary>Who the player is right now (the walker, the car or the free camera): where, which way, how fast.</summary>
+	private (double X, double Z, Vector2 Forward, float SpeedKmh) Subject()
+	{
+		var (x, z) = Focus;
+		Vector3 f; float kmh = 0;
+		if (OnFoot) { f = new Vector3(-MathF.Sin(_walker!.Yaw), 0, -MathF.Cos(_walker.Yaw)); kmh = _walker.Speed * 3.6f; }
+		else if (!Flying && _car != null) { f = -_car.GlobalTransform.Basis.Z; kmh = _car.Speed * 3.6f; }
+		else f = -_camera.GlobalTransform.Basis.Z;
+		var d = new Vector2(f.X, f.Z);
+		return (x, z, d.LengthSquared() > 1e-4f ? d.Normalized() : new Vector2(0, -1), kmh);
+	}
+
 	public (double X, double Z) Focus
 	{
 		get
 		{
-			var at = !Flying && _car != null ? _car.GlobalPosition : _camera.GlobalPosition;
+			var at = OnFoot ? _walker!.GlobalPosition : !Flying && _car != null ? _car.GlobalPosition : _camera.GlobalPosition;
 			var (x, _, z) = WorldOrigin.ToWorld(at);
 			return (x, z);
 		}
@@ -274,13 +323,16 @@ public partial class Main : Node3D
 		var (lat, lon) = Core.Projection.ToGeo(fx, fz);
 		// where am I (D33): street and number, district, town; worked out twice a second
 		if (Time.GetTicksMsec() > _whereAt) { _where = _world.WhereAmI(fx, fz); _whereAt = Time.GetTicksMsec() + 500; }
-		string speed = !Flying && _car != null ? $"{MathF.Abs(_car.Speed) * 3.6f:F0} km/h{(_car.OnRoad ? "" : " (off road)")}   " : "";
+		string speed = OnFoot ? $"on foot, {_walker!.Speed * 3.6f:F0} km/h{(_walker.Crouching ? ", crouching" : "")}   "
+			: !Flying && _car != null ? $"{MathF.Abs(_car.Speed) * 3.6f:F0} km/h{(_car.OnRoad ? "" : " (off road)")}   " : "";
 		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {_where}\n" +
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
-					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
+					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
+						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera"
+						: "E: get out   F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
 		if (_note != null && _note.Visible && Time.GetTicksMsec() / 1000.0 > _noteUntil) _note.Visible = false;
