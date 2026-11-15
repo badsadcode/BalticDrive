@@ -18,6 +18,8 @@ namespace BalticDrive;
 /// to the car and get in, with screenshots on the way (D38).</item>
 /// <item><c>--autotest=shoot</c> — out of the car, then each gun in turn (D40): hip view, aim down the sights, fire
 /// (a burst for the AK), reload; screenshots of each and the bullets' hits in the log.</item>
+/// <item><c>--autotest=range</c> — out of the car, set up the shooting range (D42), shoot each target with the AK
+/// (aimed straight at it, the 100 m plate with the Mosin), screenshots before and after, and what each hit said.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -47,7 +49,9 @@ public sealed class Tests
     private double _driven;
     private bool _map;
     private bool _respawn;
-    private bool _walk, _shoot;
+    private bool _walk, _shoot, _rangeTest;
+    private double _rangeTime = -1;
+    private int _rangeTarget;
     private double _shootTime = -1;
     private int _shootShot;
     private double _walkTime = -1;
@@ -70,6 +74,7 @@ public sealed class Tests
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
+        _rangeTest = Main.Args.GetValueOrDefault("autotest", "").Contains("range");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -113,6 +118,62 @@ public sealed class Tests
         if (Now(3.6 + (g.Current?.ReloadTime ?? 2) * 0.5)) Shot($"shoot_{id}_reload");
         if (Now(7.6)) Log.Info("Test", $"shoot: {id} after reload: {g.Status}");
     }
+
+    /// <summary>The range test (D42): 2.5 s per target: face it, aim, fire one shot, look.</summary>
+    private void RangeTest(double delta)
+    {
+        if (_rangeTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "range: could not get out of the car"); _rangeTest = false; return; }
+            _main.Walker!.SetView(true);
+            _rangeTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        var g = w.Guns;
+        double before = _rangeTime;
+        _rangeTime += delta;
+        bool Now(double t) => before < t && _rangeTime >= t;
+        if (Now(0.5))
+        {
+            var r = _main.SetUpRange();
+            Log.Info("Test", $"range: {r?.Targets.Count ?? 0} targets set up");
+            g.Equip("ak");
+        }
+        if (Now(2.0))
+        {
+            // the whole range, from a step back and a little up
+            w.Face(_main.Range!.Targets[^1].Node.GlobalPosition + Vector3.Up * 1.2f);
+            Shot("range_overview");
+        }
+        var targets = _main.Range?.Targets;
+        if (targets == null || _rangeTime < 3) return;
+        int i = (int)((_rangeTime - 3) / 2.5);
+        double t = (_rangeTime - 3) - i * 2.5, b = (before - 3) - i * 2.5;
+        bool At(double x) => b < x && t >= x;
+        if (i >= targets.Count)
+        {
+            g.TestAim = g.TestTrigger = false;
+            Shot("range_after");
+            Log.Info("Test", $"range: done, {g.Fired} fired, {g.TargetHits} target hits");
+            _rangeTest = false;
+            return;
+        }
+        var (name, node, aim) = targets[i];
+        if (At(0.01))
+        {
+            if (name.StartsWith("plate 100")) g.Equip("mosin");
+            g.TestAim = true;
+        }
+        // keep looking at the target (it may have moved)
+        if (t < 1.3 && GodotObject.IsInstanceValid(node)) w.Face(node.GlobalPosition + aim + Vector3.Up * (name.StartsWith("plate 100") ? 0.06f : 0f));
+        if (At(1.0)) { g.TestTrigger = true; _rangeHitsBefore = g.TargetHits; }
+        if (At(1.06)) g.TestTrigger = false;
+        if (At(1.25) && (name.StartsWith("bottle 2") || name.StartsWith("plate 25") || name.StartsWith("paper"))) Shot($"range_{name.Replace(' ', '_')}");
+        if (At(2.3)) Log.Info("Test", $"range: {name}: {(g.TargetHits > _rangeHitsBefore ? "hit, " + g.LastTarget : "missed")} ({g.LastHit})");
+    }
+    private int _rangeHitsBefore;
 
     private bool Settled => _main.Terrain.Settled && _main.Content.Pending == 0 && _main.Terrain.PendingCollision == 0;
 
@@ -207,6 +268,7 @@ public sealed class Tests
             _walk = false;
         }
         if (_shoot && _main.Car != null) { Shoot(delta); return; }
+        if (_rangeTest && _main.Car != null) { RangeTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

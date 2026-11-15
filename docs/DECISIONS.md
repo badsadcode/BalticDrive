@@ -411,3 +411,32 @@ None of the packs Tom has has first-person arms, so the walker's own character (
 * The arms show only when the gun does (first person, or aiming).
 
 Later: third-person hands on the gun (IK on the walker's own body), better finger shapes, the Mosin's stripper clip.
+
+## D42 — Something to shoot at: hits that react, and a little range (T)
+
+Bullets now do something to what they hit, through one interface the bandits will use too:
+* **`IHittable.Hit(BulletHit)`:** where, the normal, velocity, mass and range; it returns a short line for the HUD.
+  `Hits.Apply` looks for an `IHittable` on the collider or above it. Any other loose rigid body gets a shove: momentum
+  × 0.12, because real momentum would send a can off at 500 m/s. Bullet mass is per gun: Mosin 9.6 g, AK 7.9 g,
+  pistol 8 g.
+* **Targets** (`Game/OnFoot/Targets.cs`):
+  * glass bottles shatter into a dozen shards that fade;
+  * cans jump and spin;
+  * barrels rock;
+  * a paper target on its stand is scored by ring (10 to 1);
+  * steel plates, made in code since no pack has them: a white-painted 30 cm disc hanging on a hinge from a frame,
+    which swings and rings when hit.
+  Props come from Synty Gang Warfare (bottles, range target and stand, metal barrel) and City (soda can), scaled to
+  real sizes: a 30 cm bottle, a 12 cm can, a 1 m barrel.
+* **T on foot** sets up a range in front of you, on whatever ground a ray finds:
+  * 8 m: two barrels with cans and bottles on top;
+  * 15 m: the paper target;
+  * 25, 50 and 100 m: plates.
+  It moves with the world origin; T again sets it up afresh where you stand. It's a toy and a test rig; real caches
+  and bandits come from the map later.
+* **HUD:** a hit marker (an X round the crosshair) and a note: "plate, 50 m", "target: 9, 15 m".
+* **Sounds**, generated like the guns' (D40): breaking glass, a can's tink, a barrel's clunk, a plate's ring
+  (inharmonic partials). Metal hits throw sparks.
+* `--autotest=range` shoots every target, the 100 m plate with the Mosin. First run: 12 shots, 12 hits.
+* `tools/synty_copy.py` copies chosen prefabs and everything they reference out of a pack zip into the git-ignored
+  `Assets/Synty/<Pack>/`, with a licence note.

@@ -143,6 +143,21 @@ public partial class Main : Node3D
 	public FlyCamera Camera => _camera;
 	public Car? Car => _car;
 	public OnFoot.Walker? Walker => _walker;
+
+	private OnFoot.ShootingRange? _range;
+	public OnFoot.ShootingRange? Range => _range;
+
+	/// <summary>T on foot (D42): a little shooting range in front of the walker; T again sets it up afresh where you stand.</summary>
+	public OnFoot.ShootingRange? SetUpRange()
+	{
+		if (_walker == null || !OnFoot) return null;
+		_range?.QueueFree();
+		_range = new OnFoot.ShootingRange();
+		AddChild(_range);
+		_range.Build(_walker.GlobalPosition, _walker.Yaw);
+		ShowNote("Range set up: cans and bottles at 8 m, a paper target at 15 m, plates at 25, 50 and 100 m");
+		return _range;
+	}
 	/// <summary>Walking (D38): the walker has the controls.</summary>
 	public bool OnFoot => _walker?.Active ?? false;
 	public Navigation? Nav => _nav;
@@ -191,6 +206,12 @@ public partial class Main : Node3D
 		if (e is InputEventKey { Pressed: true, Keycode: Key.Bracketleft or Key.Bracketright } k)
 		{
 			_atmosphere.AdvanceClock(k.Keycode == Key.Bracketright ? 0.5 : -0.5);
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.T } && OnFoot)
+		{
+			SetUpRange();
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -331,7 +352,7 @@ public partial class Main : Node3D
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
 					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
-						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload"
+						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets"
 						: "E: get out   F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);

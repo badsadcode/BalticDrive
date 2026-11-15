@@ -44,6 +44,15 @@ public partial class Walker : CharacterBody3D
         }
     }
 
+    /// <summary>Turns the view to look at a world point (self-tests).</summary>
+    public void Face(Vector3 point)
+    {
+        var d = point - _fp.GlobalPosition;
+        Yaw = MathF.Atan2(-d.X, -d.Z);
+        _pitch = Mathf.Clamp(MathF.Atan2(d.Y, new Vector2(d.X, d.Z).Length()), -1.35f, 1.2f);
+        UpdateCamera(0);
+    }
+
     /// <summary>A shot's kick on the view: up by <paramref name="pitch"/>, sideways by <paramref name="yaw"/> (radians).</summary>
     public void AddRecoil(float pitch, float yaw)
     {

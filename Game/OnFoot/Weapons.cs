@@ -19,18 +19,18 @@ public sealed record WeaponDef(
     int Magazine, int Reserve, float ReloadTime, float RecoilPitch, float RecoilYaw, float Kick, float AimFov,
     Vector3 Hip, Vector3 Sight, Vector3 Muzzle, Vector3 Ejection, string? Slide, string? Mag, string? Bolt, string? Flash,
     float Boom, float Pitch, string? Texture = null, float Eye = 0.18f,
-    Vector3 RightGrip = default, Vector3 LeftGrip = default, bool TwoHandedPistol = false)
+    Vector3 RightGrip = default, Vector3 LeftGrip = default, bool TwoHandedPistol = false, float BulletGrams = 8f)
 {
     public static readonly WeaponDef[] All =
     {
         new("mosin", "Mosin rifle", "res://Assets/Synty/PolygonWar/SM_Wep_Russian_Rifle_01.fbx", 0.111f, FireMode.Bolt, 50, 860,
             5, 25, 3.4f, 0.055f, 0.012f, 0.09f, 55, new Vector3(0.17f, -0.17f, -0.32f), new Vector3(0, 0.61f, 2.6f), new Vector3(0, 0.4f, 8.2f),
             new Vector3(0.3f, 0.45f, 0.9f), null, null, "SM_Wep_Russian_Rifle_01_Bolt", null, 1.0f, 0.75f, "res://Assets/Synty/PolygonWar/PolygonWar_Texture_01_A.png", Eye: 0.42f,
-            RightGrip: new Vector3(0, -0.22f, -0.25f), LeftGrip: new Vector3(0, 0.12f, 3.5f)),
+            RightGrip: new Vector3(0, -0.22f, -0.25f), LeftGrip: new Vector3(0, 0.12f, 3.5f), BulletGrams: 9.6f),
         new("ak", "AK rifle", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Rifle_Assault_03.tscn", 1f, FireMode.Auto, 600, 715,
             30, 90, 2.6f, 0.012f, 0.008f, 0.035f, 58, new Vector3(0.16f, -0.16f, -0.3f), new Vector3(0, 0.142f, 0.02f), new Vector3(0, 0.1f, 0.62f),
             new Vector3(0.03f, 0.12f, 0.2f), "SM_Wep_Rifle_Assault_Slide_03", "SM_Wep_Rifle_Assault_Mag_03", null, "SM_Wep_Rifle_Assault_Flash_03", 0.75f, 1.0f,
-            RightGrip: new Vector3(0, -0.02f, 0.0f), LeftGrip: new Vector3(0, 0.06f, 0.32f)),
+            RightGrip: new Vector3(0, -0.02f, 0.0f), LeftGrip: new Vector3(0, 0.06f, 0.32f), BulletGrams: 7.9f),
         new("pistol", "Pistol", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Pistol_Heavy_01.tscn", 1f, FireMode.Semi, 400, 360,
             8, 32, 1.8f, 0.03f, 0.01f, 0.05f, 62, new Vector3(0.15f, -0.14f, -0.36f), new Vector3(0, 0.1f, -0.06f), new Vector3(0, 0.07f, 0.13f),
             new Vector3(0.02f, 0.08f, 0.0f), "SM_Wep_Pistol_Heavy_Slide_01", "SM_Wep_Pistol_Heavy_Mag_01", null, null, 0.55f, 1.35f, Eye: 0.42f,
@@ -70,15 +70,17 @@ public partial class Weapons : Node3D
     /// <summary>Self-tests: hold the trigger / the aim from code.</summary>
     public bool TestTrigger, TestAim;
     /// <summary>Self-tests: shots fired, bullets that hit something, the last hit (where, what, how far, flight time).</summary>
-    public int Fired, Hits;
+    public int Fired, Hits, TargetHits;
+    public string LastTarget = "";
     public string LastHit = "";
-    private Label _hudAmmo = null!;
+    private Label _hudAmmo = null!, _hitNote = null!;
+    private float _hitTime = -1;
     private Control _cross = null!;
 
     private readonly List<Bullet> _bullets = new();
     private readonly List<Casing> _casings = new();
     private readonly Queue<Node3D> _marks = new();
-    private sealed class Bullet { public Vector3 P, From, V; public float Life; }
+    private sealed class Bullet { public Vector3 P, From, V; public float Life, Mass; }
     private sealed class Casing { public Node3D N = null!; public Vector3 V, Spin; public float Life; }
 
     public Weapons(Walker w) { _w = w; }
@@ -118,6 +120,24 @@ public partial class Weapons : Node3D
         _hudAmmo.AddThemeFontSizeOverride("font_size", 22);
         _hudAmmo.AddThemeColorOverride("font_shadow_color", Colors.Black);
         ui.AddChild(_hudAmmo);
+        // a hit: the crosshair grows an X for a moment and a note says what it was (D42)
+        _hitNote = new Label { HorizontalAlignment = HorizontalAlignment.Center, Modulate = new Color(1, 1, 1, 0) };
+        _hitNote.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        _hitNote.OffsetTop = 40; _hitNote.OffsetBottom = 70; _hitNote.OffsetLeft = -200; _hitNote.OffsetRight = 200;
+        _hitNote.AddThemeFontSizeOverride("font_size", 20);
+        _hitNote.AddThemeColorOverride("font_shadow_color", Colors.Black);
+        ui.AddChild(_hitNote);
+        var marker = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        marker.SetAnchorsPreset(Control.LayoutPreset.Center);
+        marker.Draw += () =>
+        {
+            if (_hitTime < 0) return;
+            var c = new Color(1, 1, 1, Mathf.Clamp(_hitTime / 0.2f, 0, 1));
+            foreach (var d in new[] { new Vector2(1, 1), new Vector2(-1, 1), new Vector2(1, -1), new Vector2(-1, -1) })
+                marker.DrawLine(d * 8, d * 16, c, 2.5f);
+        };
+        ui.AddChild(marker);
+        _hitMarker = marker;
         WorldOrigin.Shifted += OnShifted;
     }
 
@@ -219,6 +239,7 @@ public partial class Weapons : Node3D
     {
         float dt = (float)delta;
         UpdateBullets(dt);
+        UpdateHitHud(dt);
         UpdateCasings(dt);
         bool show = _def != null && _w.Active;
         _hudAmmo.Visible = show;
@@ -345,6 +366,21 @@ public partial class Weapons : Node3D
 
     private static float Smooth(float t) => t * t * (3 - 2 * t);
 
+    private Control _hitMarker = null!;
+
+    private void ShowHit(string text)
+    {
+        _hitNote.Text = text;
+        _hitTime = 1.6f;
+    }
+
+    private void UpdateHitHud(float dt)
+    {
+        if (_hitTime >= 0) _hitTime -= dt;
+        _hitNote.Modulate = new Color(1, 1, 1, Mathf.Clamp(_hitTime, 0, 1));
+        _hitMarker.QueueRedraw();
+    }
+
     private void Fire()
     {
         var d = _def!;
@@ -360,7 +396,7 @@ public partial class Weapons : Node3D
         float spread = Mathf.Lerp(0.012f, 0.0006f, _aim);
         dir = (dir + basis.X * (float)GD.RandRange(-spread, spread) + basis.Y * (float)GD.RandRange(-spread, spread)).Normalized();
         var from = _aim > 0.5f ? _eye.GlobalPosition : _holder.ToGlobal(MuzzleLocal());
-        _bullets.Add(new Bullet { P = from, From = from, V = dir * d.MuzzleVelocity + _w.Velocity, Life = 4f });
+        _bullets.Add(new Bullet { P = from, From = from, V = dir * d.MuzzleVelocity + _w.Velocity, Life = 4f, Mass = d.BulletGrams / 1000f });
         Fired++;
         // recoil: the view climbs and wanders, the gun punches back and up
         _w.AddRecoil(d.RecoilPitch * (float)GD.RandRange(0.8, 1.2), d.RecoilYaw * (float)GD.RandRange(-1.0, 1.0));
@@ -396,10 +432,15 @@ public partial class Weapons : Node3D
             if (hit.Count > 0)
             {
                 var at = (Vector3)hit["position"]; var n = (Vector3)hit["normal"];
-                string surface = hit["collider"].AsGodotObject() is Node c && c.HasMeta("surface") ? c.GetMeta("surface").AsString() : "hard";
+                var collider = hit["collider"].AsGodotObject();
+                string surface = collider is Node c && c.HasMeta("surface") ? c.GetMeta("surface").AsString() : "hard";
+                float range = at.DistanceTo(b.From);
+                // targets (D42): whatever the bullet hit reacts, and says so on the HUD
+                var said = OnFoot.Hits.Apply(collider, new BulletHit(at, n, v, b.Mass, range));
+                if (said != null) { ShowHit($"{said}, {range:0} m"); TargetHits++; LastTarget = said; }
                 Impact(at, n, surface);
                 Hits++;
-                LastHit = $"{surface} at {at.DistanceTo(b.From):F1} m after {4f - b.Life:F3} s";
+                LastHit = $"{surface} at {range:F1} m after {4f - b.Life:F3} s";
                 _bullets.RemoveAt(i);
                 continue;
             }
@@ -414,8 +455,12 @@ public partial class Weapons : Node3D
         {
             "ground" or "loose" => new Color(0.42f, 0.33f, 0.22f),
             "paved" => new Color(0.55f, 0.55f, 0.53f),
+            "metal" => new Color(1f, 0.75f, 0.35f),     // sparks
+            "glass" => new Color(0.8f, 0.9f, 0.85f),
+            "paper" => new Color(0.95f, 0.93f, 0.85f),
             _ => new Color(0.72f, 0.7f, 0.65f),
         };
+        if (surface == "glass") return;   // the bottle shatters instead
         var p = new CpuParticles3D
         {
             Emitting = false, OneShot = true, Amount = 14, Lifetime = 0.6, Explosiveness = 0.95f,
@@ -441,7 +486,7 @@ public partial class Weapons : Node3D
         if (MathF.Abs(n.Dot(Vector3.Up)) > 0.98f) mark.LookAt(mark.GlobalPosition - n, Vector3.Forward); else mark.LookAt(mark.GlobalPosition - n, Vector3.Up);
         _marks.Enqueue(mark);
         while (_marks.Count > 60) { var old = _marks.Dequeue(); if (IsInstanceValid(old)) old.QueueFree(); }
-        Play3D(at, surface == "hard" ? "hit_hard" : "hit_soft");
+        if (surface is not ("metal" or "paper")) Play3D(at, surface == "hard" ? "hit_hard" : "hit_soft");   // targets ring on their own
     }
 
     private static Mesh? _casingMesh;
@@ -562,6 +607,48 @@ public static class Synth
             {
                 float t = i / (float)Rate;
                 x[s + i] += ((float)(rng.NextDouble() * 2 - 1) * 0.5f + MathF.Sin(MathF.Tau * 2600f * sharp * t) * 0.5f) * MathF.Exp(-t * 120f) * 0.6f;
+            }
+        }
+        return Wav(x);
+    }
+
+    /// <summary>A struck metal object: a few inharmonic partials ringing down over <paramref name="decay"/> s.</summary>
+    public static AudioStreamWav Ring(float[] partials, float decay)
+    {
+        int n = (int)(Rate * decay * 1.2f);
+        var x = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)Rate, v = 0;
+            for (int k = 0; k < partials.Length; k++)
+                v += MathF.Sin(MathF.Tau * partials[k] * t) * MathF.Exp(-t * (3f + k * 2f) / decay) / (k + 1);
+            x[i] = v * 0.5f * MathF.Min(1f, t * 4000f);
+        }
+        return Wav(x);
+    }
+
+    /// <summary>Breaking glass: a bright crash and a scatter of little tinkles.</summary>
+    public static AudioStreamWav Glass()
+    {
+        var rng = new Random(5);
+        int n = (int)(Rate * 0.7f);
+        var x = new float[n];
+        float hp = 0, prev = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)Rate;
+            float noise = (float)(rng.NextDouble() * 2 - 1);
+            hp = 0.6f * (hp + noise - prev); prev = noise;   // high-passed noise
+            x[i] = hp * MathF.Exp(-t * 14f) * 0.9f;
+        }
+        for (int k = 0; k < 14; k++)
+        {
+            int s0 = (int)(Rate * (0.02 + rng.NextDouble() * 0.5));
+            float f = 3000f + (float)rng.NextDouble() * 4000f;
+            for (int i = 0; i < Rate * 0.05f && s0 + i < n; i++)
+            {
+                float t = i / (float)Rate;
+                x[s0 + i] += MathF.Sin(MathF.Tau * f * t) * MathF.Exp(-t * 90f) * 0.25f;
             }
         }
         return Wav(x);
