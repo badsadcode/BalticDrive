@@ -139,7 +139,8 @@ void fragment() {
 
 	// gravel shoulder outside the carriageway
 	float hard = 1.0 - max(max(is_loose, is_rail), is_steel);
-	float shoulder = smoothstep(half_width - 0.1, half_width + 0.25, au + (n_mid - 0.5) * 0.4) * (1.0 - is_concrete) * (1.0 - is_steel) * (1.0 - is_slab);
+	// (a fine, small wander: the old 0.4 m swing every ~1.5 m made straight roads look wobbly from the car, Tom)
+	float shoulder = smoothstep(half_width - 0.06, half_width + 0.12, au + (vnoise(wpos.xz * 2.3) - 0.5) * 0.1) * (1.0 - is_concrete) * (1.0 - is_steel) * (1.0 - is_slab);
 	vec3 gravel = mix(vec3(0.10, 0.085, 0.065), vec3(0.17, 0.15, 0.12), n_mid) * (0.75 + 0.5 * n_fine);
 	col = mix(col, gravel, shoulder);
 

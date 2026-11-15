@@ -68,10 +68,10 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   steps of land. Fix in the importer: carve by a smooth signed distance to the real water polygons (and their
   shoreline), not the raster mask; needs a map rebuild. (Barriers and buildings over water now stand on the water
   surface instead of the carved bed: D31.)
-* **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** the square's pedestrian area is drawn over the roads
-  crossing it, hiding the carriageways, tram tracks, markings and the car park. Suspect: pedestrian junction surfaces
-  get the high junction bias (0.105) in MapMesher.AddJunction, so they sit above every road; they should sit under
-  roads like paved areas (0.045), or be cut where roads cross. Check at x 69560, z 640428.
+* **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** not a drawing-order problem (pedestrian areas now
+  draw under roads anyway, D32): the square is one polygon at DEM heights, and the roads crossing it sit lower in
+  their cut beds. Fix in the importer (build_paved): cut the road corridors (buffered carriageways) out of paved and
+  pedestrian polygons before triangulating. Needs a map rebuild.
 * **Wobbly, stitched service roads (Tom, 15 Nov, top-down screenshot round a block):** tight driveway loops look
   jagged at the edges and show seams where ribbon pieces meet or overlap. Suspects: roads meshed segment by segment
   (no shared vertices at joints, so tight bends fold or gap), coarse OSM polylines on curves, the noisy asphalt edge in

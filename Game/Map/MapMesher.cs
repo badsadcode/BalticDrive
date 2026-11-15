@@ -98,6 +98,14 @@ public static class MapMesher
 {
     public const float ShoulderWidth = 1.5f, ShoulderDrop = 0.45f;
     public const float TallBuilding = 42f;   // taller than this is drawn by the skyline layer instead
+    /// <summary>Tall blocks of flats up to this height stay with the near cells when BadBuilding is on (D32).</summary>
+    public const float TallHousing = 62f;
+
+    /// <summary>A tall building the near cells draw (BadBuilding's PRL towers and slabs) while the skyline only keeps
+    /// its far copy.</summary>
+    public static bool NearHandled(MapBuilding b) =>
+        BadBuildingAdapter.Enabled && b.Height > TallBuilding && b.Height <= TallHousing && !b.Ghost && !b.IsPart
+        && b.Type is BuildingKind.Apartments or BuildingKind.Generic;
 
     // Surface codes in vertex colour R, read by shaders/map_road.gdshader.
     private const float SurfAsphalt = 0f, SurfConcrete = 0.25f, SurfLoose = 0.5f, SurfSlab = 0.89f, SurfRail = 1f;
@@ -174,7 +182,7 @@ public static class MapMesher
         {
             var r = list[i];
             var b = r.B;
-            if (b.Ghost || b.Height > TallBuilding) continue;
+            if (b.Ghost || b.Height > TallBuilding && !NearHandled(b)) continue;
             float cx = r.OffX + b.Cx, cz = r.OffZ + b.Cz;
             if (cx < 0 || cx >= size || cz < 0 || cz >= size) continue;
             float gMin = float.MaxValue, gMax = float.MinValue;
@@ -209,8 +217,9 @@ public static class MapMesher
     {
         var j = jr.J;
         var mesh = geo.Roads;
-        // paved areas sit under every road that crosses them; junction surfaces over them
-        float bias = (j.Paved ? 0.045f : 0.105f) + (lod > 0 ? 0.06f * lod : 0f);
+        // paved and pedestrian areas (squares like Plac Konstytucji) sit under every road that crosses them; junction
+        // surfaces over them (a pedestrian area used to cover its roads, tram tracks and markings, D32)
+        float bias = (j.Paved || j.Pedestrian ? 0.045f : 0.105f) + (lod > 0 ? 0.06f * lod : 0f);
         // The road shader reads UV.x as the offset from the centre line and COLOR.b * 16 as the half width (beyond it:
         // gravel shoulder). A junction is all carriageway: half width 16 m, UV.x kept within ±10 m (wrapping every 40 m).
         var col = new Color(j.Pedestrian ? SurfConcrete : SurfAsphalt, 0f, 1f, LaneCode(2, 0));

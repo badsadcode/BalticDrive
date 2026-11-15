@@ -10,6 +10,8 @@ render_mode cull_back, diffuse_burley;
 #include "res://Shaders/common.gdshaderinc"
 
 global uniform float wetness;
+// the skyline's copy of a building the near cells draw themselves: hidden within this distance (D32; 0 = never)
+uniform float near_cut = 0.0;
 
 varying vec3 wpos;
 
@@ -33,6 +35,7 @@ void vertex() {
 }
 
 void fragment() {
+	if (near_cut > 0.0 && length(VERTEX) < near_cut) discard;
 	float kind = COLOR.a;
 	vec3 tint = COLOR.rgb;
 	float dist = length(VERTEX);

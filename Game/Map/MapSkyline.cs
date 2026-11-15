@@ -20,15 +20,20 @@ public sealed class MapSkyline
 
     private readonly MapWorld _map;
     private readonly Node3D _root;
-    private readonly Material _material;
+    private readonly Material _material, _nearCut;
+    /// <summary>Within this distance of the camera the content streamer draws the buildings that it takes over from the
+    /// skyline (tall blocks of flats under BadBuilding, D32), so the skyline hides its copy of them there.</summary>
+    public const float NearCut = 950f;
     private readonly Dictionary<long, Node3D?> _tiles = new();
     private readonly HashSet<long> _pending = new();
-    private readonly System.Collections.Concurrent.ConcurrentQueue<(long key, int tx, int tz, MeshData mesh, List<Vector3> faces)> _done = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(long key, int tx, int tz, MeshData mesh, MeshData near, List<Vector3> faces)> _done = new();
     private readonly List<long> _remove = new();
 
     public MapSkyline(MapWorld map, Node3D root, Material material)
     {
         _map = map; _root = root; _material = material;
+        _nearCut = (Material)material.Duplicate();
+        if (_nearCut is ShaderMaterial sm) sm.SetShaderParameter("near_cut", NearCut);
     }
 
     private static long Key(int tx, int tz) => ((long)tx << 32) ^ (uint)tz;
@@ -42,10 +47,12 @@ public sealed class MapSkyline
             _pending.Remove(d.key);
             if (Math.Abs(d.tx - fx) > Radius + 1 || Math.Abs(d.tz - fz) > Radius + 1) continue;
             Node3D? node = null;
-            if (!d.mesh.Empty)
+            if (!d.mesh.Empty || !d.near.Empty)
             {
                 node = new Node3D { Name = $"Skyline{d.tx}_{d.tz}" };
-                node.AddChild(new MeshInstance3D { Mesh = d.mesh.ToMesh(_material) });
+                if (!d.mesh.Empty) node.AddChild(new MeshInstance3D { Mesh = d.mesh.ToMesh(_material) });
+                // no shadows from the far copies: in the shadow pass the distance cut would be measured from the light
+                if (!d.near.Empty) node.AddChild(new MeshInstance3D { Mesh = d.near.ToMesh(_nearCut), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
                 Bodies.AddFaces(node, d.faces, "hard", true, Bodies.Buildings);
                 _root.AddChild(node);
                 WorldOrigin.Anchor(node, d.tx * (double)MapTile.Size, d.tz * (double)MapTile.Size);
@@ -65,10 +72,11 @@ public sealed class MapSkyline
                 Task.Run(() =>
                 {
                     var mesh = new MeshData();
+                    var near = new MeshData();
                     var faces = new List<Vector3>();
-                    try { BuildTile(map, ctx, ctz, mesh, faces); }
+                    try { BuildTile(map, ctx, ctz, mesh, near, faces); }
                     catch (Exception e) { Log.Error("MapSkyline", $"Tile {ctx},{ctz} failed: {e}"); }
-                    _done.Enqueue((key, ctx, ctz, mesh, faces));
+                    _done.Enqueue((key, ctx, ctz, mesh, near, faces));
                 });
             }
         }
@@ -81,7 +89,7 @@ public sealed class MapSkyline
         foreach (var key in _remove) { _tiles[key]?.QueueFree(); _tiles.Remove(key); }
     }
 
-    private static void BuildTile(MapWorld map, int tx, int tz, MeshData mesh, List<Vector3> faces)
+    private static void BuildTile(MapWorld map, int tx, int tz, MeshData mesh, MeshData near, List<Vector3> faces)
     {
         var tile = map.Data.Tile(tx, tz);
         MapContext? ctx = null;
@@ -99,7 +107,9 @@ public sealed class MapSkyline
                 gMin = MathF.Min(gMin, h); gMax = MathF.Max(gMax, h);
                 gMin = MathF.Min(gMin, ctx.Ground(rx[k] - b.Cx, rz[k] - b.Cz));
             }
-            MapMesher.AddBuilding(mesh, faces, b, 0f, 0f, gMin, gMax, Hash.Of(tx, tz, b.Index, 92));
+            // a building the near streamer draws itself: only far copies here, no collision (the near cells have it)
+            bool handed = MapMesher.NearHandled(b);
+            MapMesher.AddBuilding(handed ? near : mesh, handed ? null : faces, b, 0f, 0f, gMin, gMax, Hash.Of(tx, tz, b.Index, 92));
         }
     }
 }

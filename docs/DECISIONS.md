@@ -264,3 +264,13 @@ Tom: walls, fences and sometimes buildings stood in the water. The ground under 
 half sunk and moored barges (floating bars, mapped as buildings) stood on the river bottom. Barrier points and building
 corners now take the water surface where it is above the ground. The stepped banks (the bed is carved on the 8 m
 land-cover grid) are an importer fix still to do (HANDOFF).
+
+## D32 — Tall blocks of flats to BadBuilding; quieter road edges
+With BadBuilding on, blocks of flats between 42 and 62 m (apartments or generic, not parts) stay with the near cells
+(BadBuilding within 600 m, the old meshes to 1000 m) instead of the skyline layer; the skyline still draws its copy
+of them for the distance, hidden within 950 m of the camera by a `near_cut` uniform on a duplicate of the building
+material (no shadows from those copies, as the cut would be measured from the light in the shadow pass). Tom's case:
+a 16-storey block known only as `building=apartments` with levels now comes out as a PRL block. In BadBuilding, a
+block with only a mapped height of four storeys or more fits the PRL style too. Pedestrian areas draw under the
+roads crossing them like paved areas (the Plac Konstytucji fix itself needs the importer, HANDOFF). The asphalt edge
+in map_road.gdshader wanders less (±5 cm, fine) instead of ±20 cm every ~1.5 m, which read as a wobbly road.
