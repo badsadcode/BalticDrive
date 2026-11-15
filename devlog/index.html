@@ -856,6 +856,31 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>0.00 m: the piece's length</li><li>1 slab, gone</li><li>0 map tiles rebuilt</li><li>1 dump, very useful</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>23</strong></div>
+    <div>
+      <h2>Something in his hands</h2>
+      <div class="date">15 November 2026, late evening</div>
+      <p>"Running around carrying a gun and not seeing the gun in my hands looks weird," said Tom. He was right: in
+        third person the guy in the red hoodie strolled through Warsaw empty-handed, and his AK only appeared when he
+        aimed and the view jumped to first person.</p>
+      <figure class="photo">
+        <img src="img/tp-guns.webp" alt="Six side views of the walker in a red hoodie: walking with an AK held at the ready, sprinting with it angled down, firing it from the shoulder; standing with a pistol held two-handed; sprinting with the Mosin across his body; firing the Mosin from the shoulder" loading="lazy">
+        <figcaption>AK walking, sprinting and firing; the pistol; the Mosin at a run and on the shoulder.</figcaption>
+      </figure>
+      <p>It turned out to be the easy part, because the bandits already had everything: the gun models, the code that
+        puts hands on a gun after the walking animation has moved the body, and a sense of where the hands go. Now you
+        carry the gun at the ready, lower it when you sprint, and bring it up to the shoulder when you fire. With a gun
+        out you also face where you're looking and strafe, like a shooter, instead of turning to run wherever your
+        feet go. Put it away and he walks normally again.</p>
+      <p>And a confession. Tom also found he couldn't switch to first person any more. That was Sage's doing: the change
+        that stops test runs grabbing his mouse had a missing pair of braces, which quietly disconnected V, Esc and the
+        medkit key. Two characters fixed it. The tests now press those keys themselves, the way a player does.</p>
+      <div class="quote">"Running around, carrying a gun, and not seeing the gun in my hands looks weird."
+        <cite>Tom</cite></div>
+      <ul class="facts"><li>3 guns in hand</li><li>0 new art</li><li>2 braces, sorely missed</li><li>still 0 kebabs</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
