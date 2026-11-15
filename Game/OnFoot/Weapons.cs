@@ -244,7 +244,8 @@ public partial class Weapons : Node3D
         bool show = _def != null && _w.Active;
         _hudAmmo.Visible = show;
         _hudAmmo.Text = Status;
-        if (!show) { _holder.Visible = false; _cross.Visible = false; _w.AimOverride = false; return; }
+        if (!show) { _holder.Visible = false; _arms.Visible = false; _cross.Visible = false;   // no gun: no arms rig either (Tom's T-pose twin)
+            _w.AimOverride = false; return; }
         bool aim = (Aiming || TestAim) && _reload < 0;
         // aiming is always first person (the brief); the walker goes back to its own view on release
         _w.AimOverride = aim;

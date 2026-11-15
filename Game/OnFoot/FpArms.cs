@@ -40,6 +40,7 @@ public sealed partial class FpArms : Node3D
     public FpArms()
     {
         Name = "FpArms";
+        Visible = false;   // shown only while a gun is out (Weapons.PoseArms)
         if (!ResourceLoader.Exists(Walker.CharacterScene) || ResourceLoader.Load<PackedScene>(Walker.CharacterScene) is not { } scene) return;
         var prefab = scene.Instantiate<Node3D>();
         var skel = prefab.GetNodeOrNull<Skeleton3D>("GeneralSkeleton");
