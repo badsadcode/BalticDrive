@@ -50,9 +50,13 @@ public static class BarrierMesher
     }
 
     /// <summary>The bridge deck under or beside a point: its height there, or NaN when no deck is within reach.</summary>
-    private static float DeckAt(MapContext ctx, float x, float z)
+    private static float DeckAt(MapContext ctx, float x, float z) => DeckAt(ctx, x, z, out _);
+
+    /// <param name="edge">Distance from the point to the nearest deck's carriageway edge (negative: on it).</param>
+    private static float DeckAt(MapContext ctx, float x, float z, out float edge)
     {
         float best = 1e9f, y = float.NaN;
+        edge = 1e9f;
         foreach (var s in ctx.Segs)
         {
             if (!s.Road.IsBridge) continue;
@@ -60,6 +64,7 @@ public static class BarrierMesher
             if (d > 3.5f || d >= best) continue;
             best = d; y = s.Ya + (s.Yb - s.Ya) * u + 0.1f;
         }
+        edge = best;
         return y;
     }
 
@@ -113,10 +118,11 @@ public static class BarrierMesher
                 bool ok = true;
                 if (b.Raised)
                 {
-                    // on a viaduct or footbridge: stand on the deck we draw, or not at all (no footbridges yet)
-                    float dy = DeckAt(ctx, xs[i], zs[i]);
+                    // on a viaduct or footbridge: stand on the deck we draw, or not at all (no footbridges yet); never
+                    // across the deck's carriageway (D51, Tom's dump on the Poniatowski bridge: a wall across the road)
+                    float dy = DeckAt(ctx, xs[i], zs[i], out float deckEdge);
                     deck.Add(dy);
-                    keep.Add(!float.IsNaN(dy));
+                    keep.Add(!float.IsNaN(dy) && deckEdge > -0.3f);
                     continue;
                 }
                 deck.Add(float.NaN);

@@ -200,7 +200,8 @@ public static class MapMesher
                 float nat = ctx.Ground(px, pz);
                 if (float.IsNaN(w) || nat >= w) gMin = MathF.Min(gMin, nat);
             }
-            uint seed = Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.Index, 91);
+            // the parts of one building share a look (D51)
+            uint seed = Hash.Of((int)Math.Round((ctx.Ox + r.OffX) / MapTile.Size), (int)Math.Round((ctx.Oz + r.OffZ) / MapTile.Size), b.IsPart && b.Group >= 0 ? b.Group : b.Index, 91);
             // whole buildings from the BadBuilding library near the player (D29), the plain extrusions everywhere else
             if (BadBuildingAdapter.Enabled && lod <= 1 && BadBuildingAdapter.Eligible(b)
                 && BadBuildingAdapter.Add(ctx, r, lod, geo, gMin, seed)) continue;

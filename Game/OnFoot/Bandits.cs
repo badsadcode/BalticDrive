@@ -551,10 +551,11 @@ public sealed partial class BanditField : Node3D
             b.QueueFree();
         }
         if (now < _nextLook) return;
-        _nextLook = now + 10;
-        if (_all.Any(b => !b.Dead && b.GlobalPosition.DistanceTo(at) < 220)) return;
-        if (now - _lastEncounter < 120) return;
-        if (_rng.NextDouble() > 0.33) return;
+        _nextLook = now + 8;
+        // a little more often than at first (Tom: "not that many"), but never a horde: at most four alive near you
+        if (_all.Count(b => !b.Dead && b.GlobalPosition.DistanceTo(at) < 250) >= 2) return;
+        if (now - _lastEncounter < 60) return;
+        if (_rng.NextDouble() > 0.5) return;
         float yaw = (float)(_rng.NextDouble() * Math.Tau), r = 90 + (float)_rng.NextDouble() * 60;
         if (Spot(at + new Vector3(MathF.Cos(yaw) * r, 0, MathF.Sin(yaw) * r), hidden: true) is { } p) SpawnGroup(p);
     }

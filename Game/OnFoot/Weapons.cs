@@ -82,6 +82,11 @@ public partial class Weapons : Node3D
     private Label _hudAmmo = null!, _hitNote = null!;
     private float _hitTime = -1;
     private Control _cross = null!;
+    private CanvasLayer _ui = null!;
+
+    /// <summary>Getting in the car: the crosshair, ammo and hit note go (Tom: the crosshair stayed on screen). The
+    /// walker stops processing then, so this can't wait for the next frame.</summary>
+    public void HideHud() { if (_ui != null) _ui.Visible = false; }
 
     private readonly List<Casing> _casings = new();
     private sealed class Casing { public Node3D N = null!; public Vector3 V, Spin; public float Life; }
@@ -103,7 +108,7 @@ public partial class Weapons : Node3D
         AddChild(_shot); AddChild(_mech);
         foreach (var d in WeaponDef.All) _ammo[d.Id] = (d.Magazine, d.Reserve);
         // HUD: a small crosshair (hip fire only: aiming uses the sights) and the ammo
-        var ui = new CanvasLayer { Name = "GunHud", Layer = 2 };
+        var ui = _ui = new CanvasLayer { Name = "GunHud", Layer = 2 };
         AddChild(ui);
         _cross = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         _cross.SetAnchorsPreset(Control.LayoutPreset.Center);
@@ -265,6 +270,7 @@ public partial class Weapons : Node3D
         float dt = (float)delta;
         UpdateHitHud(dt);
         UpdateCasings(dt);
+        _ui.Visible = true;
         bool show = _def != null && _w.Active;
         _hudAmmo.Visible = show;
         _hudAmmo.Text = Status;

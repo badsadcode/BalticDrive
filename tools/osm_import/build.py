@@ -945,7 +945,9 @@ def build_buildings(work):
     cx = (csx[b] - csx[a]) / cnt
     cz = (csz[b] - csz[a]) / cnt
 
-    # Outlines fully described by building:part pieces are dropped in favour of the parts.
+    # Outlines fully described by building:part pieces are dropped in favour of the parts, but only when a part inside
+    # reaches the ground: an outline whose parts all start up in the air is the base they stand on (D51: the Warsaw
+    # Financial Centre's towers start at level 6 on top of its outline; dropping it left them floating).
     is_part = attrs['part'] == 1
     part_cells = defaultdict(list)
     for i in np.nonzero(is_part)[0]:
@@ -960,7 +962,7 @@ def build_buildings(work):
             for kx in range(int(x0 // 64), int(x1 // 64) + 1):
                 for kz in range(int(z0 // 64), int(z1 // 64) + 1):
                     for p in part_cells.get((kx, kz), ()):
-                        if x0 <= cx[p] <= x1 and z0 <= cz[p] <= z1 and point_in_ring(cx[p], cz[p], x, z):
+                        if attrs['min_dm'][p] < 10 and x0 <= cx[p] <= x1 and z0 <= cz[p] <= z1 and point_in_ring(cx[p], cz[p], x, z):
                             found = True
                             break
                     if found:

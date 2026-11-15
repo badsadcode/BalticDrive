@@ -127,11 +127,27 @@ public static class DebugDump
                 for (int k = 0; k < b.X.Length; k++) best = MathF.Min(best, MathF.Sqrt((ox + b.X[k]) * (ox + b.X[k]) + (oz + b.Z[k]) * (oz + b.Z[k])));
                 if (best > R) continue;
                 if (bn++ == 0) sb.AppendLine("Barriers:");
-                sb.AppendLine($"  kind {b.Kind}{(b.Raised ? " raised" : "")} height {F(b.Height)}  nearest {F(best)} m, {b.X.Length} points, gates {b.Gap.Count(gp => gp > 0)}");
+                sb.AppendLine($"  kind {b.Kind}{(b.Raised ? " raised" : "")} height {F(b.Height)}  nearest {F(best)} m, {b.X.Length} points, gates {b.Gap.Count(gp => gp > 0)}" +
+                              (best < 12 ? "  at " + string.Join(" ", Enumerable.Range(0, b.X.Length).Select(k =>
+                              {
+                                  float px = ox + b.X[k], pz = oz + b.Z[k];
+                                  float e = ctx.NearestGroundRoad(px, pz, out _, out var rd, false);
+                                  return $"({F(px)},{F(pz)} road edge {F(e, 1)}{(rd != null && (rd.Flags & RoadFlag.Tunnel) != 0 ? " tunnel" : "")})";
+                              })) : ""));
             }
             int bu = ctx.Buildings.Count(br => MathF.Abs(br.OffX + br.B.Cx) < R && MathF.Abs(br.OffZ + br.B.Cz) < R);
             int pts = ctx.Points.Count(p => MathF.Abs(p.X) < R && MathF.Abs(p.Z) < R);
             sb.AppendLine($"Buildings within {R} m: {bu}  points (trees, lamps, poles, bollards): {pts}");
+            // each building near the focus (D51): what OSM says, and who drew it
+            foreach (var br in ctx.Buildings.Where(br => MathF.Abs(br.OffX + br.B.Cx) < R && MathF.Abs(br.OffZ + br.B.Cz) < R)
+                         .OrderBy(br => (br.OffX + br.B.Cx) * (br.OffX + br.B.Cx) + (br.OffZ + br.B.Cz) * (br.OffZ + br.B.Cz)))
+            {
+                var bb = br.B;
+                sb.AppendLine($"  {(bb.OsmId > 0 ? $"way {bb.OsmId}" : bb.OsmId < 0 ? $"relation {-bb.OsmId}" : "?")} type {bb.Type}{(bb.IsPart ? " PART" : "")}{(bb.Ghost ? " ghost" : "")} " +
+                              $"height {F(bb.Height)} min {F(bb.MinHeight)} roof {bb.Roof}/{F(bb.RoofHeight)} base {F(bb.Base, 1)}  centre {F(br.OffX + bb.Cx)},{F(br.OffZ + bb.Cz)}  " +
+                              $"size {F(bb.MaxX - bb.MinX)}×{F(bb.MaxZ - bb.MinZ)}  {(Map.BadBuildingAdapter.Enabled && Map.BadBuildingAdapter.Eligible(bb) ? "BadBuilding" : "classic")}" +
+                              $"{(bb.Street.Length > 0 ? $"  {bb.Street} {bb.Number}" : "")}");
+            }
         }
         sb.AppendLine();
         sb.AppendLine("Notes (write what is wrong here):");

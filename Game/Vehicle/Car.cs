@@ -35,7 +35,9 @@ public partial class Car : VehicleBody3D
     private Node3D _model = null!, _rearAxle = null!;
     private Camera3D _cockpit = null!, _chase = null!;
     private readonly SpotLight3D[] _headlights = new SpotLight3D[2];
-    private float _steer, _lookYaw;
+    private float _steer, _lookYaw, _lookPitch = DefaultPitch, _camYaw, _lookIdle = 99;
+    /// <summary>The chase camera's elevation behind the car (radians).</summary>
+    private const float DefaultPitch = 0.22f;
 
     public Camera3D ActiveCamera => FirstPerson ? _cockpit : _chase;
 
@@ -234,8 +236,10 @@ public partial class Car : VehicleBody3D
     public void SetView(bool firstPerson)
     {
         FirstPerson = firstPerson;
+        _lookYaw = 0; _lookPitch = firstPerson ? 0 : DefaultPitch;
         if (firstPerson) _cockpit.Current = true;
-        else { _chase.GlobalTransform = ChaseTarget(); _chase.Current = true; }
+        else { _camYaw = MathF.Atan2(GlobalTransform.Basis.Z.X, GlobalTransform.Basis.Z.Z); _chase.GlobalTransform = ChaseTarget(); _chase.Current = true; }
+        if (Driving && Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
     /// <summary>Moves the car at once (the physics server's state too, or the next step undoes it).</summary>
@@ -277,13 +281,18 @@ public partial class Car : VehicleBody3D
             else if (k.Keycode == Key.H) SetLights(!_headlights[0].Visible);
             else if (k.Keycode == Key.R) Recover();
         }
+        // free look (D51, Tom): the mouse turns the camera all the way round the car and up and down (never under
+        // the ground), no button to hold; left alone while driving, it drifts back behind the car. Esc frees the
+        // mouse, a click takes it back.
         if (e is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
-            _lookYaw = Mathf.Clamp(_lookYaw - mm.Relative.X * 0.003f, -2.4f, 2.4f);
-        if (e is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Right)
         {
-            Input.MouseMode = mb.Pressed ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
-            if (!mb.Pressed) _lookYaw = 0;
+            _lookYaw = Mathf.Wrap(_lookYaw - mm.Relative.X * 0.003f, -MathF.PI, MathF.PI);
+            _lookPitch = Mathf.Clamp(_lookPitch + mm.Relative.Y * 0.003f, FirstPerson ? -0.6f : -0.05f, FirstPerson ? 0.6f : 1.2f);
+            _lookIdle = 0;
         }
+        if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured && Main.CaptureMouse)
+            Input.MouseMode = Input.MouseModeEnum.Captured;
+        if (e is InputEventKey { Pressed: true, Keycode: Key.Escape }) Input.MouseMode = Input.MouseModeEnum.Visible;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -383,11 +392,19 @@ public partial class Car : VehicleBody3D
         float dt = (float)delta;
         var rl = _wheels[2].Transform; var rr = _wheels[3].Transform;
         _rearAxle.Transform = new Transform3D(rl.Basis, (rl.Origin + rr.Origin) * 0.5f);
-        if (FirstPerson) _cockpit.Rotation = new Vector3(-0.06f, _lookYaw, 0);
+        _lookIdle += dt;
+        if (Driving && _lookIdle > 1.5f && MathF.Abs(Speed) > 3f)
+        {
+            float k = 1f - MathF.Exp(-1.6f * dt);
+            _lookYaw = Mathf.LerpAngle(_lookYaw, 0, k);
+            _lookPitch = Mathf.Lerp(_lookPitch, FirstPerson ? 0 : DefaultPitch, k);
+        }
+        if (FirstPerson) _cockpit.Rotation = new Vector3(-0.06f - _lookPitch * (FirstPerson ? 1 : 0), _lookYaw, 0);
         else
         {
             var want = ChaseTarget();
-            var pos = _chase.GlobalPosition.Lerp(want.Origin, 1f - MathF.Exp(-5f * dt));
+            // round the car the camera goes straight to its angle; only the distance is smoothed
+            var pos = want.Origin;
             if (Map != null)
             {
                 var (cx, _, cz) = WorldOrigin.ToWorld(pos);
@@ -395,15 +412,23 @@ public partial class Car : VehicleBody3D
                 if (pos.Y < ground) pos.Y = ground;
             }
             _chase.GlobalPosition = pos;
-            _chase.LookAt(GlobalPosition + Vector3.Up * 1.4f - GlobalTransform.Basis.Z * 3f, Vector3.Up);
+            _chase.LookAt(GlobalPosition + Vector3.Up * 1.4f, Vector3.Up);
         }
     }
 
+    /// <summary>The chase camera: on a sphere round the car (behind it by default, the car's heading smoothed so the
+    /// camera swings round bends instead of snapping), turned by the free look.</summary>
     private Transform3D ChaseTarget()
     {
         var fwd = -GlobalTransform.Basis.Z; fwd.Y = 0;
         if (fwd.LengthSquared() < 0.01f) fwd = Vector3.Forward;
-        fwd = fwd.Normalized().Rotated(Vector3.Up, _lookYaw);
-        return new Transform3D(Basis.Identity, GlobalPosition - fwd * (_bodyLength + 3.8f) + Vector3.Up * 3.0f);
+        float heading = MathF.Atan2(-fwd.X, -fwd.Z);
+        float dt = (float)GetProcessDeltaTime();
+        _camYaw = dt > 0 ? Mathf.LerpAngle(_camYaw, heading, 1f - MathF.Exp(-5f * dt)) : heading;
+        float yaw = _camYaw + _lookYaw;
+        var dir = new Vector3(-MathF.Sin(yaw), 0, -MathF.Cos(yaw));
+        float r = _bodyLength + 4.4f;
+        var target = GlobalPosition + Vector3.Up * 1.4f;
+        return new Transform3D(Basis.Identity, target - dir * (r * MathF.Cos(_lookPitch)) + Vector3.Up * (r * MathF.Sin(_lookPitch)));
     }
 }

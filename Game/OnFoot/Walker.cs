@@ -217,6 +217,7 @@ public partial class Walker : CharacterBody3D, IHittable
 
     public void Deactivate()
     {
+        Guns?.HideHud();
         Active = false;
         Visible = false;
         ProcessMode = ProcessModeEnum.Disabled;

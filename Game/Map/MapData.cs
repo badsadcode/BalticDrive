@@ -201,6 +201,10 @@ public sealed class MapBuilding
     /// <summary>Ground level the walls stand on (lowest natural ground under the outline), set when the tile loads.</summary>
     public float Base;
 
+    /// <summary>The first part of the multi-part building this part belongs to (its own index otherwise): parts that
+    /// touch share their look (D51).</summary>
+    public int Group = -1;
+
     public bool Ghost => (Flags & 1) != 0;
     public bool IsPart => (Flags & 4) != 0;
     /// <summary>A roof on posts (fuel station canopy, carport): open underneath.</summary>
@@ -451,6 +455,50 @@ public sealed class MapTile
         }
         if (magic == 0x38544442u) ReadNames(r);
         foreach (var b in Buildings) b.Base = FootprintBase(b);
+        TidyParts();
+    }
+
+    /// <summary>
+    /// Multi-part buildings (D51, Tom's dumps). Parts that touch become one group and share a colour (each got its own,
+    /// so one building read as a building inside another). A part that floats up to 4.5 m above the part it stands on
+    /// is lowered onto it: OSM numbers storeys inconsistently between parts (the Warsaw Financial Centre's towers start
+    /// at level 6 on a podium of 5 levels), which at 3 m a level left a strip of sky under them.
+    /// </summary>
+    private void TidyParts()
+    {
+        var parts = new List<int>();
+        for (int i = 0; i < Buildings.Length; i++) { Buildings[i].Group = i; if (Buildings[i].IsPart) parts.Add(i); }
+        if (parts.Count == 0) return;
+        int Find(int i) { while (Buildings[i].Group != i) { Buildings[i].Group = Buildings[Buildings[i].Group].Group; i = Buildings[i].Group; } return i; }
+        static bool Near(MapBuilding a, MapBuilding b, float m) =>
+            a.MinX - m <= b.MaxX && b.MinX - m <= a.MaxX && a.MinZ - m <= b.MaxZ && b.MinZ - m <= a.MaxZ;
+        parts.Sort((x, y) => Buildings[x].MinX.CompareTo(Buildings[y].MinX));
+        for (int i = 0; i < parts.Count; i++)
+        {
+            var a = Buildings[parts[i]];
+            for (int j = i + 1; j < parts.Count && Buildings[parts[j]].MinX <= a.MaxX + 0.5f; j++)
+            {
+                var b = Buildings[parts[j]];
+                if (!Near(a, b, 0.5f)) continue;
+                int ra = Find(parts[i]), rb = Find(parts[j]);
+                if (ra != rb) Buildings[Math.Max(ra, rb)].Group = Math.Min(ra, rb);
+            }
+        }
+        foreach (int i in parts) Buildings[i].Group = Find(i);
+        // gaps under raised parts
+        foreach (int i in parts)
+        {
+            var p = Buildings[i];
+            if (p.MinHeight < 0.05f) continue;
+            float best = -1; bool covered = false;
+            foreach (var q in Buildings)
+            {
+                if (q == p || q.MinHeight >= p.MinHeight || !Near(p, q, 0) || !q.Contains(p.Cx, p.Cz)) continue;
+                if (q.Height >= p.MinHeight - 0.01f) { covered = true; break; }
+                if (q.Height >= p.MinHeight - 4.5f) best = MathF.Max(best, q.Height);
+            }
+            if (!covered && best > 0) p.MinHeight = best;
+        }
     }
 
     /// <summary>Format 8 (D33): the tile's string table, a street name per road record and an OSM id and address per
@@ -464,12 +512,17 @@ public sealed class MapTile
         var roadName = new string[nr];
         for (int i = 0; i < nr; i++) roadName[i] = table[r.ReadUInt16()];
         foreach (var road in Roads) if (road.Record < nr) road.Name = roadName[road.Record];
+        // one entry per building the tile owns, in record order; the ghost copies of neighbours' buildings that
+        // overhang into this tile have none (D51: assigning by plain record order shifted every id and address after
+        // the first ghost onto the wrong building)
         int nb = (int)r.ReadUInt32();
+        int bi = 0;
         for (int i = 0; i < nb; i++)
         {
             long osm = r.ReadInt64();
             string street = table[r.ReadUInt16()], number = table[r.ReadUInt16()];
-            if (i < Buildings.Length) { Buildings[i].OsmId = osm; Buildings[i].Street = street; Buildings[i].Number = number; }
+            while (bi < Buildings.Length && Buildings[bi].Ghost) bi++;
+            if (bi < Buildings.Length) { Buildings[bi].OsmId = osm; Buildings[bi].Street = street; Buildings[bi].Number = number; bi++; }
         }
     }
 

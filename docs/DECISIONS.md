@@ -620,3 +620,32 @@ Godot's input, as a player would.
   height while the body still stood. Logged: the gun at 0.9 m with the head at 1.57 m; now 1.45 m. With the muzzle at
   the face they also clear cover better: the fight test ended at 43 hp instead of 100. To be felt out in play.
 * `--autotest=death`: the crates on the radar, then down, dark, and awake by the car with the pack gone.
+
+## D51 — Tom's spin: free-look car camera, crosshair, more bandits, and the dumps (ids, parts, a wall on a bridge)
+
+* **Free look in the car:** the mouse is captured while driving and turns the chase camera all the way round the car
+  and up and down; no button to hold. The camera stays above the ground: it's clamped and kept 0.8 m over the
+  terrain. Left alone at speed for 1.5 s it drifts back behind the car. Esc frees the mouse, a click takes it back.
+  The chase camera now sits on a sphere round the car, following the car's smoothed heading, and looks at the car.
+  In the cockpit the mouse looks around too (±0.6 rad up and down). Camera modes as an option: later.
+* **Crosshair in the car:** getting in turned the walker's processing off before its gun HUD could hide; the walker
+  now hides the gun HUD itself on the way out.
+* **Bandits:** a group may come every 8 s (one in two), 60 s after the last fight, while fewer than two are about:
+  at most four near you at once. No hordes.
+* **OSM ids and addresses on the wrong buildings:** the importer writes an id and an address only for each tile's own
+  buildings, but the game handed them out in record order, ghost copies of neighbours' buildings included. So after
+  the first ghost every id and address shifted onto the wrong building: the HUD's street and number, the F9 dump's
+  ids, and the shop matching. Fixed in the game: ghosts are skipped.
+* **Multi-part buildings** (Tom's "buildingception" and floating towers):
+  * parts that touch now share one colour seed; each had its own, so one building read as two, an orange one inside
+    a white one;
+  * a part floating up to 4.5 m over the part under it is lowered onto it (OSM's storey numbering differs between
+    parts);
+  * in the importer, an outline is dropped in favour of its parts only if a part inside it reaches the ground.
+    Otherwise it's the base the parts stand on: the Warsaw Financial Centre's towers start at level 6 on top of its
+    outline, which is tagged `building=office`. This needs a map rebuild to show.
+* **A wall across the Poniatowski bridge approach:** a concrete wall mapped on a bridge crossed its carriageway.
+  Barriers on bridges skipped the rule that cuts barriers where they cross a road. They're now kept only off the
+  deck's carriageway (an edge distance over -0.3 m).
+* **The F9 dump** lists each building nearby (OSM id, part or not, height, min height, roof, who draws it) and, for
+  barriers within 12 m, their points with the road-edge distance there.
