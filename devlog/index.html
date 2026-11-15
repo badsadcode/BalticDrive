@@ -518,6 +518,58 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>7,530 buildings in one test drive</li><li>0 fell back to boxes</li><li>3 building styles</li><li>1 courtyard rescued from helicopter-only access</li><li>0 golden domes</li></ul>
     </div>
   </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>13</strong></div>
+    <div>
+      <h2>Sunday service</h2>
+      <div class="date">15 November 2026</div>
+      <p>Tom took the prototype out for a silent live stream on YouTube: a sunset drive through Warsaw, 38 fps at worst
+        with OBS running, bugs shown honestly. Then came a list of F9 dumps and "I noticed something" messages. Sunday was
+        for fixing them.</p>
+      <p><b>The window that vanished.</b> Fly far away in the free camera, press F to drive there, and the game simply
+        closed. A new self-test does exactly that, over and over, and it crashed on the second try. Every frame the car
+        asked each wheel what it was standing on. After the jump, Godot's wheel still pointed at a piece of ground that
+        had just been unloaded, and touching it brought the whole game down. Now each wheel looks down with a short ray
+        of its own. Eight rounds of fly-and-press-F later, nothing.</p>
+      <figure class="photo">
+        <img src="img/plac-konstytucji.webp" alt="Plac Konstytucji from above, before and after: on the left the square is one beige slab hiding everything, on the right the avenue, its lanes and markings show through the paving" loading="lazy">
+        <figcaption>Plac Konstytucji, before and after. The square had swallowed its own avenue.</figcaption>
+      </figure>
+      <p><b>Squares that ate their streets.</b> OpenStreetMap draws a square as one big shape, and we laid it flat at
+        ground height. The streets crossing it sit a little lower in their own beds, so the square covered them:
+        lanes, tram tracks, markings, all gone. Near the Wisłostrada tunnel a paved area even looked like a wall of earth
+        across the road. Now the street corridors are cut out of every square and car park before it's built.</p>
+      <figure class="photo r">
+        <img src="img/junction-no-wall.webp" alt="A six-lane road running straight ahead under an overpass, with the beige paving now only beside it" loading="lazy">
+        <figcaption>Where the "wall of earth" stood: just the road again.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/river-bank.webp" alt="The Vistula's bank before and after: on the left the grass meets the water in square steps, on the right the shore curves naturally" loading="lazy">
+        <figcaption>The Vistula's bank. It used to come in 8 m steps.</figcaption>
+      </figure>
+      <p><b>Rivers with stairs.</b> The river bed was carved on an 8 m grid, and the game treated a whole 8 m square as dry
+        if any corner of it was. Banks came out as staircases. The importer now measures how far every point is from the
+        real shoreline and shapes the bank from that, and the water runs on until the land rises out of it. While we
+        were at the river: fences, quay walls and the moored barges (Warsaw's floating bars, mapped as buildings) were
+        standing on the river bottom. They float now.</p>
+      <figure class="photo r">
+        <img src="img/hud-where.webp" alt="The game's on-screen display reading Karowa · Mariensztat · Warszawa above a curving street with lamp posts" loading="lazy">
+        <figcaption>"Karowa · Mariensztat · Warszawa". Before, it just said "near Warszawa".</figcaption>
+      </figure>
+      <p><b>Where am I?</b> The map files now carry street names, house numbers and every building's OpenStreetMap id
+        (the key for hand-made replacements later). The screen tells you the street and the nearest number on it, the
+        district, then the town. Street names on the map screen are next.</p>
+      <p><b>Smaller wins:</b> 16-storey blocks of flats now come from BadBuilding with their balcony columns instead of
+        grey boxes, the cornices on kamienica corners close properly, and road edges stopped wobbling.</p>
+      <div class="quote">"Why is this balcony sticking out at a 37-degree angle? Source: inferred. Confidence: 0.42. Architectural justification: Poland."
+        <cite>Noor</cite></div>
+      <p>Next: roofs for BadBuilding (Noor has approved gables, hips and mono-pitches; domes remain under international
+        sanctions), then getting out of the car. There's a brief for walking the streets, finding supplies and meeting
+        bandits.</p>
+      <ul class="facts"><li>1 crash with its own self-test</li><li>23,489 squares and car parks cut around their streets</li><li>31,486 street names and house numbers</li><li>0 rivers with stairs</li><li>1 live stream</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>

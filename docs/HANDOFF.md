@@ -59,19 +59,13 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 * **Open from Tom (14 Nov, late):** F9 dumps in %APPDATA%\BalticDrive\dumps showing missing parts of classic
   buildings, to go through first; and gaps in BadBuilding's top cornices (gzyms) at roof corners.
-* **Crash while flying / pressing F far away: fixed (D30, 15 Nov).** Self-test: `--autotest=respawn`.
+* **Fixed on 15 Nov:** the fly-far-press-F crash (D30, self-test `--autotest=respawn`), things standing in water
+  (D31), tall blocks of flats to BadBuilding and quieter road edges (D32), squares covering their streets, stepped
+  riverbanks, names and OSM ids in the tiles (format 8) and the street-district-town HUD (D33). Dump #10 (the "wall of
+  earth" by the Wisłostrada tunnel) was a paved area over the road, fixed by D33.
 * **BadBuilding and classic buildings overlapping (Tom, 15 Nov, stream; he will show it):** suspects: an outline
   built by BadBuilding while its building:part pieces are still drawn by the classic mesher; balconies, cornices and
   steps reaching into a neighbour that is too far for a party wall; duplicate or overlapping OSM footprints.
-* **Stepped shorelines (15 Nov):** the importer carves river and lake beds on the 8 m land-cover water mask
-  (build.py _heights_tile: any wet cell wets a height corner, h = min(h, level - depth)), so banks end in 8 m stair
-  steps of land. Fix in the importer: carve by a smooth signed distance to the real water polygons (and their
-  shoreline), not the raster mask; needs a map rebuild. (Barriers and buildings over water now stand on the water
-  surface instead of the carved bed: D31.)
-* **Plac Konstytucji is one big concrete slab (Tom, 15 Nov):** not a drawing-order problem (pedestrian areas now
-  draw under roads anyway, D32): the square is one polygon at DEM heights, and the roads crossing it sit lower in
-  their cut beds. Fix in the importer (build_paved): cut the road corridors (buffered carriageways) out of paved and
-  pedestrian polygons before triangulating. Needs a map rebuild.
 * **Wobbly, stitched service roads (Tom, 15 Nov, top-down screenshot round a block):** tight driveway loops look
   jagged at the edges and show seams where ribbon pieces meet or overlap. Suspects: roads meshed segment by segment
   (no shared vertices at joints, so tight bends fold or gap), coarse OSM polylines on curves, the noisy asphalt edge in
