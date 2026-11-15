@@ -109,16 +109,21 @@ public sealed class Tests
         string id = ids[gun];
         if (g.Current?.Id != id && t < 0.5) { g.Equip(id); Log.Info("Test", $"shoot: {id} equipped"); }
         // the aim button must not let the mouse go (Tom: the free camera freed it on release)
+        g.Arms.DebugOn = true;
         if (gun == 0 && Now(0.2)) { Input.MouseMode = Input.MouseModeEnum.Captured; _mouseBefore = Input.MouseMode; }
         if (gun == 0 && Now(0.3)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
         if (gun == 0 && Now(0.5)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = false });
         if (gun == 0 && Now(0.7)) Log.Info("Test", $"shoot: mouse {_mouseBefore} before a right click, {Input.MouseMode} after it");
         if (Now(0.8)) Shot($"shoot_{id}_hip");
+        // level the view on the street 15 m ahead before each gun: recoil from the last one would carry over
+        if (Now(0.9)) { var w = _main.Walker!; w.Face(w.GlobalPosition + new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw)) * 15f); }
         if (Now(1.0)) g.TestAim = true;
         if (Now(1.8)) Shot($"shoot_{id}_aim");
         if (Now(2.0)) g.TestTrigger = true;
         if (Now(id == "ak" ? 2.5 : 2.05)) g.TestTrigger = false;
         if (Now(2.02)) Shot($"shoot_{id}_fire");
+        if (id == "mosin" && (Now(2.55) || Now(2.75) || Now(2.95))) { Shot($"shoot_mosin_bolt_{(Now(2.55) ? 1 : Now(2.75) ? 2 : 3)}"); Log.Info("Test", "arm bolt " + g.Arms.DebugRight); }   // the bolt cycle, three moments
+        if (Now(1.8)) Log.Info("Test", $"arm {id} aim " + g.Arms.DebugRight);
         if (Now(3.2)) { Log.Info("Test", $"shoot: {id}: {g.Status}; fired {g.Fired}, hits {g.Hits}, last: {g.LastHit}"); g.TestAim = false; }
         if (Now(3.6)) g.StartReload();
         if (Now(3.6 + (g.Current?.ReloadTime ?? 2) * 0.5)) Shot($"shoot_{id}_reload");

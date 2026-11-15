@@ -454,3 +454,18 @@ and a little twist. Checked side by side in screenshots: the forearm keeps its t
 Tom leaves the game running behind other windows. With the window out of focus, Baltic Drive now caps itself at
 10 fps (`Engine.MaxFps`), and restores its own limit when the focus comes back. Self-tests are exempt: they often
 run unfocused and must run at full speed. The world keeps simulating; it is only drawn less often.
+
+## D45 — Clearer sights and a proper bolt stroke (Tom: hands cover the screen, the elbow bends wrong)
+
+* **Mosin sight picture:** the rear sight now sits 0.55 m from the eye (was 0.42). On a real Mosin it's well forward;
+  at 0.42 the stock, and the gripping hand with it, came to 10 cm from the eye and filled half the view.
+* **Pistol:** both hands hold the lower grip (round the magazine), not up by the slide, so the sights stay clear.
+* **Hands** are drawn at 85 % (Synty's mittens are big seen this close). The gripping hand's knuckles point slightly
+  down along the stock, not up. The thumb rolls over the top of the grip instead of standing up beside the sights.
+* **Bolt stroke:** the knob target was wrong: forward of the bolt and too high. The bolt mesh lies behind its node;
+  the knob is at its rear (x -0.5, z -1.3, model units). Logged IK points then showed the real fault: in this pose
+  the arm points up, forward and in, the elbow hint ("down and back") lay almost along the arm, and the elbow flipped
+  up so the forearm crossed the face. The bolt stroke now hints straight down, the hand comes to the knob from
+  behind, and the rifle dips 6 cm off the cheek while the hand works.
+* **Shoot test:** it levels the view before each gun (recoil carried over and made hits flaky). It logs the right
+  arm's shoulder, elbow and wrist in eye space, and screenshots three moments of the bolt stroke.

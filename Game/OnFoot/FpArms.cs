@@ -37,6 +37,12 @@ public sealed partial class FpArms : Node3D
 
     public bool Ready => _s != null && _right.Ok && _left.Ok;
 
+    /// <summary>Synty's hands are chunky; seen this close they fill the view.</summary>
+    public const float HandScale = 0.85f;
+    /// <summary>Self-tests: the right arm's shoulder, elbow and wrist in the eye's frame, written while <see cref="DebugOn"/>.</summary>
+    public string DebugRight = "";
+    public bool DebugOn;
+
     public FpArms()
     {
         Name = "FpArms";
@@ -109,7 +115,7 @@ public sealed partial class FpArms : Node3D
         float stretch = Mathf.Clamp(to.Length() / reach, 1f, 1.3f);
         float l1 = a.L1 * stretch, l2 = a.L2 * stretch;
         s.SetBonePoseScale(a.Up, Vector3.One * stretch);
-        s.SetBonePoseScale(a.Hand, Vector3.One / stretch);   // the hand keeps its size
+        s.SetBonePoseScale(a.Hand, Vector3.One * HandScale / stretch);   // the hand keeps its size (a bit under Synty's: their mittens are big)
         float d = Mathf.Clamp(to.Length(), 0.05f, (l1 + l2) * 0.999f);
         var u = to.Normalized();
         float along = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
@@ -118,6 +124,7 @@ public sealed partial class FpArms : Node3D
         var n = (pole - u * pole.Dot(u));
         n = n.LengthSquared() < 1e-6f ? Vector3.Down : n.Normalized();
         var elbow = shoulder + u * along + n * h;
+        if (DebugOn && a.Hand == _right.Hand) { var eyeT = GetParent<Node3D>().GlobalTransform.AffineInverse() * s.GlobalTransform; DebugRight = $"shoulder {eyeT * shoulder} elbow {eyeT * elbow} wrist {eyeT * wrist} grip {eyeT * grip} pole {(eyeT.Basis * n).Normalized()} reach {(a.L1 + a.L2):F2} dist {to.Length():F2}"; }
         var hand = shoulder + u * d;
 
         // upper arm: turn its rest direction onto shoulder→elbow
@@ -156,7 +163,12 @@ public sealed partial class FpArms : Node3D
             // the thumb's own parent (the metacarpal) under the posed hand
             var meta = gHand * s.GetBoneRest(tp).Basis;
             if (tp != a.Hand) s.SetBonePoseRotation(tp, s.GetBoneRest(tp).Basis.GetRotationQuaternion());
-            Bend(thumb, tp == a.Hand ? gHand : meta, across, 0.45f * g.Curl);
+            // the thumb rolls over the top of the grip toward the palm side (about the hand's length), then curls:
+            // left standing, it stuck up beside the sights (Tom: hands cover the screen)
+            var thumbRoll = new Basis(dir, -1.1f * g.Curl);
+            var parentT = tp == a.Hand ? gHand : meta;
+            var gT = thumbRoll * new Basis(across, 0.45f * g.Curl) * parentT * s.GetBoneRest(thumb).Basis;
+            s.SetBonePoseRotation(thumb, (parentT.Inverse() * gT).Orthonormalized().GetRotationQuaternion());
         }
     }
 
