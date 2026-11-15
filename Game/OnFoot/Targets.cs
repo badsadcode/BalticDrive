@@ -7,7 +7,7 @@ using Godot;
 namespace BalticDrive.OnFoot;
 
 /// <summary>A bullet arriving (D42): where, the surface normal, its velocity, its mass, and how far it flew.</summary>
-public readonly record struct BulletHit(Vector3 Point, Vector3 Normal, Vector3 Velocity, float Mass, float Range);
+public readonly record struct BulletHit(Vector3 Point, Vector3 Normal, Vector3 Velocity, float Mass, float Range, float Damage = 0);
 
 /// <summary>Anything that reacts to being shot (D42). Bandits will be one too.</summary>
 public interface IHittable

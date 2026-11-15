@@ -17,12 +17,18 @@ namespace BalticDrive;
 /// start and report frame times and holes (frames where the ground under the camera was missing).</item>
 /// <item><c>--autotest=walk</c> — out of the car (E), walk 5 s, sprint 3 s, crouch 2 s, first person, walk back
 /// to the car and get in, with screenshots on the way (D38).</item>
+/// <item>Self-tests leave the mouse free; <c>--capture-mouse</c> lets them take it (the shoot test then also checks
+/// that a right click keeps it captured).</item>
 /// <item><c>--autotest=shoot</c> — out of the car, then each gun in turn (D40): hip view, aim down the sights, fire
 /// (a burst for the AK), reload; screenshots of each and the bullets' hits in the log.</item>
 /// <item><c>--autotest=range</c> — out of the car, set up the shooting range (D42), shoot each target with the AK
 /// (aimed straight at it, the 100 m plate with the Mosin), screenshots before and after, and what each hit said.</item>
 /// <item><c>--autotest=loot</c> — out of the car, wait for supply crates by the nearby shops (D46), walk up to the
 /// nearest, open it; then hunger, thirst and a medkit: are carried food and water used, does the medkit heal.</item>
+/// <item><c>--autotest=bandits</c> — out of the car, a group of bandits 45 m ahead (D47): stand and watch them notice
+/// you and fight (their states and your health logged), then shoot back with the AK, then search a body.</item>
+/// <item><c>--autotest=banditlook</c> — one bandit 6 m ahead, photographed relaxed and then aiming at you (how they
+/// hold their guns).</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -52,7 +58,10 @@ public sealed class Tests
     private double _driven;
     private bool _map;
     private bool _respawn;
-    private bool _walk, _shoot, _rangeTest, _loot;
+    private bool _walk, _shoot, _rangeTest, _loot, _banditTest;
+    private double _banditTime = -1;
+    private OnFoot.Bandit? _banditTarget;
+    private int _banditShot;
     private double _lootTime = -1;
     private OnFoot.CacheField.Cache? _lootCache;
     private double _rangeTime = -1;
@@ -82,6 +91,8 @@ public sealed class Tests
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
         _rangeTest = Main.Args.GetValueOrDefault("autotest", "").Contains("range");
         _loot = Main.Args.GetValueOrDefault("autotest", "").Contains("loot");
+        _banditTest = Main.Args.GetValueOrDefault("autotest", "").Split(',').Contains("bandits");
+        _banditLook = Main.Args.GetValueOrDefault("autotest", "").Contains("banditlook");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -116,10 +127,10 @@ public sealed class Tests
         if (g.Current?.Id != id && t < 0.5) { g.Equip(id); Log.Info("Test", $"shoot: {id} equipped"); }
         // the aim button must not let the mouse go (Tom: the free camera freed it on release)
         g.Arms.DebugOn = true;
-        if (gun == 0 && Now(0.2)) { Input.MouseMode = Input.MouseModeEnum.Captured; _mouseBefore = Input.MouseMode; }
-        if (gun == 0 && Now(0.3)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
-        if (gun == 0 && Now(0.5)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = false });
-        if (gun == 0 && Now(0.7)) Log.Info("Test", $"shoot: mouse {_mouseBefore} before a right click, {Input.MouseMode} after it");
+        if (Main.CaptureMouse && gun == 0 && Now(0.2)) { Input.MouseMode = Input.MouseModeEnum.Captured; _mouseBefore = Input.MouseMode; }
+        if (Main.CaptureMouse && gun == 0 && Now(0.3)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
+        if (Main.CaptureMouse && gun == 0 && Now(0.5)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = false });
+        if (Main.CaptureMouse && gun == 0 && Now(0.7)) Log.Info("Test", $"shoot: mouse {_mouseBefore} before a right click, {Input.MouseMode} after it");
         if (Now(0.8)) Shot($"shoot_{id}_hip");
         // level the view on the street 15 m ahead before each gun: recoil from the last one would carry over
         if (Now(0.9)) { var w = _main.Walker!; w.Face(w.GlobalPosition + new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw)) * 15f); }
@@ -243,6 +254,111 @@ public sealed class Tests
         }
     }
 
+    private bool _banditLook;
+    private double _lookTime = -1;
+
+    /// <summary>A close look at one bandit (D47): the gun low, then shouldered at the player.</summary>
+    private void BanditLook(double delta)
+    {
+        if (_lookTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _banditLook = false; return; }
+            _lookTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        var f = _main.Bandits!;
+        double before = _lookTime;
+        _lookTime += delta;
+        bool Now(double t) => before < t && _lookTime >= t;
+        if (Now(0.3))
+        {
+            // clear of the car: 8 m up the street
+            var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+            w.GlobalPosition += fwd * 8 + Vector3.Up * 0.3f;
+        }
+        if (Now(0.6))
+        {
+            w.SetView(false); w.Crouch(true);
+            Log.Info("Test", $"banditlook: {f.SpawnAhead(w.GlobalPosition, w.Yaw, 6)} spawned");
+            while (f.All.Count > 1) { var x = f.All[^1]; x.QueueFree(); f.Remove(x); }
+            var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+            if (f.All.Count > 0) f.All[0].Place(w.GlobalPosition + fwd * 5, w.GlobalPosition + fwd * 5);
+        }
+        if (_lookTime > 0.7 && f.All.Count > 0) { w.Face(f.All[0].GlobalPosition + Vector3.Up * 1.0f); w.CameraOrbit = 0.5f; }
+        if (Now(1.0)) { Shot("banditlook_relaxed"); Log.Info("Test", $"banditlook: {f.All[0].State}, {f.All[0].Gun.Id}"); }
+        if (Now(1.2)) w.Crouch(false);
+        if (Now(4.0)) { Shot("banditlook_aiming"); Log.Info("Test", $"banditlook: {f.All[0].State}; you {w.Body.Health:0} hp"); }
+        if (Now(4.5)) { w.CameraOrbit = 2.6f; }
+        if (Now(5.0)) { Shot("banditlook_side"); Log.Info("Test", "banditlook: done"); _banditLook = false; }
+    }
+
+    /// <summary>The bandit test (D47).</summary>
+    private void BanditTest(double delta)
+    {
+        if (_banditTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "bandits: could not get out of the car"); _banditTest = false; return; }
+            _banditTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        var f = _main.Bandits!;
+        double before = _banditTime;
+        _banditTime += delta;
+        bool Now(double t) => before < t && _banditTime >= t;
+        string States() => string.Join(", ", f.All.Select(b => $"{b.Gun.Id} {b.State} {b.Health:0} hp {b.GlobalPosition.DistanceTo(w.GlobalPosition):0} m"));
+        if (Now(1))
+        {
+            w.SetView(false);
+            int n = f.SpawnAhead(w.GlobalPosition, w.Yaw, 25);
+            Log.Info("Test", $"bandits: {n} spawned ahead: {States()}");
+        }
+        if (Now(1.5) && f.All.Count > 0) w.Face(f.All[0].GlobalPosition + Vector3.Up * 1.2f);
+        if (Now(2)) Shot("bandits_spawned");
+        // a close look in first person, aimed at one of them
+        if (Now(3.5) && f.All.Count > 0) { w.SetView(true); if (w.Guns.Current?.Id != "ak") w.Guns.Equip("ak"); w.Guns.TestAim = true; }
+        if (_banditTime is > 3.6 and < 4.6 && f.All.Count > 0) w.Face(f.All[0].GlobalPosition + Vector3.Up * 1.2f);
+        if (Now(4.5)) Shot("bandits_sights");
+        foreach (var t in new[] { 3.0, 5.0, 7.0, 12.0, 18.0 })
+            if (Now(t)) Log.Info("Test", $"bandits: {t:0} s: {States()}; you {w.Body.Health:0} hp");
+        // fight back: the AK, aimed at each one still standing in turn
+        if (_banditTime > 4.6 && _banditTime < 30)
+        {
+            if (_banditTarget == null || _banditTarget.Dead || !GodotObject.IsInstanceValid(_banditTarget))
+                _banditTarget = f.All.Where(b => !b.Dead).OrderBy(b => b.GlobalPosition.DistanceTo(w.GlobalPosition)).FirstOrDefault();
+            var tb = _banditTarget;
+            if (tb == null) { w.Guns.TestTrigger = false; if (_banditShot == 0) { _banditShot = 1; _banditTime = 30; } }
+            else
+            {
+                w.Face(tb.GlobalPosition + Vector3.Up * (tb.State == OnFoot.Bandit.Mode.Engage ? 1.1f : 1.25f));
+                // short bursts
+                double ph = (_banditTime * 2.5) % 1.0;
+                w.Guns.TestTrigger = ph < 0.3;
+                if (w.Guns.Current != null && w.Guns.Status.Contains(" 0 /")) w.Guns.StartReload();
+            }
+        }
+        if (Now(12)) Shot("bandits_fight");
+        if (Now(30.2))
+        {
+            w.Guns.TestTrigger = false; w.Guns.TestAim = false;
+            Log.Info("Test", $"bandits: after the fight: {States()}; killed {f.Killed}; you {w.Body.Health:0} hp; your shots {w.Guns.Fired}, hits on bandits {w.Guns.TargetHits} (last: {w.Guns.LastTarget})");
+            var body = f.All.FirstOrDefault(b => b.Dead);
+            if (body != null)
+            {
+                w.SetView(false);
+                var to = body.GlobalPosition - w.GlobalPosition; to.Y = 0;
+                w.GlobalPosition = body.GlobalPosition - to.Normalized() * 1.5f + Vector3.Up * 0.3f;
+            }
+        }
+        if (Now(30.6)) { var body = f.All.FirstOrDefault(b => b.Dead); if (body != null) w.Face(body.GlobalPosition); }
+        if (Now(31.5)) Shot("bandits_body");
+        if (Now(32)) { bool opened = _main.TryOpenCache(); Log.Info("Test", $"bandits: searched a body: {opened}; carrying food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; {w.Guns.Status}"); }
+        if (Now(32.5)) { Shot("bandits_searched"); Log.Info("Test", "bandits: done"); _banditTest = false; }
+    }
+
     private bool Settled => _main.Terrain.Settled && _main.Content.Pending == 0 && _main.Terrain.PendingCollision == 0;
 
     public void Process(double delta)
@@ -338,6 +454,8 @@ public sealed class Tests
         if (_shoot && _main.Car != null) { Shoot(delta); return; }
         if (_rangeTest && _main.Car != null) { RangeTest(delta); return; }
         if (_loot && _main.Car != null) { LootTest(delta); return; }
+        if (_banditTest && _main.Car != null) { BanditTest(delta); return; }
+        if (_banditLook && _main.Car != null) { BanditLook(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

@@ -19,6 +19,10 @@ public partial class Main : Node3D
 {
 	public static Dictionary<string, string> Args { get; } = new();
 
+	/// <summary>Whether the game may capture the mouse. Self-test runs leave it free (Tom works while they run and the
+	/// window popping up shouldn't trap his cursor), unless asked with --capture-mouse.</summary>
+	public static bool CaptureMouse => !(Args.ContainsKey("autotest") || Args.ContainsKey("views")) || Args.ContainsKey("capture-mouse");
+
 	private MapWorld? _world;
 	private TerrainStreamer _terrain = null!;
 	private MapContentStreamer _content = null!;
@@ -168,6 +172,9 @@ public partial class Main : Node3D
 	private OnFoot.CacheField? _caches;
 	public OnFoot.CacheField? Caches => _caches;
 	private Label? _prompt;
+	private OnFoot.BanditField? _bandits;
+	public OnFoot.BanditField? Bandits => _bandits;
+	private ColorRect? _hurt;
 	private Control? _bars;
 
 	/// <summary>E on foot by an unopened crate (D46): opens it; otherwise E is the car, as before.</summary>
@@ -217,14 +224,30 @@ public partial class Main : Node3D
 	private void UpdateSurvival(double now)
 	{
 		if (_world == null) return;
-		if (_caches == null) { _caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud(); }
+		if (_caches == null)
+		{
+			_caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud();
+			_bandits = new OnFoot.BanditField(_world, _caches); AddChild(_bandits);
+			// hit: the screen edge flashes red (D47)
+			_hurt = new ColorRect { Color = new Color(0.7f, 0, 0, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
+			_hurt.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+			_ui.AddChild(_hurt);
+		}
+		if (_walker != null && _bandits!.Player != _walker)
+		{
+			_bandits.Player = _walker;
+			_walker.Body.Hurt += a => { if (_hurt != null) _hurt.Color = _hurt.Color with { A = Mathf.Clamp(_hurt.Color.A + a / 60f, 0, 0.5f) }; };
+			_walker.Body.Down += () => { foreach (var b in _bandits.All) b.QueueFree(); _bandits.Clear(); };
+		}
+		if (_hurt != null && _hurt.Color.A > 0) _hurt.Color = _hurt.Color with { A = MathF.Max(0, _hurt.Color.A - (float)GetProcessDeltaTime() * 0.8f) };
+		_bandits!.Update(now);
 		bool on = OnFoot && _walker != null;
 		_bars!.Visible = on;
 		if (!on) { _prompt!.Visible = false; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
 		_prompt!.Visible = c != null;
-		if (c != null) _prompt.Text = "E: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
+		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "E: search the body" : "E: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
 		_bars.QueueRedraw();
 	}
 	public OnFoot.ShootingRange? Range => _range;
@@ -288,6 +311,13 @@ public partial class Main : Node3D
 		if (e is InputEventKey { Pressed: true, Keycode: Key.Bracketleft or Key.Bracketright } k)
 		{
 			_atmosphere.AdvanceClock(k.Keycode == Key.Bracketright ? 0.5 : -0.5);
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.B } && OnFoot && _bandits != null)
+		{
+			int n = _bandits.SpawnAhead(_walker!.GlobalPosition, _walker.Yaw);
+			ShowNote(n > 0 ? $"{n} bandits ahead!" : "No room for bandits here");
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -435,7 +465,7 @@ public partial class Main : Node3D
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
 					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
-						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets, H medkit, E crates"
+						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets, B bandits, H medkit, E crates"
 						: "E: get out   F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		UpdateSurvival(Time.GetTicksMsec() / 1000.0);

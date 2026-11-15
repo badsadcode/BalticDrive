@@ -510,3 +510,60 @@ of interest help decide what might be found nearby". `Game/OnFoot/Survival.cs`:
 
 Not yet: crates are hard to spot (no map or minimap marks), and the shop kind doesn't tell a beauty salon from a
 grocery (all "shop").
+
+## D47 — Bandits
+
+From the brief: human bandits who "patrol or guard, notice the player, shoot from cover when possible, react to hits,
+and investigate loud gunfire"; "avoid bullet-sponge enemies, unrealistically perfect enemy aim, and constant
+combat"; "sparse, local, generated around the player".
+
+**Shared pieces** (the player's code, made reusable):
+* `Ballistics`: every bullet in flight, whoever fired it; characters are now hit too, never the shooter.
+* `CharacterRig`: the Synty City character plus the locomotion tree, for the walker and the bandits.
+* `ArmIk`: the two-bone arm IK from the first-person arms. Bandits use it in a `SkeletonModifier3D` (`GunHold`), so
+  the hands go on the gun after the walking animation has posed the body.
+
+**A bandit** (`Game/OnFoot/Bandits.cs`):
+* Looks: a City character in everyday clothes (jacket or coat; not the police one). It carries an AK (50 %), a
+  pistol (30 %) or the Mosin (20 %): low across the body on patrol, at the shoulder pointing at you when fighting.
+* Senses, four times a second:
+  * sight: 70 m, a 120° view, a clear line to your head; awareness builds faster up close and half as fast if you
+    crouch;
+  * hearing: your shots within 150 m send them to look; a mate who spots you calls in everyone within 60 m.
+* Fighting:
+  * it runs to cover: a spot within 12 m where a crouching body is hidden from you, best if standing sees over;
+  * it crouches, stands, fires a burst (AK 3–5, pistol 2–3, Mosin 1) and crouches again;
+  * it moves to new cover every 9–15 s, and after a hit;
+  * caught in the open, it pauses 1.5–2.5 s between bursts.
+* Its aim is never perfect: the first shot comes 0.6–1.1 s after it sees you. The spread is 0.02 rad, plus range,
+  plus your speed, plus a recent hit, and a much wider first burst; it tightens a little as the bandit settles.
+* Its bullets do 30 % of what the same gun does to it (an AK hit 10, the Mosin 28). The first try at 50 % with tight
+  aim took the player from 100 to 0 in seconds.
+* Health 90:
+  * the Mosin drops one in a hit;
+  * the AK takes three body hits, or one to the head (×2.5);
+  * the pistol takes four.
+  A hit makes it flinch (no shot for 0.4 s, wider aim).
+* Dying: it tips over away from the shot, slumped, the gun falling. The animation keeps running: switching it off,
+  or freezing it, dropped the body into its T-pose. Its pockets can be searched (E): rounds for its gun, sometimes
+  food, water or a medkit.
+
+**Where they come from** (`BanditField`): only on foot, every 10 s.
+* If no group is within 220 m and none was met in the last two minutes, one time in three a group of 2–3 appears
+  90–150 m away, on open ground out of your sight, and patrols there.
+* Far ones (320 m) and long-dead ones (2 min) are removed.
+* B spawns a group 45 m ahead.
+* Blacking out (D46) clears them away.
+
+**Getting hit:** the screen edge flashes red, and the survival health bar drops.
+
+**Self-tests leave the mouse free** (Tom works while they run): `Main.CaptureMouse` is off in test runs unless
+`--capture-mouse` is given.
+
+**Tests:**
+* `--autotest=bandits`: a group 25 m ahead notices you, the test shoots back with the AK, then searches a body.
+* `--autotest=banditlook`: one bandit 5 m away, relaxed and then aiming.
+
+**Not yet:** the gun at the cheek (arms can't reach, so it's held at chest height); real cover beside walls (the cover
+search is random sampling); hearing their own wounded; districts with different danger; a real death (still the
+blackout placeholder).

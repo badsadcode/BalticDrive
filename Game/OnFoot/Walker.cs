@@ -11,11 +11,11 @@ namespace BalticDrive.OnFoot;
 /// spring arm (pulled in by walls) or first person, V toggles; the mouse looks around. A procedural walk cycle stands
 /// in until real animations are retargeted onto the humanoid skeleton.
 /// </summary>
-public partial class Walker : CharacterBody3D
+public partial class Walker : CharacterBody3D, IHittable
 {
     public const float Radius = 0.35f, Height = 1.8f;
     public const float WalkSpeed = 1.7f, RunSpeed = 4.2f, SprintSpeed = 6.6f, CrouchSpeed = 1.5f, JumpSpeed = 4.6f, Gravity = 14f;
-    public const string CharacterScene = "res://Assets/Synty/PolygonCity/Prefabs/Characters/Character_Male_Hoodie.tscn";
+    public const string CharacterScene = CharacterRig.Scene;
 
     /// <summary>Whether ground collision is loaded under a world point (the walker waits where it is not).</summary>
     public Func<double, double, bool>? HasGround;
@@ -46,6 +46,17 @@ public partial class Walker : CharacterBody3D
         }
     }
 
+    /// <summary>Self-tests: crouch from code (the keyboard decides otherwise).</summary>
+    public void Crouch(bool on) => Crouching = on;
+
+    /// <summary>A bandit's bullet (D47): it hurts.</summary>
+    public string? Hit(BulletHit h)
+    {
+        if (!Active) return null;
+        Body.Damage(h.Damage);
+        return null;
+    }
+
     /// <summary>Turns the view to look at a world point (self-tests).</summary>
     public void Face(Vector3 point)
     {
@@ -71,7 +82,6 @@ public partial class Walker : CharacterBody3D
     private WalkCycle? _cycle;
     private AnimationTree? _tree;
     private float _airTime, _crouchBlend;
-    public const string ClipFolder = "res://Assets/Synty/AnimationBaseLocomotion/";
 
     public override void _Ready()
     {
@@ -114,33 +124,10 @@ public partial class Walker : CharacterBody3D
 
     private void BuildModel()
     {
-        if (ResourceLoader.Exists(CharacterScene) && ResourceLoader.Load<PackedScene>(CharacterScene) is { } scene)
-        {
-            var prefab = scene.Instantiate<Node3D>();
-            var skel = prefab.GetNodeOrNull<Skeleton3D>("GeneralSkeleton");
-            if (skel != null)
-            {
-                prefab.RemoveChild(skel);
-                prefab.QueueFree();
-                // the prefab carries every City character; keep the one it is named after
-                foreach (var child in skel.GetChildren())
-                    if (child is MeshInstance3D mi)
-                    {
-                        mi.Visible = mi.Name == "Character_Male_Hoodie";
-                        mi.Skeleton = new NodePath("..");   // the prefab leaves it empty: unbound, the mesh stays in its rest pose
-                    }
-                ClearOwner(skel);
-                _model.AddChild(skel);
-                // the clips address it as %GeneralSkeleton: a unique name under the model
-                skel.Owner = _model;
-                skel.UniqueNameInOwner = true;
-                // Synty characters face +Z; the walker faces -Z like every Godot node
-                _model.RotationDegrees = new Vector3(0, 180, 0);
-                if (!BuildAnimations()) _cycle = new WalkCycle(skel);
-                return;
-            }
-            prefab.QueueFree();
-        }
+        // the shared rig (D47): the hoodie guy with the locomotion clips, or a procedural walk without them
+        var (skel, tree) = CharacterRig.Build(_model, "Character_Male_Hoodie", out _cycle);
+        _tree = tree;
+        if (skel != null) return;
         // no licensed pack: a plain capsule stands in
         _model.AddChild(new MeshInstance3D
         {
@@ -150,93 +137,14 @@ public partial class Walker : CharacterBody3D
         });
     }
 
-    /// <summary>
-    /// The Synty Base Locomotion clips (D39), imported onto the humanoid skeleton with Synty's own bone map, blended by
-    /// an AnimationTree: standing (idle, walk, run, sprint forwards; walk and run back and sideways) and crouching
-    /// (idle, forward, back) blend spaces by the velocity in the body's frame, crouch and fall blends on top.
-    /// False when the clips are not installed (the procedural <see cref="WalkCycle"/> stands in).
-    /// </summary>
-    private bool BuildAnimations()
-    {
-        var lib = new AnimationLibrary();
-        bool Clip(string key, string file, bool loop = true)
-        {
-            string path = ClipFolder + file + ".fbx";
-            if (!ResourceLoader.Exists(path) || ResourceLoader.Load<PackedScene>(path) is not { } scene) return false;
-            var inst = scene.Instantiate<Node>();
-            var player = inst.FindChildren("*", "AnimationPlayer", true, false).OfType<AnimationPlayer>().FirstOrDefault();
-            var name = player?.GetAnimationList().FirstOrDefault();
-            if (player == null || name == null) { inst.QueueFree(); return false; }
-            var anim = (Animation)player.GetAnimation(name).Duplicate();
-            inst.QueueFree();
-            anim.LoopMode = loop ? Animation.LoopModeEnum.Linear : Animation.LoopModeEnum.None;
-            lib.AddAnimation(key, anim);
-            return true;
-        }
-        if (!Clip("idle", "A_Idle_Standing_Masc") || !Clip("walk", "A_Walk_F_Masc") || !Clip("run", "A_Run_F_Masc")) return false;
-        Clip("sprint", "A_Sprint_F_Masc"); Clip("walk_b", "A_Walk_BckStrafeB_Masc"); Clip("run_b", "A_Run_BckStrafeB_Masc");
-        Clip("walk_l", "A_Walk_FwdStrafeL_Masc"); Clip("walk_r", "A_Walk_FwdStrafeR_Masc");
-        Clip("run_l", "A_Run_FwdStrafeL_Masc"); Clip("run_r", "A_Run_FwdStrafeR_Masc");
-        Clip("crouch_idle", "A_Idle_Crouching_Masc"); Clip("crouch_f", "A_Crouch_FwdStrafeF_Masc"); Clip("crouch_b", "A_Crouch_BckStrafeB_Masc");
-        Clip("fall", "A_InAir_FallShort_Masc");
-
-        var animPlayer = new AnimationPlayer { Name = "AnimationPlayer" };
-        _model.AddChild(animPlayer);
-        animPlayer.RootNode = new NodePath("..");
-        animPlayer.AddAnimationLibrary("", lib);
-
-        AnimationNodeAnimation A(string key) => new() { Animation = lib.HasAnimation(key) ? key : "idle" };
-        var stand = new AnimationNodeBlendSpace2D { MinSpace = new Vector2(-7, -7), MaxSpace = new Vector2(7, 7) };
-        stand.AddBlendPoint(A("idle"), Vector2.Zero);
-        stand.AddBlendPoint(A("walk"), new Vector2(0, WalkSpeed));
-        stand.AddBlendPoint(A("run"), new Vector2(0, RunSpeed));
-        stand.AddBlendPoint(A("sprint"), new Vector2(0, SprintSpeed));
-        stand.AddBlendPoint(A("walk_b"), new Vector2(0, -WalkSpeed));
-        stand.AddBlendPoint(A("run_b"), new Vector2(0, -RunSpeed));
-        stand.AddBlendPoint(A("walk_l"), new Vector2(-WalkSpeed, 0));
-        stand.AddBlendPoint(A("walk_r"), new Vector2(WalkSpeed, 0));
-        stand.AddBlendPoint(A("run_l"), new Vector2(-RunSpeed, 0));
-        stand.AddBlendPoint(A("run_r"), new Vector2(RunSpeed, 0));
-        var crouch = new AnimationNodeBlendSpace2D { MinSpace = new Vector2(-3, -3), MaxSpace = new Vector2(3, 3) };
-        crouch.AddBlendPoint(A("crouch_idle"), Vector2.Zero);
-        crouch.AddBlendPoint(A("crouch_f"), new Vector2(0, CrouchSpeed));
-        crouch.AddBlendPoint(A("crouch_b"), new Vector2(0, -CrouchSpeed));
-        var bt = new AnimationNodeBlendTree();
-        bt.AddNode("stand", stand);
-        bt.AddNode("crouchbs", crouch);
-        bt.AddNode("crouch", new AnimationNodeBlend2());
-        bt.AddNode("fall", A("fall"));
-        bt.AddNode("air", new AnimationNodeBlend2());
-        bt.ConnectNode("crouch", 0, "stand");
-        bt.ConnectNode("crouch", 1, "crouchbs");
-        bt.ConnectNode("air", 0, "crouch");
-        bt.ConnectNode("air", 1, "fall");
-        bt.ConnectNode("output", 0, "air");
-        _tree = new AnimationTree { Name = "AnimationTree", TreeRoot = bt };
-        _model.AddChild(_tree);
-        _tree.AnimPlayer = _tree.GetPathTo(animPlayer);
-        _tree.Active = true;
-        return true;
-    }
-
     private void UpdateAnimations(float dt)
     {
         if (_tree == null) return;
         // velocity in the body's frame: x to the right, y forward
         var local = Transform.Basis.Inverse() * Velocity;
-        var v = new Vector2(local.X, -local.Z);
-        _tree.Set("parameters/stand/blend_position", v);
-        _tree.Set("parameters/crouchbs/blend_position", v);
         _crouchBlend = Mathf.MoveToward(_crouchBlend, Crouching ? 1f : 0f, dt * 5f);
-        _tree.Set("parameters/crouch/blend_amount", _crouchBlend);
         _airTime = IsOnFloor() ? 0f : _airTime + dt;
-        _tree.Set("parameters/air/blend_amount", Mathf.Clamp((_airTime - 0.12f) * 6f, 0f, 1f));
-    }
-
-    private static void ClearOwner(Node n)
-    {
-        n.Owner = null;
-        foreach (var c in n.GetChildren()) ClearOwner(c);
+        CharacterRig.Animate(_tree, new Vector2(local.X, -local.Z), _crouchBlend, Mathf.Clamp((_airTime - 0.12f) * 6f, 0f, 1f));
     }
 
     /// <summary>Puts the walker at a point (local coordinates) facing <paramref name="yaw"/> and gives it the controls.</summary>
@@ -252,7 +160,7 @@ public partial class Walker : CharacterBody3D
         _pitch = -0.15f;
         UpdateCamera(0);
         ActiveCamera.Current = true;
-        Input.MouseMode = Input.MouseModeEnum.Captured;
+        if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
     public void Deactivate()
@@ -280,7 +188,7 @@ public partial class Walker : CharacterBody3D
             _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * 0.0025f, -1.35f, 1.2f);
         }
         else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured)
-            Input.MouseMode = Input.MouseModeEnum.Captured;
+            if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
         else if (e is InputEventKey { Pressed: true, Echo: false } k)
         {
             if (k.Keycode == Key.V) SetView(!FirstPerson);

@@ -57,8 +57,18 @@ public sealed partial class Survival : Node
         Say("You patch yourself up");
     }
 
-    /// <summary>For bandits later: a bullet or a fall.</summary>
-    public void Damage(float amount) { Health -= amount; if (Health <= 0) { Health = 0; BlackOut(); } }
+    /// <summary>A bullet or a fall (D47: bandits).</summary>
+    public void Damage(float amount)
+    {
+        Health -= amount;
+        Hurt?.Invoke(amount);
+        if (Health <= 0) { Health = 0; BlackOut(); }
+    }
+
+    /// <summary>Damage taken (for the red flash).</summary>
+    public event Action<float>? Hurt;
+    /// <summary>The player blacked out (bandits lose interest).</summary>
+    public event Action? Down;
 
     /// <summary>What a cache gave you; returns the lines worth saying.</summary>
     public string Take(Loot l)
@@ -81,6 +91,7 @@ public sealed partial class Survival : Node
         if (_down) return;
         _down = true;
         Say("You black out… and come round later, sore");
+        Down?.Invoke();
         Health = 40; Hunger = MathF.Max(Hunger, 40); Thirst = MathF.Max(Thirst, 40);
         _down = false;
     }
@@ -239,6 +250,17 @@ public sealed partial class CacheField : Node3D
         };
     }
 
+    private int _drops;
+
+    /// <summary>A searchable spot with no crate: what a fallen bandit had on them (D47).</summary>
+    public void Drop(Vector3 at, Loot loot, string place)
+    {
+        var c = new Cache { Key = $"drop:{++_drops}", Place = place, Kind = MapPoiKind.Camp, Loot = loot, CollisionLayer = 0, CollisionMask = 0 };
+        AddChild(c);
+        c.GlobalPosition = at;
+        _live[c.Key] = c;
+    }
+
     /// <summary>The unopened cache in reach of a point, if any.</summary>
     public Cache? InReach(Vector3 at) =>
         _live.Values.Where(c => !c.Opened && c.GlobalPosition.DistanceTo(at) < Reach).OrderBy(c => c.GlobalPosition.DistanceTo(at)).FirstOrDefault();
@@ -248,6 +270,6 @@ public sealed partial class CacheField : Node3D
     {
         c.Opened = true;
         _opened.Add(c.Key);
-        if (c.GetChildCount() > 0 && c.GetChild(0) is Node3D look) look.RotationDegrees = new Vector3(0, 0, 4);
+        if (c.GetChildCount() > 0 && c.GetChild(0) is MeshInstance3D look) look.RotationDegrees = new Vector3(0, 0, 4);
     }
 }
