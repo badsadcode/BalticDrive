@@ -832,6 +832,30 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>2–3 bandits per group</li><li>70 m: how far they see</li><li>150 m: how far they hear</li><li>30 %: how hard they hit, compared to you</li><li>1 policeman, retired</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>22</strong></div>
+    <div>
+      <h2>A pavement of no length at all</h2>
+      <div class="date">15 November 2026, late evening</div>
+      <p>Tom pulled up on Tamka in Powiśle and found a pavement slab cutting diagonally across the road, right where
+        it meets the junction with Dobra. He pressed F9, and the dump had what we needed.</p>
+      <figure class="photo">
+        <img src="img/tamka-pavement.webp" alt="Before and after: on the left the blue car on Tamka with a pale pavement slab running diagonally across the carriageway in front of it; on the right the same street from above, both carriageways ending neatly at the junction with their pavements" loading="lazy">
+        <figcaption>Left: Tom's dump. Right: the same junction from above, fixed.</figcaption>
+      </figure>
+      <p>The culprit was a piece of road with no length at all. Where Tamka gets cut at the edge of the junction, the
+        cut left two copies of the same point, so the last piece started and ended in the same place. A piece with no
+        length has no direction, and the game quietly assumed "north". That bent the corner beside it, and the
+        pavement drawn along that non-piece stretched from one direction to the other, right across the road. The
+        check that stops pavements crossing other roads let it through too, since a piece of no length can't be in
+        anyone's way.</p>
+      <p>Now such a piece borrows its direction from its neighbour and isn't drawn at all. The fix lives in the game
+        rather than the map, so every other junction in Mazowsze with the same problem is fixed too, without
+        rebuilding a single tile. The F9 dump also got a little smarter: it now lists every pavement nearby, whether
+        it was kept or left out, and how much room it has beside the kerb. That's how this one gave itself away.</p>
+      <ul class="facts"><li>0.00 m: the piece's length</li><li>1 slab, gone</li><li>0 map tiles rebuilt</li><li>1 dump, very useful</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
