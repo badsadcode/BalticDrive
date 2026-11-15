@@ -620,6 +620,39 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>31,486 street names on the map</li><li>1 radar</li><li>3 kinds of pitched roof, plus 1 sloping to the yard</li><li>~4 ms per house</li><li>0 golden domes</li></ul>
     </div>
   </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>15</strong></div>
+    <div>
+      <h2>Out of the car</h2>
+      <div class="date">15 November 2026, evening</div>
+      <p>"Let's get out of the car, take a walk and get some kebabs," said Tom. So we did. Press E and you step out by
+        the driver's door. Then you walk, run, sprint, crouch and jump through the same streets you just drove, in third
+        person over the shoulder or first person (V). Walk back to the car, press E, and you're driving again.</p>
+      <figure class="photo">
+        <img src="img/onfoot-getout.webp" alt="Third-person view behind a character in a red hoodie and green beanie, standing in a Warsaw street next to the blue car, with the radar in the corner" loading="lazy">
+        <figcaption>Out for a walk on Hoża. The car waits with its handbrake on.</figcaption>
+      </figure>
+      <p>Our walker is a guy in a red hoodie and a green beanie from the Synty City pack, which already gave us the car.
+        For the first hour he moved with a walk cycle written in code: arms swinging, knees bending, a little bob. It
+        worked, but it looked like what it was. Then Tom found Synty's Base Locomotion animation pack in his collection.
+        The animations were made for Synty's own skeleton, not the one the character uses in Godot. The fix was hiding in
+        the City pack itself: Synty's own Godot import settings already contained the mapping between the two skeletons.
+        We reused it, and the real clips dropped straight onto him.</p>
+      <figure class="photo r">
+        <img src="img/onfoot-before-after.webp" alt="Two side views of the same character running: on the left a stiff code-driven run, on the right a proper sprint with a forward lean, bent arms and a long stride" loading="lazy">
+        <figcaption>Left: the stand-in walk cycle. Right: Synty's sprint.</figcaption>
+      </figure>
+      <p>He now idles, walks, jogs, sprints, crouches, steps backwards and sideways, and falls, all blended by how fast and
+        which way he's going. The radar, the map and the "where am I" line follow you on foot too.</p>
+      <p><b>What's next.</b> This is the first step of the on-foot brief Tom and Noor wrote: a small survival layer with
+        gunplay that has to feel great, a Mosin-style bolt-action, a pistol and an AK, supplies hidden near real shops,
+        and a few bandits. The kebab shops are mapped in OpenStreetMap, by the way. They'll make excellent food caches.</p>
+      <div class="quote">"Let's get out of the car 😃 take a walk and get some kebabs."
+        <cite>Tom</cite></div>
+      <ul class="facts"><li>17 animation clips</li><li>1 red hoodie</li><li>2 cameras (shoulder and eyes)</li><li>4.5 m: how close to the car you need to be to get in</li><li>0 kebabs found yet</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
@@ -634,7 +667,7 @@ footer a { color: var(--sign); }
       </div>
     </div>
     <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).
-      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car in the screenshots: Synty POLYGON City.
+      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car and walker in the screenshots: Synty POLYGON City; animations: Synty Base Locomotion.
       Placeholder models: Quaternius (CC0). Trees, sky and clouds: Thornwake. Title art and logo: Bad Ideas Works. Made with Godot.
       <a href="https://github.com/badsadcode/BalticDrive">Source on GitHub</a>.</p>
   </div>
