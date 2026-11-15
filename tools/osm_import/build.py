@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
-FORMAT = 7
+FORMAT = 8
 TILE = 2048.0
 LAND_RES = 512           # land-cover cells per tile side (4 m)
 LAND_CELL = TILE / LAND_RES
@@ -39,6 +39,44 @@ H_CELL = TILE / H_RES
 H_UNIT = 0.04            # metres per stored height step
 H_BASE = -100.0          # height of stored value 0 ... 65535 -> 2521 m; 0 also means "dry" in the water grid
 PAK_LIMIT = 48 * 1024 * 1024
+
+# Names (D33, format 8): street names and house numbers from stage 1 (names.txt), and what each tile's road pieces
+# and buildings are called, collected while encoding them, written as the tile's last section.
+NAMES = ['']
+TILE_ROAD_NAMES = defaultdict(list)       # tile -> one name per road record, in record order
+TILE_BUILDING_INFO = defaultdict(list)    # tile -> (osm id, street, number) per building record, in record order
+
+
+def load_names(work):
+    path = os.path.join(work, 'names.txt')
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as f:
+            NAMES[:] = f.read().split(chr(10))
+
+
+def encode_names(t):
+    """The names section of a tile: its string table, a string index per road record and per building record
+    (with the OSM id). Index 0 is the empty string (no name)."""
+    roads, builds = TILE_ROAD_NAMES.get(t, []), TILE_BUILDING_INFO.get(t, [])
+    table, index = [''], {'': 0}
+    def idx(x):
+        i = index.get(x)
+        if i is None:
+            i = index[x] = len(table)
+            table.append(x)
+        return i
+    road_idx = [idx(n) for n in roads]
+    build_idx = [(o, idx(st), idx(nu)) for o, st, nu in builds]
+    out = bytearray(struct.pack('<I', len(table)))
+    for x in table:
+        b = x.encode('utf-8')[:255]
+        out += struct.pack('<B', len(b)) + b
+    out += struct.pack('<I', len(road_idx)) + np.asarray(road_idx, dtype='<u2').tobytes()
+    out += struct.pack('<I', len(build_idx))
+    for o, si, ni in build_idx:
+        out += struct.pack('<qHH', o, si, ni)
+    return bytes(out)
+
 
 F_BRIDGE, F_TUNNEL, F_ONEWAY, F_UNPAVED, F_LIT, F_RAIL, F_STARTCAP, F_ENDCAP = 1, 2, 4, 8, 16, 32, 64, 128
 BF_GHOST, BF_TRIS, BF_PART = 1, 2, 4
@@ -334,6 +372,7 @@ def limit_dips(h, node, nnodes, xy, off, attrs, ground):
 
 
 def build_roads(work, dem):
+    load_names(work)
     roads = np.load(os.path.join(work, 'roads.npz'))
     xy0 = roads['xy'].astype(np.float64) / 100.0     # x east, y north
     off0, attrs, nodes0 = roads['off'], roads['attrs'], roads['nodes']
@@ -425,7 +464,7 @@ def build_roads(work, dem):
     from junctions import build_junctions
     cuts, junctions = build_junctions(xy, off, node, nnodes, attrs, y, lift, log)
     decks = underpass_decks(underpasses, xy, off, attrs, y, junctions)
-    paved = build_paved(work, dem)
+    paved = build_paved(work, dem, xy, off, attrs)
     on_paved = roads_on_paved(paved, xy, off, attrs)
     junctions = junctions + paved
     jtiles = encode_junctions(junctions)
@@ -434,6 +473,7 @@ def build_roads(work, dem):
     walks = estimate_pavements(work, xy, off, attrs)
 
     gx, gz = xy[:, 0], -xy[:, 1]
+    has_names = 'name' in attrs.dtype.names
     per_tile = defaultdict(list)
     nways = len(attrs)
     for w in range(nways):
@@ -492,6 +532,7 @@ def build_roads(work, dem):
                     q['w'] = np.clip(np.round(wpt * 10), 10, 255)
                     q['uo'] = np.clip(np.round(uopt * 10), -127, 127)
                 per_tile[(tx, tz)].append(bytes(rec) + q.tobytes())
+                TILE_ROAD_NAMES[(tx, tz)].append(NAMES[int(attrs[w]['name'])] if has_names else '')
         if w % 300000 == 0:
             log(f'roads {w}/{nways}')
     log(f'roads cut into {sum(len(v) for v in per_tile.values())} pieces over {len(per_tile)} tiles')
@@ -625,9 +666,13 @@ def roads_on_paved(paved, xy, off, attrs):
     return out
 
 
-def build_paved(work, dem):
+def build_paved(work, dem, xy_r=None, off_r=None, attrs_r=None):
     """Parking lots, fuel forecourts, squares and carriageway areas (D20) as flat paved surfaces, encoded like
-    junction surfaces (flag 4; 8 = pedestrian paving). Heights from the elevation model at each vertex."""
+    junction surfaces (flag 4; 8 = pedestrian paving). Heights from the elevation model at each vertex.
+    The corridors of the streets crossing an area are cut out of it (D33): the area sits at the elevation model's
+    height while a street runs a little lower in its own bed, so a square drawn whole covered its streets, tram tracks
+    and markings (Plac Konstytucji, the junction by the Wisłostrada tunnel). Parking aisles and other service roads,
+    footways and pedestrian streets stay on the area; bridges pass over it."""
     path = os.path.join(work, 'paved.npz')
     if not os.path.exists(path):
         return []
@@ -641,6 +686,19 @@ def build_paved(work, dem):
         x0, x1 = KEEP[0] * TILE - m, (KEEP[2] + 1) * TILE + m
         n0, n1 = -((KEEP[3] + 1) * TILE) - m, -(KEEP[1] * TILE) + m
     out, skipped = [], 0
+    streets, street_tree = [], None
+    if xy_r is not None:
+        flags = attrs_r['flags']
+        for w in range(len(attrs_r)):
+            if attrs_r['cls'][w] > 6 or flags[w] & F_RAIL or (flags[w] & F_BRIDGE and not flags[w] & F_TUNNEL):
+                continue
+            pts = xy_r[off_r[w]:off_r[w + 1]]
+            if len(pts) < 2:
+                continue
+            streets.append(shapely.LineString(pts).buffer(attrs_r['width_dm'][w] / 20.0 + 0.3, cap_style='flat'))
+        if streets:
+            street_tree = shapely.STRtree(streets)
+    cut_count = 0
     for f in range(len(kinds)):
         r0, r1 = feat_ring[f], feat_ring[f + 1]
         outer = xy[ring_off[r0]:ring_off[r0 + 1]]
@@ -652,6 +710,11 @@ def build_paved(work, dem):
         except Exception:
             skipped += 1
             continue
+        if street_tree is not None and not poly.is_empty:
+            hit = street_tree.query(poly, predicate='intersects')
+            if len(hit):
+                poly = shapely.difference(poly, shapely.union_all([streets[i] for i in hit])).buffer(0)
+                cut_count += 1
         polys = list(poly.geoms) if poly.geom_type == 'MultiPolygon' else [poly] if poly.geom_type == 'Polygon' else []
         for pg in polys:
             if pg.area < 30.0 or pg.area > 400_000.0:
@@ -674,7 +737,8 @@ def build_paved(work, dem):
                 continue
             hv = np.where(np.isfinite(hv), hv, np.nanmedian(hv))
             out.append({'xy': verts, 'ends': ends, 'y': hv, 'tris': tris, 'elevated': False, 'paved': int(kinds[f])})
-    log(f'paved areas: {len(out)} surfaces (parking, squares, carriageway areas), {skipped} skipped')
+    log(f'paved areas: {len(out)} surfaces (parking, squares, carriageway areas), {skipped} skipped, '
+        f'{cut_count} with street corridors cut out')
     return out
 
 
@@ -911,7 +975,8 @@ def build_buildings(work):
     for i in range(nfeat):
         if has_parts[i] or not in_scope((tile_of(cx[i]), tile_of(cz[i]))):
             continue
-        btype, part, roof, height_dm, min_dm, roof_dm, has_height = attrs[i]
+        a_i = attrs[i]
+        btype, part, roof, height_dm, min_dm, roof_dm, has_height = (a_i[k] for k in ('type', 'part', 'roof', 'height_dm', 'min_dm', 'roof_dm', 'has_height'))
         btype = int(btype)
         rings = []
         area = 0.0
@@ -986,6 +1051,10 @@ def build_buildings(work):
             return bytes(rec)
 
         per_tile[(tx, tz)].append(encode(tx * TILE, tz * TILE, flags))
+        if 'osm' in attrs.dtype.names:
+            TILE_BUILDING_INFO[(tx, tz)].append((int(a_i['osm']), NAMES[int(a_i['street'])], NAMES[int(a_i['number'])]))
+        else:
+            TILE_BUILDING_INFO[(tx, tz)].append((0, '', ''))
         kept += 1
         # Ghost copies let neighbouring tiles keep trees and grass out of an overhanging building.
         x, z = rings[0]
@@ -1116,16 +1185,28 @@ def _init_heights(dem_folder):
 
 
 def _water_mask(land_bytes):
-    """Land-cover water at 8 m (any water in the 2x2 land cells around a height corner)."""
-    arr = np.frombuffer(land_bytes, dtype=np.uint8).reshape(LAND_RES, LAND_RES) == C.L_WATER
+    """Land-cover water cells at 4 m (the land-cover grid), for the shoreline distance (D33)."""
+    return np.frombuffer(land_bytes, dtype=np.uint8).reshape(LAND_RES, LAND_RES) == C.L_WATER
+
+
+SHORE_SHIFT = 2.0        # metres: the water reaches this far past the land-cover water cells (thin streams keep water)
+BANK = 1.5 * H_CELL      # land within this of the shoreline is shaped into a bank meeting the water there
+BANK_SLOPE = 0.6         # rise of that bank per metre from the shoreline
+
+
+def _shore_distance(cells):
+    """Signed distance (m) from each 8 m height corner to the shoreline of a 4 m water-cell grid: negative in the
+    water, positive on land (D33). Replaces the old any-of-four-cells mask, whose 8 m steps showed as stair-stepped
+    banks."""
+    from scipy import ndimage
+    lc = TILE / LAND_RES
+    d_land = ndimage.distance_transform_edt(~cells) * lc          # land cell -> nearest water cell (centres)
+    d_water = ndimage.distance_transform_edt(cells) * lc          # water cell -> nearest land cell
+    sd = np.where(cells, -(d_water - lc / 2), d_land - lc / 2)    # from cell centres to the cell edge between them
+    pad = np.pad(sd, 1, mode='edge')
+    vert = (pad[:-1, :-1] + pad[1:, :-1] + pad[:-1, 1:] + pad[1:, 1:]) / 4.0     # at the cell corners
     k = LAND_RES // H_RES
-    cell = arr.reshape(H_RES, k, H_RES, k).any(axis=(1, 3))      # per 8 m cell
-    corner = np.zeros((H_RES + 1, H_RES + 1), dtype=bool)
-    corner[:-1, :-1] |= cell
-    corner[1:, :-1] |= cell
-    corner[:-1, 1:] |= cell
-    corner[1:, 1:] |= cell
-    return corner
+    return vert[::k, ::k] - SHORE_SHIFT
 
 
 def _heights_tile(job):
@@ -1149,19 +1230,25 @@ def _heights_tile(job):
     h = fill_nan(h)
     water = None
     if has_water:
-        wm = np.zeros((n, n), dtype=bool)
+        cells = np.zeros((3 * LAND_RES, 3 * LAND_RES), dtype=bool)
         for j in range(3):
             for i in range(3):
                 m = masks[j * 3 + i]
                 if m is not None:
-                    wm[j * H_RES:(j + 1) * H_RES + 1, i * H_RES:(i + 1) * H_RES + 1] |= m
+                    cells[j * LAND_RES:(j + 1) * LAND_RES, i * LAND_RES:(i + 1) * LAND_RES] = m
+        sd = _shore_distance(cells)
+        wm = sd < 0
         sig = WATER_SMOOTH / H_CELL
         num = ndimage.gaussian_filter(np.where(wm, h, 0.0), sig)
         den = ndimage.gaussian_filter(wm.astype(np.float64), sig)
-        level = np.where(wm, num / np.maximum(den, 1e-6) - WATER_DROP, np.nan)
-        dist = ndimage.distance_transform_edt(wm) * H_CELL       # metres to the nearest dry corner
-        depth = np.minimum(DEPTH_MAX, 0.4 + dist * DEPTH_SLOPE)
+        near = num / np.maximum(den, 1e-6) - WATER_DROP                # the water level, carried a little onto land
+        level = np.where(wm, near, np.nan)
+        # the bed deepens with the distance from the real shoreline; the first ring of land becomes a bank that meets
+        # the water exactly there (D33), so the waterline follows the shore instead of the 8 m grid
+        depth = np.minimum(DEPTH_MAX, np.maximum(0.25, -sd * DEPTH_SLOPE * 2.0))
         h = np.where(wm, np.minimum(h, level - depth), h)
+        bank = (~wm) & (sd < BANK) & (den > 1e-3)
+        h = np.where(bank, np.minimum(h, near + np.maximum(0.2, sd * BANK_SLOPE)), h)
         c = slice(halo, halo + H_RES + 1)
         lv = level[c, c]
         water = np.where(np.isfinite(lv), encode_h(np.nan_to_num(lv, nan=H_BASE)), 0).astype('<u2')
@@ -1297,8 +1384,7 @@ def build_places(work):
     seen = set()
     for i in range(len(p)):
         rank = int(p['rank'][i])
-        if rank > 2:
-            continue
+        # suburbs, hamlets, quarters and neighbourhoods too (D33): the HUD says which part of town you are in
         key = (names[i], int(p['x'][i] // 200000), int(p['y'][i] // 200000))
         if key in seen:
             continue
@@ -1351,7 +1437,7 @@ def main():
         r = roads.get(t, [])
         b = buildings.get(t, [])
         p = pois.get(t, [])
-        blob = bytearray(b'BDT7')
+        blob = bytearray(b'BDT8')
         blob += struct.pack('<I', len(r)) + b''.join(r)
         jr = jtiles.get(t, [])
         blob += struct.pack('<I', len(jr)) + b''.join(jr)
@@ -1365,6 +1451,7 @@ def main():
         blob += heights[t]
         wb = water.get(t)
         blob += struct.pack('<B', 0 if wb is None else 1) + (b'' if wb is None else wb)
+        blob += encode_names(t)
         comp = zlib.compress(bytes(blob), 9)
         if pak_size + len(comp) > PAK_LIMIT:
             pak.close()

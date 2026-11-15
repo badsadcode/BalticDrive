@@ -251,10 +251,10 @@ public partial class MapScreen : Control
         // names
         foreach (var p in _map.Data.Places)
         {
-            if (p.Rank == 2 && mpp > 5f || p.Rank == 1 && mpp > 10f) continue;
+            if (p.Rank == 2 && mpp > 5f || p.Rank == 1 && mpp > 10f || p.Rank > 2 && mpp > 2f) continue;
             var s = ToScreen(p.X, p.Z);
             if (s.X < -100 || s.X > size.X + 20 || s.Y < 0 || s.Y > size.Y) continue;
-            int fs = p.Rank == 0 ? 22 : p.Rank == 1 ? 17 : 13;
+            int fs = p.Rank == 0 ? 22 : p.Rank == 1 ? 17 : p.Rank == 2 ? 13 : 11;
             var ts = _font.GetStringSize(p.Name, HorizontalAlignment.Left, -1, fs);
             var at = s + new Vector2(-ts.X * 0.5f, 5);
             DrawString(_font, at + new Vector2(1, 1), p.Name, HorizontalAlignment.Left, -1, fs, new Color(0, 0, 0, 0.85f));

@@ -62,6 +62,9 @@ public enum MapPoiKind : byte { Fuel, Food, Shop, Medical, Diner, Garage, Police
 public sealed class MapRoad
 {
     public byte Cls, Flags, Flags2, MappedLanes;
+    /// <summary>The road record in its tile (names are stored per record, format 8) and the street name ("" if none).</summary>
+    public int Record;
+    public string Name = "";
     public sbyte Layer;
     public float HalfWidth;
     /// <summary>Tapered pieces only (D21; else null): the half width at each point, and the offset that keeps lane
@@ -187,6 +190,9 @@ public sealed class MapBuilding
     public int Index;
     public byte Type, Flags, Roof;
     public float Height, MinHeight, RoofHeight;
+    /// <summary>OSM id (ways positive, relations negative; 0 unknown) and the address, from format 8 (D33).</summary>
+    public long OsmId;
+    public string Street = "", Number = "";
     /// <summary>Rings in tile-local metres. Ring 0 is the outline (positive shoelace area in X,Z); the rest are courtyards.</summary>
     public float[][] RX = null!, RZ = null!;
     /// <summary>Roof triangulation over all rings' vertices in order; only present for outlines with courtyards.</summary>
@@ -270,7 +276,8 @@ public sealed class MapTile
         Tx = tx; Tz = tz; OriginX = tx * (double)Size; OriginZ = tz * (double)Size;
         using var ms = new MemoryStream(raw);
         using var r = new BinaryReader(ms);
-        if (r.ReadUInt32() != 0x37544442u) throw new InvalidDataException("bad tile magic"); // "BDT7"
+        uint magic = r.ReadUInt32();
+        if (magic != 0x37544442u && magic != 0x38544442u) throw new InvalidDataException("bad tile magic"); // "BDT7" / "BDT8"
 
         int nRoads = (int)r.ReadUInt32();
         var roads = new List<MapRoad>(nRoads);
@@ -315,6 +322,7 @@ public sealed class MapTile
             // Service roads and tracks in tunnels (garage ramps, building passages) lead nowhere above ground: left out too (D26).
             if ((road.IsRail || road.Cls is RoadClass.Service or RoadClass.Track) && (road.Flags & RoadFlag.Tunnel) != 0) continue;
             int index = roads.Count;
+            road.Record = i;
             roads.Add(road);
             int segs = Math.Min(road.X.Length - 1, 4095);
             for (int k = 0; k < segs; k++)
@@ -441,7 +449,28 @@ public sealed class MapTile
                 Water[i] = v == 0 ? float.NaN : v * hUnit + hBase;
             }
         }
+        if (magic == 0x38544442u) ReadNames(r);
         foreach (var b in Buildings) b.Base = FootprintBase(b);
+    }
+
+    /// <summary>Format 8 (D33): the tile's string table, a street name per road record and an OSM id and address per
+    /// building record.</summary>
+    private void ReadNames(BinaryReader r)
+    {
+        int n = (int)r.ReadUInt32();
+        var table = new string[n];
+        for (int i = 0; i < n; i++) table[i] = System.Text.Encoding.UTF8.GetString(r.ReadBytes(r.ReadByte()));
+        int nr = (int)r.ReadUInt32();
+        var roadName = new string[nr];
+        for (int i = 0; i < nr; i++) roadName[i] = table[r.ReadUInt16()];
+        foreach (var road in Roads) if (road.Record < nr) road.Name = roadName[road.Record];
+        int nb = (int)r.ReadUInt32();
+        for (int i = 0; i < nb; i++)
+        {
+            long osm = r.ReadInt64();
+            string street = table[r.ReadUInt16()], number = table[r.ReadUInt16()];
+            if (i < Buildings.Length) { Buildings[i].OsmId = osm; Buildings[i].Street = street; Buildings[i].Number = number; }
+        }
     }
 
     /// <summary>Lowest natural ground under an outline's corners and centre (walls go down to it; a slope shows plinth).</summary>
@@ -588,7 +617,24 @@ public sealed class MapTile
         float u = fx - i, v = fz - j;
         int w = HRes + 1;
         float a = Water[j * w + i], b = Water[j * w + i + 1], c = Water[(j + 1) * w + i], d = Water[(j + 1) * w + i + 1];
-        return (a + (b - a) * u) * (1f - v) + (c + (d - c) * u) * v; // NaN propagates when any corner is dry
+        // dry corners take the mean of the wet ones: the surface runs on across a shore cell and the shaped bank
+        // (D33) rises out of it along the real shoreline; NaN for a cell with no wet corner at all. (It used to be
+        // NaN when any corner was dry, which clipped every shore to the 8 m grid: stair-stepped banks, Tom.)
+        float sum = 0f; int n = 0;
+        if (!float.IsNaN(a)) { sum += a; n++; }
+        if (!float.IsNaN(b)) { sum += b; n++; }
+        if (!float.IsNaN(c)) { sum += c; n++; }
+        if (!float.IsNaN(d)) { sum += d; n++; }
+        if (n == 0) return float.NaN;
+        if (n < 4)
+        {
+            float m = sum / n;
+            if (float.IsNaN(a)) a = m;
+            if (float.IsNaN(b)) b = m;
+            if (float.IsNaN(c)) c = m;
+            if (float.IsNaN(d)) d = m;
+        }
+        return (a + (b - a) * u) * (1f - v) + (c + (d - c) * u) * v;
     }
 }
 
@@ -604,7 +650,7 @@ public sealed class MapPlace
 /// <summary>Opens a map (index + pack files) and hands out tiles on demand. Safe to call from worker threads.</summary>
 public sealed class MapData : IDisposable
 {
-    public const int Format = 7;
+    public const int Format = 8;
     public readonly string Name;
     public readonly string Directory;
     public readonly List<MapPlace> Places = new();
@@ -640,7 +686,8 @@ public sealed class MapData : IDisposable
         using var r = new BinaryReader(new MemoryStream(bytes));
         if (r.ReadUInt32() != 0x58494442u) throw new InvalidDataException("bad map index magic"); // "BDIX"
         uint version = r.ReadUInt32();
-        if (version != Format) throw new InvalidDataException($"map '{name}' is format {version}; this build reads format {Format}: rebuild it with tools/osm_import");
+        // format 7 (no names) still loads, so an old map keeps working until the next rebuild
+        if (version != Format && version != 7) throw new InvalidDataException($"map '{name}' is format {version}; this build reads format {Format}: rebuild it with tools/osm_import");
         float tile = r.ReadSingle();
         uint landRes = r.ReadUInt32(), hRes = r.ReadUInt32();
         HUnit = r.ReadSingle(); HBase = r.ReadSingle();

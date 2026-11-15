@@ -274,3 +274,24 @@ a 16-storey block known only as `building=apartments` with levels now comes out 
 block with only a mapped height of four storeys or more fits the PRL style too. Pedestrian areas draw under the
 roads crossing them like paved areas (the Plac Konstytucji fix itself needs the importer, HANDOFF). The asphalt edge
 in map_road.gdshader wanders less (±5 cm, fine) instead of ±20 cm every ~1.5 m, which read as a wobbly road.
+
+## D33 — Squares under their streets, smooth riverbanks, names in the tiles (format 8)
+- **Paved areas don't cover their streets.** Squares, car parks and carriageway areas are flat polygons at the
+  elevation model's height, while the streets crossing them run a little lower in their own beds, so a whole square
+  covered its avenue, tram tracks and markings (Plac Konstytucji) and a paved area by the Wisłostrada tunnel looked like
+  a wall of earth over the road (Tom's dump). `build_paved` now cuts the corridors of the streets that cross an area
+  (classes up to residential, not bridges, half width + 0.3 m) out of it before triangulating; parking aisles, service
+  roads, footways and pedestrian streets stay on it.
+- **Smooth banks.** The bed was carved on an 8 m mask (a corner was wet when any of its four 4 m land-cover cells was
+  water) and the game sampled the water as dry wherever any corner of an 8 m cell was dry: banks came out in 8 m
+  stair steps. The importer now works out each height corner's signed distance to the shoreline of the 4 m water
+  cells (2 m past them, so thin streams keep their water), deepens the bed with that distance and shapes the first
+  12 m of land into a bank rising from the water at the shoreline; the game's `WaterAt` gives a shore cell the mean
+  of its wet corners, so the surface runs on until the bank rises out of it.
+- **Names (tile format 8).** Stage 1 keeps street names (`name`), and per building its OSM id (ways positive,
+  relations negative) and address (`addr:street` or `addr:place`, `addr:housenumber`) in `names.txt`; each tile gets a
+  last section with its string table, a name per road record and an id and address per building record. Format 7 maps
+  still load. The OSM id is the key for the override layer and live editing; the names feed the HUD and, next, the map.
+- **Where am I.** Places now include suburbs, hamlets, quarters and neighbourhoods. The HUD says the street and the
+  nearest house number on it, then the district (within 1.5 km) or village (3 km), then the town:
+  "Plac Konstytucji · Śródmieście Południowe · Warszawa". The map screen shows the small places only zoomed in.

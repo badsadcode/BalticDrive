@@ -103,7 +103,7 @@ class Polys:
 # walk: pavements (D27) — bit 0 left side has one, bit 1 right side, bit 2 left side tagged, bit 3 right side tagged
 # (left/right of the way's direction; untagged sides are estimated by build.py)
 ROAD_DTYPE = [('cls', 'u1'), ('flags', 'u1'), ('width_dm', 'u1'), ('layer', 'i1'), ('lanes', 'u1'), ('fwd', 'u1'),
-              ('turn', 'u1'), ('walk', 'u1')]
+              ('turn', 'u1'), ('walk', 'u1'), ('name', 'u4')]
 # Paved areas drawn as asphalt (D20): 0 parking or fuel forecourt, 1 pedestrian square, 2 carriageway area
 PAVED_DTYPE = [('kind', 'u1')]
 # raised: on a bridge or viaduct (bridge=yes or layer ≥ 1): the game stands it on the deck, or leaves it out (D25)
@@ -111,7 +111,10 @@ BARRIER_DTYPE = [('kind', 'u1'), ('height_dm', 'u1'), ('raised', 'u1')]
 WATERLINE_DTYPE = [('width_dm', 'u1')]
 LAND_DTYPE = [('cls', 'u1')]
 BUILDING_DTYPE = [('type', 'u1'), ('part', 'u1'), ('roof', 'u1'), ('height_dm', 'u2'),
-                  ('min_dm', 'u2'), ('roof_dm', 'u2'), ('has_height', 'u1')]
+                  ('min_dm', 'u2'), ('roof_dm', 'u2'), ('has_height', 'u1'),
+                  ('osm', 'i8'), ('street', 'u4'), ('number', 'u4')]
+# osm: the OSM id (ways positive, relations negative), for overrides keyed by building (D33); street, number: the
+# address (addr:street or addr:place, addr:housenumber) as indices into names.txt (0 = none); roads' name likewise
 
 UNPAVED = {'unpaved', 'gravel', 'fine_gravel', 'compacted', 'dirt', 'ground', 'earth', 'sand',
            'grass', 'mud', 'pebblestone', 'woodchips', 'rock'}
@@ -125,6 +128,7 @@ class Handler(osmium.SimpleHandler):
     def __init__(self):
         super().__init__()
         self.roads = Lines(with_nodes=True)
+        self.names = {'': 0}    # street names and house numbers, by index (names.txt)
         self.waterlines = Lines()
         self.land = Polys()
         self.buildings = Polys()
@@ -319,8 +323,16 @@ class Handler(osmium.SimpleHandler):
             layer = 0
         layer = max(-5, min(5, layer))
         self.roads.add(lons, lats,
-                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd, turn, walk),
+                       (cls, flags, int(max(10, min(255, round(width * 10)))), layer, int(max(0, min(8, lanes))), fwd, turn, walk,
+                        self.name_id(tags.get('name', ''))),
                        [nd.ref for nd in w.nodes])
+
+    def name_id(self, s):
+        s = (s or '').replace(chr(10), ' ').strip()[:120]
+        i = self.names.get(s)
+        if i is None:
+            i = self.names[s] = len(self.names)
+        return i
 
     # ---- areas ---------------------------------------------------------------------------
 
@@ -386,8 +398,11 @@ class Handler(osmium.SimpleHandler):
         height = max(0.0, min(height, 400.0))
         min_h = max(0.0, min(min_h, height))
         roof_h = max(0.0, min(roof_h or 0.0, max(0.0, height - min_h)))
+        osm = a.orig_id() if a.from_way() else -a.orig_id()
         self.buildings.add_area(a, (btype, 1 if part else 0, roof, int(round(height * 10)),
-                                    int(round(min_h * 10)), int(round(roof_h * 10)), has_height))
+                                    int(round(min_h * 10)), int(round(roof_h * 10)), has_height, osm,
+                                    self.name_id(tags.get('addr:street') or tags.get('addr:place') or ''),
+                                    self.name_id(tags.get('addr:housenumber', ''))))
 
 
 def paved_kind(tags):
@@ -423,6 +438,9 @@ def main():
     h.waterlines.save(os.path.join(work, 'waterlines.npz'), WATERLINE_DTYPE)
     h.land.save(os.path.join(work, 'land.npz'), LAND_DTYPE)
     h.buildings.save(os.path.join(work, 'buildings.npz'), BUILDING_DTYPE)
+    with open(os.path.join(work, 'names.txt'), 'w', encoding='utf-8') as f:
+        f.write(chr(10).join(sorted(h.names, key=h.names.get)))
+    print(f'{len(h.names)} street names and house numbers', flush=True)
     h.paved.save(os.path.join(work, 'paved.npz'), PAVED_DTYPE)
     h.barriers.save(os.path.join(work, 'barriers.npz'), BARRIER_DTYPE)
     np.save(os.path.join(work, 'barrier_gaps.npy'), np.frombuffer(h.barrier_gap, dtype=np.uint8))

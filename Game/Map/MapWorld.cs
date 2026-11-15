@@ -389,6 +389,53 @@ public sealed class MapWorld
     }
 
     /// <summary>The nearest named settlement of at least the given rank, or null.</summary>
+    private MapContext? _whereCtx;
+
+    /// <summary>
+    /// Where a world point is, the way a person would say it (D33): the street and the nearest house number on it,
+    /// then the district (suburb, quarter or neighbourhood within 1.5 km) or the village (within 3 km), then the
+    /// town or city (within 15 km). "Karowa 14 · Powiśle · Warszawa", or "near Izabelin · Warszawa" off the streets.
+    /// Main thread only.
+    /// </summary>
+    public string WhereAmI(double x, double z)
+    {
+        var ctx = _whereCtx ??= new MapContext(this);
+        ctx.Reset(x, z, -40f, -40f, 40f, 40f, withPoints: false);
+        string street = ""; float best = 25f;
+        foreach (var s in ctx.Segs)
+        {
+            if (s.Road.Name.Length == 0 || s.Road.IsRail || s.Road.IsTram) continue;
+            float d = s.Distance(0f, 0f, out _) - s.Hw;
+            if (d < best) { best = d; street = s.Road.Name; }
+        }
+        string number = "";
+        if (street.Length > 0)
+        {
+            float bd = 45f * 45f;
+            foreach (var r in ctx.Buildings)
+            {
+                var b = r.B;
+                if (b.Number.Length == 0 || b.Street != street) continue;
+                float dx = r.OffX + b.Cx, dz = r.OffZ + b.Cz, d = dx * dx + dz * dz;
+                if (d < bd) { bd = d; number = b.Number; }
+            }
+        }
+        MapPlace? local = null, town = null;
+        double ld = 1500 * 1500, vd = 3000 * 3000, td = 15000 * 15000;
+        foreach (var p in Data.Places)
+        {
+            double d = (p.X - x) * (p.X - x) + (p.Z - z) * (p.Z - z);
+            if (p.Rank is 3 or 5 or 6 && d < ld) { ld = d; local = p; }
+            else if (p.Rank is 2 or 4 && d < vd && (local == null || local.Rank is 2 or 4)) { vd = d; local = p; }
+            if (p.Rank <= 1 && d < td) { td = d; town = p; }
+        }
+        var parts = new System.Collections.Generic.List<string>();
+        if (street.Length > 0) parts.Add(number.Length > 0 ? $"{street} {number}" : street);
+        if (local != null && local.Name != town?.Name) parts.Add(street.Length > 0 ? local.Name : "near " + local.Name);
+        if (town != null) parts.Add(parts.Count == 0 ? "near " + town.Name : town.Name);
+        return string.Join(" · ", parts);
+    }
+
     public MapPlace? NearestPlace(double x, double z, double maxDist, int maxRank = 2)
     {
         MapPlace? best = null;

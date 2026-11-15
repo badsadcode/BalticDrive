@@ -236,4 +236,4 @@ def point_kind(tags):
     return None
 
 
-PLACE_RANK = {'city': 0, 'town': 1, 'village': 2, 'suburb': 3, 'hamlet': 4}
+PLACE_RANK = {'city': 0, 'town': 1, 'village': 2, 'suburb': 3, 'hamlet': 4, 'quarter': 5, 'neighbourhood': 6}

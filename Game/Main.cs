@@ -35,6 +35,8 @@ public partial class Main : Node3D
 	private CanvasLayer _ui = null!;
 	/// <summary>True while the free camera is in charge (F toggles; views tests and --fly start in it).</summary>
 	public bool Flying { get; private set; }
+	private string _where = "";
+	private ulong _whereAt;
 
 	public override void _Ready()
 	{
@@ -252,9 +254,10 @@ public partial class Main : Node3D
 		_camera.GroundHeight = _world.Height(fx, fz);
 		RenderingServer.GlobalShaderParameterSet("ocean_time", (float)(Time.GetTicksMsec() / 1000.0));
 		var (lat, lon) = Core.Projection.ToGeo(fx, fz);
-		var place = _world.NearestPlace(fx, fz, 15000);
+		// where am I (D33): street and number, district, town; worked out twice a second
+		if (Time.GetTicksMsec() > _whereAt) { _where = _world.WhereAmI(fx, fz); _whereAt = Time.GetTicksMsec() + 500; }
 		string speed = !Flying && _car != null ? $"{MathF.Abs(_car.Speed) * 3.6f:F0} km/h{(_car.OnRoad ? "" : " (off road)")}   " : "";
-		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {(place != null ? "near " + place.Name : "")}\n" +
+		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {_where}\n" +
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +

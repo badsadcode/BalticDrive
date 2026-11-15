@@ -1,4 +1,4 @@
-# Map packs, format 7
+# Map packs, format 8
 
 Written by `tools/osm_import/build.py`, read by `Game/Map/MapData.cs`. Little-endian throughout. Change both together
 and bump `FORMAT`.
@@ -27,7 +27,7 @@ Tile (tx, tz) covers world x ∈ [tx·2048, (tx+1)·2048), z ∈ [tz·2048, (tz+
 
 ## Tile blob
 
-`BDT7`, then:
+`BDT8` (format 7 tiles, `BDT7`, are the same without section 10 and still load), then:
 
 1. **Roads**: u32 count, each: class u8, flags u8 (1 bridge, 2 tunnel, 4 one-way, 8 unpaved, 16 lit, 32 rail,
    64 start cap, 128 end cap), flags2 u8 (1 starts at a junction surface, 2 ends at one, bits 2–5: lanes in the point direction on a
@@ -51,5 +51,9 @@ Tile (tx, tz) covers world x ∈ [tx·2048, (tx+1)·2048), z ∈ [tz·2048, (tz+
 7. **Land cover**: 512 × 512 u8, rows north to south.
 8. **Ground**: 257 × 257 u16 corner heights (natural ground with water beds carved in), rows north to south.
 9. **Water**: u8 flag; if 1: 257 × 257 u16 water surface heights, 0 = dry.
+10. **Names** (format 8, D33): u32 string count, each u8 byte length + UTF-8 (string 0 is empty: no name); u32 road
+    record count, then a u16 string index per road record (its street name, in record order, including records the
+    game skips); u32 building record count, then per building: OSM id i64 (ways positive, relations negative, 0
+    unknown), street u16 and house number u16 string indices (addr:street or addr:place, addr:housenumber).
 
 Class, flag, land-cover and kind numbers: `tools/osm_import/common.py` and the top of `MapData.cs`.
