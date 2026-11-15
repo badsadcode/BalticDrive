@@ -87,8 +87,7 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
     buildings already loaded around the player (MapContext), the route line, north marker; cheap per frame.
   - Map screen without pixels: keep the raster for zoomed-out views, switch to vector drawing per visible tile when
     zoomed in (roads as polylines by class, buildings as polygons, cached as 2D meshes per tile so panning stays fast).
-  - Street names on the map screen and the minimap (Tom: "pretty please"), drawn along the roads in the vector view;
-    needs road names in the tiles (same format change as below).
+  - Street names on the map screen: done, with a sharp vector map when zoomed in (D34). Still to do: the minimap.
   - Where am I, precisely: street name and nearest house number ("Karowa 14"), then the district or village, then the
     town. Needs road names and building addresses (addr:street, addr:housenumber) in the tiles (format change, map
     rebuild), and the place lookup to prefer the smallest nearby place (suburb, quarter, neighbourhood, village within

@@ -295,3 +295,14 @@ in map_road.gdshader wanders less (±5 cm, fine) instead of ±20 cm every ~1.5 m
 - **Where am I.** Places now include suburbs, hamlets, quarters and neighbourhoods. The HUD says the street and the
   nearest house number on it, then the district (within 1.5 km) or village (3 km), then the town:
   "Plac Konstytucji · Śródmieście Południowe · Warszawa". The map screen shows the small places only zoomed in.
+
+## D34 — Street names and a sharp map when zoomed in
+The map screen's picture is 8 m per pixel, blocky when zoomed in (Tom). From 5 m per screen pixel the map now draws
+each tile's roads (true width, class colours, minor first) as triangles in tile-local metres, cached per tile and
+drawn straight onto the canvas item with the tile's transform; from 2.5 m it also draws the building footprints and
+puts a land-cover-only version of the tile picture underneath (baked alongside the full one), so the old fat roads
+and blurry buildings do not show through. A closer zoom (1.25 m per pixel) was added. Street names (tile format 8,
+D33) are laid along the roads: main roads from 5 m per pixel, every named street from 2.5; one label per ~500 px of
+road at the middle of its stretch, turned along it and never upside down, outlined, skipped where it would collide
+with another label or repeat the same name within 350 px. Small places (quarters, neighbourhoods) show at 2.5 m and
+closer. The map self-test shoots the 1.25 and 5 m zooms.

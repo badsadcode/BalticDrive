@@ -171,12 +171,12 @@ public sealed class Tests
                     nav.SetDestination(new Vector2((float)Num(p[0]), (float)Num(p[1])), new Vector2((float)fx, (float)fz));
                 }
                 view.Toggle();
-                view.SetZoom(1);
+                view.SetZoom(0);   // closest: vector roads, buildings, every street name
             }
             _mapTime += delta;
             if (nav.Routing && _mapTime < 60) return;
             if (_mapTime < 1.5) return;
-            if (_mapTime < 100) { Shot("map_near"); view.SetZoom(3); _mapTime = 100; return; }
+            if (_mapTime < 100) { Shot("map_near"); view.SetZoom(2); _mapTime = 100; return; }
             if (_mapTime < 101.5) return;
             Shot("map_far");
             Log.Info("Test", $"map: route {(nav.Route != null ? $"{nav.Route.Length / 1000f:F1} km" : "none")}");
