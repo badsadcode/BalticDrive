@@ -777,6 +777,61 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>1 twin, sent home</li><li>10 fps in the background</li><li>0 tests that ever looked without a gun</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>20</strong></div>
+    <div>
+      <h2>Finally, a zapiekanka</h2>
+      <div class="date">15 November 2026, evening</div>
+      <p>The on-foot brief asked for a small survival loop: health, hunger and thirst, with "clear effects but no
+        tedious micromanagement". So there's no eating menu. Food and water you carry get used by themselves when you
+        start running low. Hunger and thirst only drop while you're on foot (a long drive shouldn't starve anyone),
+        faster if you sprint. Too thirsty and you can't sprint; an empty stomach slowly costs health; fed and watered,
+        you heal. H uses a medkit.</p>
+      <p>Supplies sit in crates, and where a crate turns up depends on the real map. As you walk, the game looks at
+        the shops, diners, pharmacies, petrol stations and police stations OpenStreetMap knows within 150 m, and some
+        of them get a crate on open ground nearby. What's inside follows the place: food at shops, medkits at
+        pharmacies, ammo at police stations, a hot dog at the petrol station. The same place always has the same luck.
+        And anything with "kebab" in its name hands out kebabs, because that was Tom's very first wish on foot.</p>
+      <figure class="photo">
+        <img src="img/crate-zapiekanka.webp" alt="Third-person view of the walker in a red hoodie beside a small grey crate in a shady green courtyard, with the note 'Found 2× zapiekanka (Mleczarnia Jerozolimska)' and health, food and water bars in the corner" loading="lazy">
+        <figcaption>A crate in the yard behind a real milk bar. Milk bars hand out zapiekanki.</figcaption>
+      </figure>
+      <p>Still 0 kebabs, though. The first crate the test found was by a milk bar. We'll take it.</p>
+      <ul class="facts"><li>45 minutes from full to hungry</li><li>30 minutes to thirsty</li><li>150 m: how far around you crates are looked for</li><li>2× zapiekanka</li><li>still 0 kebabs</li></ul>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>21</strong></div>
+    <div>
+      <h2>They shoot back</h2>
+      <div class="date">15 November 2026, night</div>
+      <p>The brief wanted human bandits rather than zombies: people who patrol, notice you, shoot from cover, react to
+        hits and come to investigate gunfire. No bullet sponges and no perfect aim. Now they exist. Out on foot, a group
+        of two or three sometimes appears out of sight, 90 to 150 metres away. It's never more than one group at a time,
+        and never two fights in a row. (Press B and a group appears just ahead.)</p>
+      <figure class="photo">
+        <img src="img/bandit-close.webp" alt="Two third-person views on a wide street: on the left a bandit in a green jacket holds a rifle low across his body, on the right he has raised it and bullets kick up dust around the player, the screen tinted red" loading="lazy">
+        <figcaption>Relaxed, then not. The red edge means you've been hit.</figcaption>
+      </figure>
+      <p>They're built from the same parts as you. They walk with the same animations, their hands are put on their
+        guns by the same arm code as your first-person arms, and their bullets are the same bullets as yours, with
+        travel time and drop. A bandit sees you if you're in front of him with a clear line, sooner up close and later
+        if you crouch. Your shots carry 150 m, and the first one to spot you calls in his mates. Then they run for
+        cover, pop up for a burst and duck down again.</p>
+      <p>The first version was a massacre. Three of them took Tom's walker from full health to the floor in about
+        two seconds, before the test had even fired back. Now their first burst goes wide, their aim never settles
+        completely, and they hit for less than you do. A Mosin round drops one; with the AK it's three body hits or
+        one to the head. Afterwards you can search the bodies for ammo, and sometimes a tin of beans.</p>
+      <figure class="photo r">
+        <img src="img/bandit-down.webp" alt="First-person view down the AK's sights along a wide street, a bandit falling in the distance and the note 'bandit down (head), 30 m'" loading="lazy">
+        <figcaption>30 metres.</figcaption>
+      </figure>
+      <p>Along the way: every bandit used to set off walking toward the map's origin point in the Baltic Sea. One
+        of them turned out to be wearing a police uniform. And the dead dropped into T-poses. All fixed.</p>
+      <ul class="facts"><li>2–3 bandits per group</li><li>70 m: how far they see</li><li>150 m: how far they hear</li><li>30 %: how hard they hit, compared to you</li><li>1 policeman, retired</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
@@ -791,7 +846,7 @@ footer a { color: var(--sign); }
       </div>
     </div>
     <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).
-      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car and walker in the screenshots: Synty POLYGON City; animations: Synty Base Locomotion; guns: Synty POLYGON War and POLYGON Battle Royale; targets: Synty POLYGON Gang Warfare and City.
+      Elevation © <a href="https://www.geoportal.gov.pl/">GUGiK</a>. Car and walker in the screenshots: Synty POLYGON City; animations: Synty Base Locomotion; guns: Synty POLYGON War and POLYGON Battle Royale; targets: Synty POLYGON Gang Warfare and City; crates: Synty POLYGON Battle Royale.
       Placeholder models: Quaternius (CC0). Trees, sky and clouds: Thornwake. Title art and logo: Bad Ideas Works. Made with Godot.
       <a href="https://github.com/badsadcode/BalticDrive">Source on GitHub</a>.</p>
   </div>
