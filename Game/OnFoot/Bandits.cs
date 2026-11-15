@@ -80,29 +80,13 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         // the gun, as the player's: the model turned to look down -Z and scaled to metres
         _holder = new Node3D { Name = "Gun" };
         AddChild(_holder);
-        if (ResourceLoader.Exists(Gun.Scene) && ResourceLoader.Load<PackedScene>(Gun.Scene) is { } ps)
-        {
-            var inst = ps.Instantiate<Node3D>();
-            foreach (var body in inst.FindChildren("*", "CollisionObject3D", true, false)) body.Free();
-            foreach (var part in inst.GetChildren().OfType<MeshInstance3D>())
-                if (!part.Basis.Orthonormalized().IsEqualApprox(Basis.Identity)) part.Basis = Basis.Identity;
-            if (Gun.Texture != null && ResourceLoader.Load<Texture2D>(Gun.Texture) is { } tex)
-            {
-                var mat = new StandardMaterial3D { AlbedoTexture = tex, Roughness = 0.6f };
-                foreach (var mi in inst.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>()) mi.MaterialOverride = mat;
-            }
-            var flashPart = inst.FindChild("*Flash*", true, false) as Node3D;
-            if (flashPart != null) flashPart.Visible = false;
-            var model = new Node3D { Scale = Vector3.One * Gun.Scale, RotationDegrees = new Vector3(0, 180, 0) };
-            model.AddChild(inst);
-            _holder.AddChild(model);
-        }
+        if (GunModel.Make(Gun) is { } model) _holder.AddChild(model);
         _flash = new OmniLight3D { LightColor = new Color(1f, 0.75f, 0.4f), LightEnergy = 0, OmniRange = 5 };
         _holder.AddChild(_flash);
         _flash.Position = new Vector3(-Gun.Muzzle.X, Gun.Muzzle.Y, -Gun.Muzzle.Z) * Gun.Scale;
         if (skel != null)
         {
-            _hold = new GunHold(skel, this);
+            _hold = new GunHold(skel, () => GunHold.Goals(_holder, Gun));
             skel.AddChild(_hold);
         }
         _yaw = (float)(_rng.NextDouble() * Math.Tau);
@@ -379,18 +363,6 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _holder.GlobalTransform = _holder.GlobalTransform.InterpolateWith(t, 1f - MathF.Exp(-14f * dt));
     }
 
-    /// <summary>The hand goals for the gun as it is now (read by <see cref="GunHold"/>).</summary>
-    public (HandGoal Right, HandGoal Left) HandGoals()
-    {
-        var b = _holder.GlobalTransform.Basis.Orthonormalized();
-        Vector3 F = -b.Z, U = b.Y, R = b.X;
-        Vector3 Local(Vector3 m) => _holder.ToGlobal(new Vector3(-m.X, m.Y, -m.Z) * Gun.Scale);
-        var right = new HandGoal(Local(Gun.RightGrip), F - U * 0.3f, -R, -U + R * 0.8f + b.Z * 0.3f, 0.9f);
-        var left = Gun.TwoHandedPistol
-            ? new HandGoal(Local(Gun.LeftGrip), F * 0.8f + R * 0.3f - U * 0.25f, R, -U - R * 0.6f, 0.85f)
-            : new HandGoal(Local(Gun.LeftGrip), F * 0.7f + R * 0.5f, U * 0.8f + R * 0.4f, -U - R * 0.5f, 0.8f);
-        return (right, left);
-    }
 
     private void Animate(float dt)
     {
@@ -421,15 +393,18 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     public float DeadFor => _deadTime;
 }
 
-/// <summary>Puts a bandit's hands on its gun after the walking animation has posed the skeleton (D47).</summary>
+/// <summary>
+/// Puts a character's hands on its gun after the walking animation has posed the skeleton (D47; bandits, and the
+/// walker in third person, D49).
+/// </summary>
 public sealed partial class GunHold : SkeletonModifier3D
 {
     private readonly ArmIk _right, _left;
-    private readonly Bandit _b;
+    private readonly Func<(HandGoal Right, HandGoal Left)?> _goals;
 
-    public GunHold(Skeleton3D s, Bandit b)
+    public GunHold(Skeleton3D s, Func<(HandGoal Right, HandGoal Left)?> goals)
     {
-        _b = b;
+        _goals = goals;
         _right = new ArmIk(s, "Right");
         _left = new ArmIk(s, "Left");
         Name = "GunHold";
@@ -437,10 +412,46 @@ public sealed partial class GunHold : SkeletonModifier3D
 
     public override void _ProcessModificationWithDelta(double delta)
     {
-        if (!_right.Ok || !_left.Ok) return;
-        var (r, l) = _b.HandGoals();
-        _right.Solve(r);
-        _left.Solve(l);
+        if (!_right.Ok || !_left.Ok || _goals() is not { } g) return;
+        _right.Solve(g.Right);
+        _left.Solve(g.Left);
+    }
+
+    /// <summary>The hands' goals for a gun held by <paramref name="holder"/> (barrel along the holder's -Z): the right
+    /// on the grip, the left on the handguard, or cupping the right on a pistol.</summary>
+    public static (HandGoal Right, HandGoal Left) Goals(Node3D holder, WeaponDef gun)
+    {
+        var b = holder.GlobalTransform.Basis.Orthonormalized();
+        Vector3 F = -b.Z, U = b.Y, R = b.X;
+        Vector3 Local(Vector3 m) => holder.ToGlobal(new Vector3(-m.X, m.Y, -m.Z) * gun.Scale);
+        var right = new HandGoal(Local(gun.RightGrip), F - U * 0.3f, -R, -U + R * 0.8f + b.Z * 0.3f, 0.9f);
+        var left = gun.TwoHandedPistol
+            ? new HandGoal(Local(gun.LeftGrip), F * 0.8f + R * 0.3f - U * 0.25f, R, -U - R * 0.6f, 0.85f)
+            : new HandGoal(Local(gun.LeftGrip), F * 0.7f + R * 0.5f, U * 0.8f + R * 0.4f, -U - R * 0.5f, 0.8f);
+        return (right, left);
+    }
+}
+
+/// <summary>A gun's model for someone to hold (D47, D49): turned to look down -Z, scaled to metres, parts squared up
+/// (D40), no collision, muzzle flash part hidden.</summary>
+public static class GunModel
+{
+    public static Node3D? Make(WeaponDef gun)
+    {
+        if (!ResourceLoader.Exists(gun.Scene) || ResourceLoader.Load<PackedScene>(gun.Scene) is not { } ps) return null;
+        var inst = ps.Instantiate<Node3D>();
+        foreach (var body in inst.FindChildren("*", "CollisionObject3D", true, false)) body.Free();
+        foreach (var part in inst.GetChildren().OfType<MeshInstance3D>())
+            if (!part.Basis.Orthonormalized().IsEqualApprox(Basis.Identity)) part.Basis = Basis.Identity;
+        if (gun.Texture != null && ResourceLoader.Load<Texture2D>(gun.Texture) is { } tex)
+        {
+            var mat = new StandardMaterial3D { AlbedoTexture = tex, Roughness = 0.6f };
+            foreach (var mi in inst.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>()) mi.MaterialOverride = mat;
+        }
+        if (inst.FindChild("*Flash*", true, false) is Node3D flash) flash.Visible = false;
+        var model = new Node3D { Scale = Vector3.One * gun.Scale, RotationDegrees = new Vector3(0, 180, 0) };
+        model.AddChild(inst);
+        return model;
     }
 }
 

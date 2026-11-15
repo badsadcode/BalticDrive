@@ -29,6 +29,8 @@ namespace BalticDrive;
 /// you and fight (their states and your health logged), then shoot back with the AK, then search a body.</item>
 /// <item><c>--autotest=banditlook</c> — one bandit 6 m ahead, photographed relaxed and then aiming at you (how they
 /// hold their guns).</item>
+/// <item><c>--autotest=tpgun</c> — third person with each gun (D49): standing, walking, sprinting, firing, seen
+/// from the side.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -93,6 +95,7 @@ public sealed class Tests
         _loot = Main.Args.GetValueOrDefault("autotest", "").Contains("loot");
         _banditTest = Main.Args.GetValueOrDefault("autotest", "").Split(',').Contains("bandits");
         _banditLook = Main.Args.GetValueOrDefault("autotest", "").Contains("banditlook");
+        _tpGun = Main.Args.GetValueOrDefault("autotest", "").Contains("tpgun");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -254,8 +257,46 @@ public sealed class Tests
         }
     }
 
-    private bool _banditLook;
+    private bool _banditLook, _tpGun;
+    private double _tpTime = -1;
     private double _lookTime = -1;
+
+    /// <summary>The gun in the walker's hands in third person (D49).</summary>
+    private void TpGunTest(double delta)
+    {
+        if (_tpTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _tpGun = false; return; }
+            _tpTime = 0;
+            var wk = _main.Walker!;
+            wk.SetView(false);
+            wk.Autopilot = w =>
+            {
+                double t = _tpTime % 6;
+                return t < 1.5 ? (Vector2.Zero, false) : t < 3 ? (new Vector2(0, 0.45f), false) : t < 4.5 ? (new Vector2(0, 1), true) : (Vector2.Zero, false);
+            };
+            return;
+        }
+        var w = _main.Walker!;
+        var g = w.Guns;
+        double before = _tpTime;
+        _tpTime += delta;
+        bool Now(double t) => before < t && _tpTime >= t;
+        string[] guns = { "ak", "pistol", "mosin" };
+        int i = (int)(_tpTime / 6);
+        if (i >= guns.Length) { w.Autopilot = null; g.TestTrigger = false; Log.Info("Test", "tpgun: done"); _tpGun = false; return; }
+        double l = _tpTime - i * 6, b = before - i * 6;
+        bool At(double x) => b < x && l >= x;
+        if (g.Current?.Id != guns[i] && l < 0.5) g.Equip(guns[i]);
+        w.CameraOrbit = 1.35f;   // from the side
+        if (At(1.0)) Shot($"tpgun_{guns[i]}_stand");
+        if (At(2.6)) Shot($"tpgun_{guns[i]}_walk");
+        if (At(4.2)) Shot($"tpgun_{guns[i]}_sprint");
+        if (At(4.8)) g.TestTrigger = true;
+        if (At(5.0)) { Shot($"tpgun_{guns[i]}_fire"); g.TestTrigger = false; }
+        if (At(5.5)) Log.Info("Test", $"tpgun: {guns[i]}: {g.Status}, first person {w.FirstPerson}");
+    }
 
     /// <summary>A close look at one bandit (D47): the gun low, then shouldered at the player.</summary>
     private void BanditLook(double delta)
@@ -469,6 +510,7 @@ public sealed class Tests
         if (_loot && _main.Car != null) { LootTest(delta); return; }
         if (_banditTest && _main.Car != null) { BanditTest(delta); return; }
         if (_banditLook && _main.Car != null) { BanditLook(delta); return; }
+        if (_tpGun && _main.Car != null) { TpGunTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

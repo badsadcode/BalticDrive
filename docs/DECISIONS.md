@@ -580,3 +580,25 @@ check (D27) didn't stop it either, because it treats a zero-length piece as neve
 * The F9 dump now lists the pavement pieces within 25 m: which sides were kept or blocked, and the free space beside
   the kerb along each. `--views=... --dump` writes a dump at each view from a self-test.
 Fixed in the game, so existing map packs benefit. The importer could also drop duplicate points at the next rebuild.
+
+## D49 — The gun in your hands in third person (Tom: "carrying a gun and not seeing it looks weird")
+
+With a gun out, the walker now holds it in third person too. These are the bandits' parts (D47), shared:
+* `GunModel.Make`: the gun's own model.
+* `GunHold.Goals`: where the hands go on it.
+* `GunHold`: the modifier that puts the hands there after the walking animation.
+
+How it's held:
+* at the ready, across the chest and pointing forward and down;
+* lower while sprinting;
+* brought up to the shoulder toward where the camera looks for half a second after each shot (`Weapons.Firing`);
+* aiming still switches to first person, as the brief says.
+
+With a gun out the body faces where you look and strafes, using the strafe and back clips, instead of turning to
+run wherever you go. Without a gun it turns to its direction of travel as before.
+
+Also fixed: since the change that leaves the mouse free in test runs (D47), V, Esc and H did nothing on foot. An
+`else` attached to the wrong `if` because of a missing pair of braces. The walk test now presses V and H through
+Godot's input, as a player would.
+
+`--autotest=tpgun`: each gun in third person (standing, walking, sprinting, firing), seen from the side.

@@ -127,7 +127,16 @@ public partial class Walker : CharacterBody3D, IHittable
         // the shared rig (D47): the hoodie guy with the locomotion clips, or a procedural walk without them
         var (skel, tree) = CharacterRig.Build(_model, "Character_Male_Hoodie", out _cycle);
         _tree = tree;
-        if (skel != null) return;
+        _skel = skel;
+        if (skel != null)
+        {
+            // the gun in the hands, seen in third person (D49): its own model, the hands put on it after the animation
+            _tpGun = new Node3D { Name = "TpGun", Visible = false };
+            AddChild(_tpGun);
+            _tpHold = new GunHold(skel, () => _tpDef != null && _tpGun.Visible ? GunHold.Goals(_tpGun, _tpDef) : null) { Active = false };
+            skel.AddChild(_tpHold);
+            return;
+        }
         // no licensed pack: a plain capsule stands in
         _model.AddChild(new MeshInstance3D
         {
@@ -135,6 +144,49 @@ public partial class Walker : CharacterBody3D, IHittable
             Position = new Vector3(0, Height * 0.5f, 0),
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.25f, 0.3f, 0.45f) },
         });
+    }
+
+    private Skeleton3D? _skel;
+    private Node3D? _tpGun;
+    private GunHold? _tpHold;
+    private WeaponDef? _tpDef;
+    private float _shoulder;
+
+    /// <summary>The gun out of first person (D49): carried at the ready across the chest, lower when sprinting,
+    /// brought up to the shoulder toward where the camera looks while firing. Its own model, swapped with the gun.</summary>
+    private void UpdateThirdPersonGun(float dt)
+    {
+        if (_tpGun == null) return;
+        var def = Guns.Current;
+        bool show = def != null && Active && !FirstPerson && !_aimOverride;
+        if (def != _tpDef)
+        {
+            foreach (var c in _tpGun.GetChildren()) c.QueueFree();
+            _tpDef = def;
+            if (def != null && GunModel.Make(def) is { } m)
+            {
+                _tpGun.AddChild(m);
+                foreach (var gi in m.FindChildren("*", "GeometryInstance3D", true, false).OfType<GeometryInstance3D>())
+                    gi.CastShadow = GeometryInstance3D.ShadowCastingSetting.On;
+            }
+        }
+        _tpGun.Visible = show;
+        if (_tpHold != null) _tpHold.Active = show;
+        if (!show || def == null) return;
+        // firing raises it for a moment
+        _shoulder = Guns.Firing ? 1f : Mathf.MoveToward(_shoulder, 0f, dt / 0.8f);
+        float sprint = Speed > RunSpeed + 0.5f ? 1f : 0f;
+        var body = new Basis(Vector3.Up, _bodyYaw);
+        var chest = GlobalPosition + Vector3.Up * (Crouching ? 0.95f : 1.32f);
+        // at the ready: forward and down from the chest; shouldered: along the look, from the right shoulder
+        float pitch = Mathf.Lerp(-0.45f - 0.35f * sprint, _pitch, _shoulder);
+        var look = body * new Basis(Vector3.Right, pitch);
+        bool pistol = def.TwoHandedPistol;
+        var at = chest + body * new Vector3(pistol ? 0.02f : 0.1f, Mathf.Lerp(-0.05f, 0.12f, _shoulder), -0.28f - (pistol ? 0.12f : 0f) - 0.1f * _shoulder);
+        // the rear of a rifle sits at the hold point, a pistol's grip at arm's length
+        var grip = new Vector3(-def.RightGrip.X, def.RightGrip.Y, -def.RightGrip.Z) * def.Scale;
+        var t = new Transform3D(look, at - look * grip);
+        _tpGun.GlobalTransform = dt > 0 ? _tpGun.GlobalTransform.InterpolateWith(t, 1f - MathF.Exp(-16f * dt)) : t;
     }
 
     private void UpdateAnimations(float dt)
@@ -233,7 +285,8 @@ public partial class Walker : CharacterBody3D, IHittable
         Speed = new Vector2(Velocity.X, Velocity.Z).Length();
 
         // the body turns toward where it walks (third person), or with the camera (first person)
-        if (FirstPerson || _aimOverride) _bodyYaw = Yaw;
+        // first person, aiming, or a gun out: the body faces where you look and strafes (D49)
+        if (FirstPerson || _aimOverride || Guns.Current != null) _bodyYaw = Mathf.LerpAngle(_bodyYaw, Yaw, FirstPerson || _aimOverride ? 1f : 1f - MathF.Exp(-12f * dt));
         else if (Speed > 0.3f) _bodyYaw = Mathf.LerpAngle(_bodyYaw, MathF.Atan2(-Velocity.X, -Velocity.Z), 1f - MathF.Exp(-10f * dt));
         Rotation = new Vector3(0, _bodyYaw, 0);
     }
@@ -253,6 +306,7 @@ public partial class Walker : CharacterBody3D, IHittable
         UpdateCamera((float)delta);
         _cycle?.Update((float)delta, Speed, Crouching, IsOnFloor());
         UpdateAnimations((float)delta);
+        UpdateThirdPersonGun((float)delta);
     }
 
     private void UpdateCamera(float dt)

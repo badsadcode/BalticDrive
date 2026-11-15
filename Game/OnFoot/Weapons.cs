@@ -68,6 +68,9 @@ public partial class Weapons : Node3D
     public bool Aiming { get; private set; }
     public string Status => _def == null ? "" : $"{_def.Name}  {_ammo[_def.Id].Mag} / {_ammo[_def.Id].Reserve}" + (_reload >= 0 ? "  reloading" : _needBolt ? "  (bolt)" : "");
     public WeaponDef? Current => _def;
+    /// <summary>Shot within the last half second (the third-person gun comes up to the shoulder, D49).</summary>
+    public bool Firing => Time.GetTicksMsec() - _lastShotMs < 500;
+    private ulong _lastShotMs;
     /// <summary>Self-tests: hold the trigger / the aim from code.</summary>
     public bool TestTrigger, TestAim;
     /// <summary>Self-tests: shots fired, bullets that hit something, the last hit (where, what, how far, flight time).</summary>
@@ -422,6 +425,7 @@ public partial class Weapons : Node3D
         });
         Shot?.Invoke(from, d);
         Fired++;
+        _lastShotMs = Time.GetTicksMsec();
         // recoil: the view climbs and wanders, the gun punches back and up
         _w.AddRecoil(d.RecoilPitch * (float)GD.RandRange(0.8, 1.2), d.RecoilYaw * (float)GD.RandRange(-1.0, 1.0));
         _kickPos += new Vector3(0, 0.01f, d.Kick);
