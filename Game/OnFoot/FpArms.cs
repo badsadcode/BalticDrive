@@ -134,6 +134,12 @@ public sealed partial class FpArms : Node3D
         var restDir = (handAtRest * s.GetBoneRest(a.Mid).Origin).Normalized();
         var restPalm = (gLo * restHand.Basis * (s.GetBoneGlobalRest(a.Hand).Basis.Inverse() * Vector3.Down)).Normalized();
         var gHand = Frame(dir, palm) * Frame(restDir, restPalm).Transposed() * handAtRest;
+        // the roll about the forearm goes into the forearm, not the wrist: a real forearm twists along its length
+        // (the radius turns over the ulna); all of it at the wrist pinches the skin like a sweet wrapper (Tom spotted it)
+        var delta = ((gLo.Inverse() * gHand).Orthonormalized() * restHand.Basis.Orthonormalized().Inverse()).GetRotationQuaternion();
+        var twist = Twist(delta, restHand.Origin.Normalized());
+        gLo *= new Basis(Quaternion.Identity.Slerp(twist, 0.8f));
+        s.SetBonePoseRotation(a.Lo, (gUp.Inverse() * gLo).Orthonormalized().GetRotationQuaternion());
         s.SetBonePoseRotation(a.Hand, (gLo.Inverse() * gHand).Orthonormalized().GetRotationQuaternion());
 
         // fingers: each joint bends a little more toward the palm (the bends add up along the finger); the chain is
@@ -161,6 +167,15 @@ public sealed partial class FpArms : Node3D
         var g = new Basis(axis, angle) * parentG * s.GetBoneRest(bone).Basis;
         s.SetBonePoseRotation(bone, (parentG.Inverse() * g).Orthonormalized().GetRotationQuaternion());
         return g.Orthonormalized();
+    }
+
+    /// <summary>The twist part of <paramref name="q"/> about <paramref name="axis"/> (swing-twist decomposition).</summary>
+    private static Quaternion Twist(Quaternion q, Vector3 axis)
+    {
+        var v = new Vector3(q.X, q.Y, q.Z);
+        var p = axis * v.Dot(axis);
+        var t = new Quaternion(p.X, p.Y, p.Z, q.W);
+        return t.LengthSquared() < 1e-10f ? Quaternion.Identity : t.Normalized();
     }
 
     /// <summary>The rotation turning <paramref name="from"/> onto <paramref name="to"/> (shortest arc).</summary>

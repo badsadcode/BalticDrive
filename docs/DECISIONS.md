@@ -440,3 +440,11 @@ Bullets now do something to what they hit, through one interface the bandits wil
 * `--autotest=range` shoots every target, the 100 m plate with the Mosin. First run: 12 shots, 12 hits.
 * `tools/synty_copy.py` copies chosen prefabs and everything they reference out of a pack zip into the git-ignored
   `Assets/Synty/<Pack>/`, with a licence note.
+
+## D43 — The wrist's twist goes into the forearm (Tom's catch)
+
+Tom noticed the left wrist pinched thin in first person. The IK turned each bone the shortest way, so all of the
+hand's roll about the forearm sat at the wrist joint, and the skin twisted like a sweet wrapper. Now the hand's
+rotation is split into swing and twist about the forearm axis, and 80 % of the twist moves into the forearm bone.
+That's what a real forearm does: the radius turns over the ulna along its whole length. The wrist keeps the swing
+and a little twist. Checked side by side in screenshots: the forearm keeps its thickness up to the hand.
