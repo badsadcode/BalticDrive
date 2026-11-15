@@ -40,6 +40,26 @@ public partial class Main : Node3D
 	private string _where = "";
 	private bool _minimapOn = true;
 	private ulong _whereAt;
+	private int _focusedMaxFps = -1;
+
+	/// <summary>
+	/// Polite in the background (D44, Tom's humming GPU): with the window out of focus the game drops to 10 frames a
+	/// second, and gets its own limit back when it has the focus again. Self-tests keep full speed.
+	/// </summary>
+	public override void _Notification(int what)
+	{
+		if (_tests != null) return;
+		if (what == NotificationApplicationFocusOut && _focusedMaxFps < 0)
+		{
+			_focusedMaxFps = Engine.MaxFps;
+			Engine.MaxFps = 10;
+		}
+		else if (what == NotificationApplicationFocusIn && _focusedMaxFps >= 0)
+		{
+			Engine.MaxFps = _focusedMaxFps;
+			_focusedMaxFps = -1;
+		}
+	}
 
 	public override void _Ready()
 	{

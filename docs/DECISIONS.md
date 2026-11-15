@@ -448,3 +448,9 @@ hand's roll about the forearm sat at the wrist joint, and the skin twisted like 
 rotation is split into swing and twist about the forearm axis, and 80 % of the twist moves into the forearm bone.
 That's what a real forearm does: the radius turns over the ulna along its whole length. The wrist keeps the swing
 and a little twist. Checked side by side in screenshots: the forearm keeps its thickness up to the hand.
+
+## D44 — Quiet in the background (Tom's humming GPU)
+
+Tom leaves the game running behind other windows. With the window out of focus, Baltic Drive now caps itself at
+10 fps (`Engine.MaxFps`), and restores its own limit when the focus comes back. Self-tests are exempt: they often
+run unfocused and must run at full speed. The world keeps simulating; it is only drawn less often.
