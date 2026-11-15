@@ -32,10 +32,12 @@ public partial class Main : Node3D
 	private Car? _car;
 	private Navigation? _nav;
 	private MapScreen? _mapScreen;
+	private Minimap? _minimap;
 	private CanvasLayer _ui = null!;
 	/// <summary>True while the free camera is in charge (F toggles; views tests and --fly start in it).</summary>
 	public bool Flying { get; private set; }
 	private string _where = "";
+	private bool _minimapOn = true;
 	private ulong _whereAt;
 
 	public override void _Ready()
@@ -96,6 +98,16 @@ public partial class Main : Node3D
 		var gps = new GpsHud { Name = "Gps" };
 		_ui.AddChild(gps);
 		gps.Setup(_nav);
+		// the round radar in the corner (D35)
+		_minimap = new Minimap { Name = "Minimap" };
+		_ui.AddChild(_minimap);
+		_minimap.Setup(_world, _nav, () =>
+		{
+			var (x, z) = Focus;
+			var f = !Flying && _car != null ? -_car.GlobalTransform.Basis.Z : -_camera.GlobalTransform.Basis.Z;
+			var d = new Vector2(f.X, f.Z);
+			return (x, z, d.LengthSquared() > 1e-4f ? d.Normalized() : new Vector2(0, -1), !Flying && _car != null ? _car.Speed * 3.6f : 0f);
+		});
 		_mapScreen = new MapScreen { Name = "MapScreen" };
 		_ui.AddChild(_mapScreen);
 		_mapScreen.Setup(_world, _nav, () =>
@@ -189,6 +201,12 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.N } && _minimap != null)
+		{
+			_minimapOn = !_minimapOn;
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.M } && _mapScreen != null && !_mapScreen.Visible)
 		{
 			_mapScreen.Toggle();
@@ -262,10 +280,11 @@ public partial class Main : Node3D
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
-					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
+					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster" : "F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
 		if (_note != null && _note.Visible && Time.GetTicksMsec() / 1000.0 > _noteUntil) _note.Visible = false;
+		if (_minimap != null) _minimap.Visible = _minimapOn && !(_mapScreen?.Visible ?? false);
 	}
 
 	private Label? _note;

@@ -306,3 +306,12 @@ D33) are laid along the roads: main roads from 5 m per pixel, every named street
 road at the middle of its stretch, turned along it and never upside down, outlined, skipped where it would collide
 with another label or repeat the same name within 350 px. Small places (quarters, neighbourhoods) show at 2.5 m and
 closer. The map self-test shoots the 1.25 and 5 m zooms.
+
+## D35 — The minimap
+A round radar in the bottom-left corner (Tom: GTA style), on the map's vector layer, which moved into
+`Game/UI/MapVectors.cs` (per-tile road and building triangles, street-label placement) and is shared with the map
+screen. Ahead is up; the scale eases from 2.2 m per pixel parked to 4.5 at motorway speed; roads are drawn 1.8 times
+their width (at least 8 m) and buildings always, so it reads at a glance; the GPS route, street names (placed four
+times a second, drawn turned with the map each frame), a north mark and your arrow. The disc is a Control drawing a
+filled circle with ClipChildren = Only, so the map drawn by its child is clipped round; the ring and the marks sit in
+a sibling above it. N hides and shows it; it hides while the big map is open.

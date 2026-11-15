@@ -344,7 +344,7 @@ public partial class MapScreen : Control
             int tx = (int)(key >> 32), tz = (int)(uint)key;
             if (tx < tx0 - 2 || tx > tx1 + 2 || tz < tz0 - 2 || tz > tz1 + 2) drop.Add(key);
         }
-        foreach (long key in drop) { _textures.Remove(key); _land.Remove(key); _vectors.Remove(key); }
+        foreach (long key in drop) { _textures.Remove(key); _land.Remove(key); _vec.Forget(key); }
     }
 
     // ---- baking (worker thread) -------------------------------------------------------------
@@ -410,69 +410,11 @@ public partial class MapScreen : Control
         return (px, land);
     }
 
-    // ---- vector layer (D34) ----------------------------------------------------------------------------------
+    // ---- vector layer (D34, shared with the minimap: MapVectors) ------------------------------------------------
 
-    private readonly Dictionary<long, (Tris? Roads, Tris? Buildings)> _vectors = new();
-
-    /// <summary>Triangles in tile-local metres, drawn straight onto the canvas item.</summary>
-    private sealed record Tris(Vector2[] Points, Color[] Colors, int[] Indices);
-    private readonly List<Rect2> _labels = new();
-    private readonly Dictionary<string, List<Vector2>> _labelled = new();
-
-    private static Color RoadColour(MapRoad r) =>
-        r.IsRail ? new Color(0.08f, 0.08f, 0.09f)
-        : r.Cls <= RoadClass.Trunk ? new Color(0.91f, 0.59f, 0.27f)
-        : r.Cls <= RoadClass.Secondary ? new Color(0.89f, 0.81f, 0.51f)
-        : r.Cls <= RoadClass.Residential || r.Cls == RoadClass.Link ? new Color(0.75f, 0.74f, 0.71f)
-        : r.Unpaved ? new Color(0.52f, 0.45f, 0.36f) : new Color(0.59f, 0.58f, 0.56f);
-
-    /// <summary>A tile's roads and buildings as 2D meshes in tile-local metres (built once, drawn at any zoom).</summary>
-    private (Tris? Roads, Tris? Buildings) Vectors(MapTile tile, long key)
-    {
-        if (_vectors.TryGetValue(key, out var v)) return v;
-        var rv = new List<Vector2>(); var rc = new List<Color>();
-        // minor roads first, so the main ones end up on top
-        for (int pass = 0; pass < 3; pass++)
-            foreach (var r in tile.Roads)
-            {
-                int rank = r.IsRail ? 0 : r.Cls <= RoadClass.Secondary ? 2 : 1;
-                if (rank != pass || r.IsTram || r.X.Length < 2) continue;
-                var col = RoadColour(r);
-                float hw = r.IsRail ? 1.2f : MathF.Max(r.HalfWidth, 2f);
-                for (int k = 0; k + 1 < r.X.Length; k++)
-                {
-                    var a = new Vector2(r.X[k], r.Z[k]); var b = new Vector2(r.X[k + 1], r.Z[k + 1]);
-                    var d = b - a; float len = d.Length();
-                    if (len < 0.05f) continue;
-                    var n = new Vector2(-d.Y, d.X) / len * hw;
-                    var e = d / len * MathF.Min(hw, len * 0.5f);   // a little past each end: closes the gaps at bends
-                    rv.Add(a - e + n); rv.Add(b + e + n); rv.Add(b + e - n);
-                    rv.Add(a - e + n); rv.Add(b + e - n); rv.Add(a - e - n);
-                    for (int c = 0; c < 6; c++) rc.Add(col);
-                }
-            }
-        var bv = new List<Vector2>();
-        foreach (var b in tile.Buildings)
-        {
-            if (b.Ghost) continue;
-            var ring = new Vector2[b.RX[0].Length];
-            for (int i = 0; i < ring.Length; i++) ring[i] = new Vector2(b.RX[0][i], b.RZ[0][i]);
-            var tri = Geometry2D.TriangulatePolygon(ring);
-            foreach (int i in tri) bv.Add(ring[i]);
-        }
-        v = (Pack(rv, rc, default), Pack(bv, null, new Color(0.47f, 0.42f, 0.38f)));
-        _vectors[key] = v;
-        if (_vectors.Count > 64)
-            foreach (var k in _vectors.Keys.Where(k => k != key).Take(_vectors.Count - 48).ToList()) _vectors.Remove(k);
-        return v;
-    }
-
-    private static Tris? Pack(List<Vector2> vs, List<Color>? cs, Color fill)
-    {
-        if (vs.Count == 0) return null;
-        var cols = cs != null ? cs.ToArray() : Enumerable.Repeat(fill, vs.Count).ToArray();
-        return new Tris(vs.ToArray(), cols, Enumerable.Range(0, vs.Count).ToArray());
-    }
+    private readonly MapVectors _vec = new();
+    private readonly StreetLabels _labeller = new();
+    private readonly List<StreetLabels.Label> _labelList = new();
 
     private void DrawVectors(int tx0, int tx1, int tz0, int tz1, double focusX, double focusZ, float mpp, Vector2 size)
     {
@@ -483,18 +425,15 @@ public partial class MapScreen : Control
                 if (!_map.Data.HasTile(tx, tz) || !_textures.ContainsKey(TileKey(tx, tz))) continue;
                 var tile = _map.Data.Tile(tx, tz);
                 tiles.Add(tile);
-                var (roads, buildings) = Vectors(tile, TileKey(tx, tz));
+                var (roads, buildings) = _vec.Get(tile);
                 var xf = new Transform2D(new Vector2(1f / mpp, 0), new Vector2(0, 1f / mpp),
                     new Vector2((float)((tile.OriginX - focusX) / mpp) + size.X * 0.5f, (float)((tile.OriginZ - focusZ) / mpp) + size.Y * 0.5f));
-                DrawSetTransformMatrix(xf);
-                var ci = GetCanvasItem();
-                if (buildings != null && mpp <= 2.5f) RenderingServer.CanvasItemAddTriangleArray(ci, buildings.Indices, buildings.Points, buildings.Colors);
-                if (roads != null) RenderingServer.CanvasItemAddTriangleArray(ci, roads.Indices, roads.Points, roads.Colors);
-                DrawSetTransform(Vector2.Zero, 0, Vector2.One);
+                MapVectors.Draw(this, roads, mpp <= 2.5f ? buildings : null, xf);
             }
         // street names along the roads: main roads from 5 m per pixel, every named street from 2.5
-        _labels.Clear(); _labelled.Clear();
+        _labeller.Clear(); _labelList.Clear();
         int fs = mpp <= 1.25f ? 14 : 12;
+        bool Inside(Vector2 p) => p.X >= 20 && p.Y >= 20 && p.X <= size.X - 20 && p.Y <= size.Y - 20;
         foreach (var tile in tiles)
             foreach (var r in tile.Roads)
             {
@@ -503,45 +442,9 @@ public partial class MapScreen : Control
                 var pts = new Vector2[r.X.Length];
                 for (int i = 0; i < pts.Length; i++)
                     pts[i] = new Vector2((float)((tile.OriginX + r.X[i] - focusX) / mpp) + size.X * 0.5f, (float)((tile.OriginZ + r.Z[i] - focusZ) / mpp) + size.Y * 0.5f);
-                float total = 0;
-                for (int i = 0; i + 1 < pts.Length; i++) total += pts[i].DistanceTo(pts[i + 1]);
-                float tw = _font.GetStringSize(r.Name, HorizontalAlignment.Left, -1, fs).X;
-                if (total < tw + 24) continue;
-                // one label per stretch of ~500 px, in the middle of each stretch
-                int count = Math.Max(1, (int)(total / 500f));
-                for (int n = 0; n < count; n++) TryLabel(r.Name, pts, total * (n + 0.5f) / count, tw, fs, size);
+                _labeller.Place(r.Name, pts, _font, fs, 500f, 350f, Inside, _labelList);
             }
-    }
-
-    private void TryLabel(string name, Vector2[] pts, float at, float tw, int fs, Vector2 size)
-    {
-        float run = 0;
-        for (int i = 0; i + 1 < pts.Length; i++)
-        {
-            float seg = pts[i].DistanceTo(pts[i + 1]);
-            if (run + seg < at) { run += seg; continue; }
-            var p = pts[i].Lerp(pts[i + 1], seg > 0 ? (at - run) / seg : 0);
-            if (p.X < 20 || p.Y < 20 || p.X > size.X - 20 || p.Y > size.Y - 20) return;
-            var d = pts[i + 1] - pts[i];
-            float ang = MathF.Atan2(d.Y, d.X);
-            if (ang > MathF.PI / 2) ang -= MathF.PI; else if (ang < -MathF.PI / 2) ang += MathF.PI;   // never upside down
-            // keep clear of the other labels, and of the same name close by
-            float half = tw * 0.5f + 4;
-            float ex = MathF.Abs(MathF.Cos(ang)) * half + 6, ey = MathF.Abs(MathF.Sin(ang)) * half + 8;
-            var box = new Rect2(p - new Vector2(ex, ey), new Vector2(ex * 2, ey * 2));
-            foreach (var l in _labels) if (l.Intersects(box)) return;
-            if (_labelled.TryGetValue(name, out var same))
-                foreach (var q in same) if (q.DistanceTo(p) < 350) return;
-            _labels.Add(box);
-            if (same == null) _labelled[name] = same = new List<Vector2>();
-            same.Add(p);
-            DrawSetTransform(p, ang, Vector2.One);
-            var o = new Vector2(-tw * 0.5f, fs * 0.35f);
-            DrawStringOutline(_font, o, name, HorizontalAlignment.Left, -1, fs, 4, new Color(0.04f, 0.045f, 0.05f, 0.9f));
-            DrawString(_font, o, name, HorizontalAlignment.Left, -1, fs, Paper);
-            DrawSetTransform(Vector2.Zero, 0, Vector2.One);
-            return;
-        }
+        foreach (var l in _labelList) StreetLabels.Draw(this, _font, fs, l, Paper);
     }
 
     private static void Plot(byte[] px, int x, int y, byte r, byte g, byte b)
