@@ -188,7 +188,10 @@ public partial class Walker : CharacterBody3D, IHittable
             _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * 0.0025f, -1.35f, 1.2f);
         }
         else if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured)
+        {
+            // (braces: without them the "else" below belonged to this "if", and V, Esc and H stopped working)
             if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
+        }
         else if (e is InputEventKey { Pressed: true, Echo: false } k)
         {
             if (k.Keycode == Key.V) SetView(!FirstPerson);

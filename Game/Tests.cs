@@ -441,7 +441,20 @@ public sealed class Tests
                 Log.Info("Test", $"walk: {_walkTime:F1} s, {wk.Speed * 3.6f:F1} km/h, {wk.GlobalPosition.DistanceTo(_walkFrom):F1} m from where it got out, on floor {wk.IsOnFloor()}");
                 _walkShot++;
                 if (_walkShot == 1) Log.Info("Test", "walk pose: " + wk.DebugPose());
-                if (_walkShot == 4) wk.SetView(true);
+                if (_walkShot == 4)
+                {
+                    // the real keys, through Godot's input (V broke once without anyone noticing)
+                    bool before = wk.FirstPerson;
+                    Input.ParseInputEvent(new InputEventKey { Keycode = Key.V, Pressed = true });
+                    Input.ParseInputEvent(new InputEventKey { Keycode = Key.V, Pressed = false });
+                    Input.FlushBufferedEvents();
+                    Log.Info("Test", $"walk: V switches the view: {(wk.FirstPerson != before ? "yes" : "NO")} (first person {before} → {wk.FirstPerson})");
+                    wk.Body.Medkits = 1; wk.Body.Damage(30);
+                    Input.ParseInputEvent(new InputEventKey { Keycode = Key.H, Pressed = true });
+                    Input.ParseInputEvent(new InputEventKey { Keycode = Key.H, Pressed = false });
+                    Input.FlushBufferedEvents();
+                    Log.Info("Test", $"walk: H uses a medkit: {(wk.Body.Medkits == 0 ? "yes" : "NO")}");
+                }
             }
             if (_walkTime < 12) return;
             // back to the car the quick way, then in
