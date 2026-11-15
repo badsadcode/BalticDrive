@@ -323,3 +323,10 @@ residential, and links) runs through a building's outline, the outline is a mapp
 paths, bridges and tunnels do not count: arcades, driveways and gate passages really run under buildings. (The map
 and the minimap still show such a footprint; the importer could drop it for good at the next rebuild.)
 The map screen and the minimap draw the GPS route only from the car's place on it onwards (`Navigation.Progress`).
+
+## D37 — Houses and pitched roofs to BadBuilding
+With roofs in the library (BadBuilding D13), the switch now also hands it houses, farm buildings, sheds and
+industrial buildings, and pitched roofs (gabled, hipped, pyramidal), with the roof shape and roof height from the
+tile (the importer's own guess for houses counts as mapped); domes, churches, towers, canopies and building parts keep
+the old meshes. Pitched roofs are drawn with the building shader's tiled surface. Measured over the western suburbs:
+houses cost about 4 ms and 1,400 triangles each; a 6 km fly-over holds 60 fps (1 frame over 33 ms).

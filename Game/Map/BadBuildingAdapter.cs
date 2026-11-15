@@ -25,7 +25,7 @@ public static class BadBuildingAdapter
     public static volatile bool Enabled;
 
     // vertex colour alpha selects the surface in Shaders/building.gdshader
-    private const float KindPlain = 0.66f, KindGlass = 0.5f, KindFlatRoof = 0f;
+    private const float KindPlain = 0.66f, KindGlass = 0.5f, KindTiles = 0.33f, KindFlatRoof = 0f;
     private const float Context = 40f;
 
     private static long _count, _ticks, _tris, _failed;
@@ -42,10 +42,12 @@ public static class BadBuildingAdapter
 
     public static void ResetStats() { _count = 0; _ticks = 0; _tris = 0; _failed = 0; }
 
+    /// <summary>What the library builds (D29; houses, barns and pitched roofs since its roofs, D37): not churches,
+    /// towers, canopies, parts of multi-part buildings or domes, which keep the old meshes.</summary>
     public static bool Eligible(MapBuilding b) =>
-        !b.Ghost && !b.IsPart && !b.IsCanopy && b.Height >= 3.4f
+        !b.Ghost && !b.IsPart && !b.IsCanopy && b.Height >= 2.4f && b.Roof != RoofKind.Dome
         && b.Type is BuildingKind.Generic or BuildingKind.Apartments or BuildingKind.Commercial or BuildingKind.Civic
-        && !(b.Roof >= RoofKind.Gabled && b.RoofHeight > 0.2f);
+            or BuildingKind.House or BuildingKind.Farm or BuildingKind.Shed or BuildingKind.Industrial;
 
     /// <summary>Generates one building into the chunk mesh. False when the library could not build it (the caller then
     /// uses the old mesh).</summary>
@@ -97,9 +99,16 @@ public static class BadBuildingAdapter
                 BuildingKind.Apartments => "apartments",
                 BuildingKind.Commercial => "commercial",
                 BuildingKind.Civic => "civic",
+                BuildingKind.House => "house",
+                BuildingKind.Farm => "barn",
+                BuildingKind.Shed => "shed",
+                BuildingKind.Industrial => "industrial",
                 _ => "yes",
             },
             Height = b.Height,
+            // the roof as the map (or the importer's guess for houses) has it
+            Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
+            RoofHeight = b.RoofHeight > 0.2f ? b.RoofHeight : null,
             Neighbours = neighbours,
             Streets = streets,
             Ground = ground,
@@ -122,6 +131,8 @@ public static class BadBuildingAdapter
             foreach (var (role, idx) in src.Groups)
             {
                 var col = Colour(built, role);
+                if (role == "roof" && built.Plan?.RoofShape is BB.Generation.RoofShape.Gabled or BB.Generation.RoofShape.Hipped or BB.Generation.RoofShape.Pyramidal)
+                    col.A = KindTiles;
                 // one chunk vertex per library vertex and role, shared by every triangle that uses it
                 // (was three per triangle: a third of the memory and upload now)
                 var map = _vertexMap ??= new Dictionary<int, int>();
