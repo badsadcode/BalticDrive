@@ -30,6 +30,8 @@ public partial class Walker : CharacterBody3D
     public Camera3D FirstPersonCamera => _fp;
     /// <summary>The guns (D40).</summary>
     public Weapons Guns { get; private set; } = null!;
+    /// <summary>Health, hunger and thirst (D46).</summary>
+    public Survival Body { get; private set; } = null!;
     private bool _aimOverride;
     /// <summary>Aiming is always first person (the brief): while set, the eye camera is used whatever the chosen view.</summary>
     public bool AimOverride
@@ -96,6 +98,8 @@ public partial class Walker : CharacterBody3D
         AddChild(_fp);
         Guns = new Weapons(this) { Name = "Weapons" };
         AddChild(Guns);
+        Body = new Survival(this);
+        AddChild(Body);
         WorldOrigin.Shifted += OnShifted;
         Deactivate();
     }
@@ -281,6 +285,7 @@ public partial class Walker : CharacterBody3D
         {
             if (k.Keycode == Key.V) SetView(!FirstPerson);
             else if (k.Keycode == Key.Escape) Input.MouseMode = Input.MouseModeEnum.Visible;
+            else if (k.Keycode == Key.H) Body.UseMedkit();
         }
     }
 
@@ -297,7 +302,7 @@ public partial class Walker : CharacterBody3D
             move = new Vector2(
                 (Input.IsKeyPressed(Key.D) ? 1 : 0) - (Input.IsKeyPressed(Key.A) ? 1 : 0),
                 (Input.IsKeyPressed(Key.W) ? 1 : 0) - (Input.IsKeyPressed(Key.S) ? 1 : 0));
-            sprint = Input.IsKeyPressed(Key.Shift);
+            sprint = Input.IsKeyPressed(Key.Shift) && Body.CanSprint;   // too thirsty or hurt: no sprinting (D46)
             Crouching = Input.IsKeyPressed(Key.Ctrl);
             if (Input.IsKeyPressed(Key.Space) && IsOnFloor() && !Crouching) Velocity = Velocity with { Y = JumpSpeed };
         }

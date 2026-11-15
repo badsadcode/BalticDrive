@@ -469,3 +469,44 @@ run unfocused and must run at full speed. The world keeps simulating; it is only
   behind, and the rifle dips 6 cm off the cheek while the hand works.
 * **Shoot test:** it levels the view before each gun (recoil carried over and made hits flaky). It logs the right
   arm's shoulder, elbow and wrist in eye space, and screenshots three moments of the bolt stroke.
+
+## D46 — The small survival loop: health, hunger, thirst, and crates by real places
+
+From the brief: "simple health, hunger and thirst, with clear effects but no tedious micromanagement", and "OSM points
+of interest help decide what might be found nearby". `Game/OnFoot/Survival.cs`:
+* **The body:**
+  * Hunger and thirst drain only on foot (a long drive shouldn't starve you): full to empty in 45 and 30 minutes of
+    walking, twice as fast when sprinting.
+  * Food and water you carry are used by themselves when you drop below 35 %; no eating menu. A medkit (H) heals
+    60 over five seconds.
+  * Effects: very thirsty or badly hurt, no sprinting; empty stomach or bottle, health drains; fed and watered, you
+    heal slowly up to 70.
+  * At 0 you black out and come round at 40 (a placeholder until bandits make death matter).
+  * `Damage()` is ready for the bandits.
+  * You carry up to 4 food, 4 water and 3 medkits; ammo goes into the guns' reserves, up to twice the starting
+    reserve.
+* **Crates:** every 2 s the points of interest within 150 m are looked at (tile POIs: fuel, food, shop, medical,
+  diner, garage, police, hardware, camp).
+  * Each place gets a crate or not by a hash of its OSM id: 35 % for shops, food and diners, 60 % for medical,
+    police and fuel, 70 % for camps. The same place always has the same luck.
+  * The crate is set down on open ground near the place: not in a building, not on a carriageway, on the ground a
+    ray finds.
+  * What's inside follows the place:
+    * shops and food: food and water;
+    * diners: food;
+    * fuel stations: water, a hot dog, some ammo, sometimes a medkit;
+    * pharmacies and clinics: medkits;
+    * police: AK and pistol ammo;
+    * hardware and garages: rifle ammo.
+  * The food is named by the place: kebab, pizza, bread, zapiekanka at diners, beans otherwise. Tom's first wish on
+    foot was a kebab.
+  * Crates further than 220 m are removed; opened ones stay opened for the session.
+  * Synty Battle Royale crates: a small ammo-style box, and a medical case at medical places.
+* **Keys:** E opens a crate in reach (2.6 m), else E is the car as before. H uses a medkit.
+* **HUD:** health, food and water bars bottom right with what you carry; "E: open the crate (place)" when in reach;
+  "Found 2× zapiekanka (Mleczarnia Jerozolimska)".
+* `--autotest=loot`: first run found 3 crates within 150 m, opened the nearest (2 food), used carried food when
+  hungry, and healed 45 → 100 with a medkit.
+
+Not yet: crates are hard to spot (no map or minimap marks), and the shop kind doesn't tell a beauty salon from a
+grocery (all "shop").

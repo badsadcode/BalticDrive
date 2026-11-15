@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using BalticDrive.Core;
 using Godot;
 
@@ -20,6 +21,8 @@ namespace BalticDrive;
 /// (a burst for the AK), reload; screenshots of each and the bullets' hits in the log.</item>
 /// <item><c>--autotest=range</c> — out of the car, set up the shooting range (D42), shoot each target with the AK
 /// (aimed straight at it, the 100 m plate with the Mosin), screenshots before and after, and what each hit said.</item>
+/// <item><c>--autotest=loot</c> — out of the car, wait for supply crates by the nearby shops (D46), walk up to the
+/// nearest, open it; then hunger, thirst and a medkit: are carried food and water used, does the medkit heal.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -49,7 +52,9 @@ public sealed class Tests
     private double _driven;
     private bool _map;
     private bool _respawn;
-    private bool _walk, _shoot, _rangeTest;
+    private bool _walk, _shoot, _rangeTest, _loot;
+    private double _lootTime = -1;
+    private OnFoot.CacheField.Cache? _lootCache;
     private double _rangeTime = -1;
     private int _rangeTarget;
     private double _shootTime = -1;
@@ -76,6 +81,7 @@ public sealed class Tests
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
         _rangeTest = Main.Args.GetValueOrDefault("autotest", "").Contains("range");
+        _loot = Main.Args.GetValueOrDefault("autotest", "").Contains("loot");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -186,6 +192,57 @@ public sealed class Tests
     }
     private int _rangeHitsBefore;
 
+    /// <summary>The survival test (D46).</summary>
+    private void LootTest(double delta)
+    {
+        if (_lootTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "loot: could not get out of the car"); _loot = false; return; }
+            _lootTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        var b = w.Body;
+        double before = _lootTime;
+        _lootTime += delta;
+        bool Now(double t) => before < t && _lootTime >= t;
+        if (Now(5))
+        {
+            var all = _main.Caches?.Live.ToList() ?? new();
+            Log.Info("Test", $"loot: {all.Count} crates within reach of the streamer: " + string.Join("; ", all.Take(8).Select(c => $"{c.Kind} '{c.Place}' {c.GlobalPosition.DistanceTo(w.GlobalPosition):0} m")));
+            _lootCache = all.OrderBy(c => c.GlobalPosition.DistanceTo(w.GlobalPosition)).FirstOrDefault();
+            if (_lootCache == null) { Log.Error("Test", "loot: no crate anywhere near"); _loot = false; return; }
+            // walk up to it (a step away, facing it), third person to see it
+            var to = _lootCache.GlobalPosition - w.GlobalPosition; to.Y = 0;
+            w.GlobalPosition = _lootCache.GlobalPosition - to.Normalized() * 1.8f + Vector3.Up * 0.3f;
+            w.SetView(false);
+        }
+        if (Now(5.3) && _lootCache != null) w.Face(_lootCache.GlobalPosition);
+        if (Now(6.5)) Shot("loot_crate");
+        if (Now(7))
+        {
+            var start = (b.Food, b.Water, b.Medkits);
+            bool opened = _main.TryOpenCache();
+            Log.Info("Test", $"loot: opened {opened} ({_lootCache?.Kind} '{_lootCache?.Place}'): food {start.Food}→{b.Food}, water {start.Water}→{b.Water}, medkits {start.Medkits}→{b.Medkits}");
+        }
+        if (Now(7.4)) Shot("loot_opened");
+        if (Now(8))
+        {
+            b.Food = Math.Max(b.Food, 1); b.Water = Math.Max(b.Water, 1); b.Medkits = Math.Max(b.Medkits, 1);
+            b.Hunger = 30; b.Thirst = 30;
+        }
+        if (Now(8.5)) Log.Info("Test", $"loot: hungry and thirsty → hunger {b.Hunger:0}, thirst {b.Thirst:0}, food {b.Food}, water {b.Water} (used by themselves)");
+        if (Now(9)) { b.Damage(55); b.UseMedkit(); Log.Info("Test", $"loot: hurt to {b.Health:0}, medkit used ({b.Medkits} left)"); }
+        if (Now(15))
+        {
+            Log.Info("Test", $"loot: health after the medkit {b.Health:0}");
+            Shot("loot_hud");
+            Log.Info("Test", "loot: done");
+            _loot = false;
+        }
+    }
+
     private bool Settled => _main.Terrain.Settled && _main.Content.Pending == 0 && _main.Terrain.PendingCollision == 0;
 
     public void Process(double delta)
@@ -280,6 +337,7 @@ public sealed class Tests
         }
         if (_shoot && _main.Car != null) { Shoot(delta); return; }
         if (_rangeTest && _main.Car != null) { RangeTest(delta); return; }
+        if (_loot && _main.Car != null) { LootTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

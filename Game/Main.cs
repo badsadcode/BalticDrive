@@ -165,6 +165,68 @@ public partial class Main : Node3D
 	public OnFoot.Walker? Walker => _walker;
 
 	private OnFoot.ShootingRange? _range;
+	private OnFoot.CacheField? _caches;
+	public OnFoot.CacheField? Caches => _caches;
+	private Label? _prompt;
+	private Control? _bars;
+
+	/// <summary>E on foot by an unopened crate (D46): opens it; otherwise E is the car, as before.</summary>
+	public bool TryOpenCache()
+	{
+		if (!OnFoot || _caches == null || _walker == null) return false;
+		var c = _caches.InReach(_walker.GlobalPosition);
+		if (c == null) return false;
+		_caches.Open(c);
+		ShowNote(_walker.Body.Take(c.Loot) + (string.IsNullOrEmpty(c.Place) ? "" : $"  ({c.Place})"));
+		return true;
+	}
+
+	/// <summary>The survival HUD (D46): health, hunger and thirst bars over what you carry, bottom right; the crate
+	/// prompt in the middle.</summary>
+	private void BuildSurvivalHud()
+	{
+		_bars = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+		_bars.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
+		_bars.OffsetLeft = -230; _bars.OffsetTop = -150; _bars.OffsetRight = -14; _bars.OffsetBottom = -70;
+		_bars.Draw += () =>
+		{
+			var b = _walker?.Body;
+			if (b == null) return;
+			var font = ThemeDB.FallbackFont;
+			void Bar(int row, string name, float v, Color col)
+			{
+				float y = row * 20;
+				_bars.DrawRect(new Rect2(70, y + 4, 140, 10), new Color(0, 0, 0, 0.45f));
+				_bars.DrawRect(new Rect2(70, y + 4, 140 * Mathf.Clamp(v / 100f, 0, 1), 10), v < 25 ? col.Lightened(0.35f) : col);
+				_bars.DrawString(font, new Vector2(0, y + 14), name, HorizontalAlignment.Left, 66, 14, new Color(1, 1, 1, 0.9f));
+			}
+			Bar(0, "health", b.Health, new Color(0.85f, 0.22f, 0.2f));
+			Bar(1, "food", b.Hunger, new Color(0.9f, 0.6f, 0.2f));
+			Bar(2, "water", b.Thirst, new Color(0.25f, 0.55f, 0.95f));
+			_bars.DrawString(font, new Vector2(0, 74), $"carrying: food {b.Food}, water {b.Water}, medkits {b.Medkits} (H)", HorizontalAlignment.Left, 220, 13, new Color(1, 1, 1, 0.8f));
+		};
+		_ui.AddChild(_bars);
+		_prompt = new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false };
+		_prompt.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		_prompt.OffsetTop = 70; _prompt.OffsetBottom = 100; _prompt.OffsetLeft = -250; _prompt.OffsetRight = 250;
+		_prompt.AddThemeFontSizeOverride("font_size", 18);
+		_prompt.AddThemeColorOverride("font_shadow_color", Colors.Black);
+		_ui.AddChild(_prompt);
+	}
+
+	private void UpdateSurvival(double now)
+	{
+		if (_world == null) return;
+		if (_caches == null) { _caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud(); }
+		bool on = OnFoot && _walker != null;
+		_bars!.Visible = on;
+		if (!on) { _prompt!.Visible = false; return; }
+		_caches.Update(_walker!.GlobalPosition, now);
+		var c = _caches.InReach(_walker.GlobalPosition);
+		_prompt!.Visible = c != null;
+		if (c != null) _prompt.Text = "E: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
+		_bars.QueueRedraw();
+	}
 	public OnFoot.ShootingRange? Range => _range;
 
 	/// <summary>T on foot (D42): a little shooting range in front of the walker; T again sets it up afresh where you stand.</summary>
@@ -237,6 +299,7 @@ public partial class Main : Node3D
 		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.E } && _world != null && !Flying)
 		{
+			if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
 			ToggleOnFoot();
 			GetViewport().SetInputAsHandled();
 			return;
@@ -372,9 +435,10 @@ public partial class Main : Node3D
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
 					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
-						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets"
+						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets, H medkit, E crates"
 						: "E: get out   F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
+		UpdateSurvival(Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
 		if (_note != null && _note.Visible && Time.GetTicksMsec() / 1000.0 > _noteUntil) _note.Visible = false;
 		if (_minimap != null) _minimap.Visible = _minimapOn && !(_mapScreen?.Visible ?? false);

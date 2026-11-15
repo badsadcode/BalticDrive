@@ -225,6 +225,17 @@ public partial class Weapons : Node3D
         }
     }
 
+    /// <summary>Rounds from a cache (D46), up to twice the starting reserve; returns how many were taken.</summary>
+    public int AddAmmo(string gun, int rounds)
+    {
+        var d = WeaponDef.All.FirstOrDefault(x => x.Id == gun);
+        if (d == null) return 0;
+        var (mag, res) = _ammo[gun];
+        int take = Math.Clamp(d.Reserve * 2 - res, 0, rounds);
+        _ammo[gun] = (mag, res + take);
+        return take;
+    }
+
     public void StartReload()
     {
         if (_def == null || _reload >= 0 || _boltCycle >= 0) return;
