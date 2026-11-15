@@ -54,6 +54,7 @@ public sealed class Tests
     private int _rangeTarget;
     private double _shootTime = -1;
     private int _shootShot;
+    private Input.MouseModeEnum _mouseBefore;
     private double _walkTime = -1;
     private int _walkShot;
     private Vector3 _walkFrom;
@@ -107,6 +108,11 @@ public sealed class Tests
         bool Now(double x) => b < x && t >= x;
         string id = ids[gun];
         if (g.Current?.Id != id && t < 0.5) { g.Equip(id); Log.Info("Test", $"shoot: {id} equipped"); }
+        // the aim button must not let the mouse go (Tom: the free camera freed it on release)
+        if (gun == 0 && Now(0.2)) { Input.MouseMode = Input.MouseModeEnum.Captured; _mouseBefore = Input.MouseMode; }
+        if (gun == 0 && Now(0.3)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
+        if (gun == 0 && Now(0.5)) Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = false });
+        if (gun == 0 && Now(0.7)) Log.Info("Test", $"shoot: mouse {_mouseBefore} before a right click, {Input.MouseMode} after it");
         if (Now(0.8)) Shot($"shoot_{id}_hip");
         if (Now(1.0)) g.TestAim = true;
         if (Now(1.8)) Shot($"shoot_{id}_aim");

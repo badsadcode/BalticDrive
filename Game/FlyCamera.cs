@@ -12,6 +12,9 @@ public partial class FlyCamera : Camera3D
 
     public override void _UnhandledInput(InputEvent e)
     {
+        // only while it is the camera in use: on foot, the right button aims, and this used to free the mouse on its
+        // release (Tom: "I can see my mouse and have to click again")
+        if (!Current) return;
         if (e is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Right)
             Input.MouseMode = mb.Pressed ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
         if (e is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
