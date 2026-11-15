@@ -389,3 +389,25 @@ always in first person, and approachable ballistics. There are no arms or weapon
 
 Later: arms (first-person hands on the guns), third-person aiming with IK, real sounds, Mosin stripper-clip reloads,
 sight-picture tuning, damage.
+
+## D41 — First-person arms: the walker's own, bent by IK
+
+None of the packs Tom has has first-person arms, so the walker's own character (Synty City hoodie) supplies them:
+`Game/OnFoot/FpArms.cs`.
+* **The rig:** a second copy of the character rides with the eye camera, turned to face the view. Its head and legs
+  are collapsed (bone scale ~0), and its head sits ~14 cm behind the camera, so the hood and the smeared head
+  vertices stay out of view. (At 9 cm they showed as dark triangles at the top of the screen.) The sleeves are the
+  same red hoodie as in third person.
+* **Two-bone IK** per arm, analytic, in the skeleton's space. The elbow goes on the circle where both bones reach,
+  toward a pole (down and out). Each bone's rest direction is turned onto its new direction. The hand gets a
+  direction (wrist to knuckles) and a palm facing; the wrist sits ~6.5 cm behind the grip point and ~3 cm off the gun.
+  A gun held further out than the arm reaches stretches the arm up to 30 % (the hand keeps its size), the usual
+  view-model trick.
+* **Fingers:** each joint bends ~0.55 rad × curl toward the palm, adding up along the finger. The chain is carried
+  in code, because the skeleton's global poses update later. The bend direction was checked A/B in screenshots.
+* **Per gun:** `RightGrip` and `LeftGrip` points on the model (the pistol grip behind the trigger; the handguard, or
+  the right hand for the two-handed pistol hold). On a reload the left hand goes to the magazine; on the Mosin's bolt
+  cycle the right hand goes to the bolt knob.
+* The arms show only when the gun does (first person, or aiming).
+
+Later: third-person hands on the gun (IK on the walker's own body), better finger shapes, the Mosin's stripper clip.

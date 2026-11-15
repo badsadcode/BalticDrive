@@ -18,19 +18,23 @@ public sealed record WeaponDef(
     string Id, string Name, string Scene, float Scale, FireMode Mode, float Rpm, float MuzzleVelocity,
     int Magazine, int Reserve, float ReloadTime, float RecoilPitch, float RecoilYaw, float Kick, float AimFov,
     Vector3 Hip, Vector3 Sight, Vector3 Muzzle, Vector3 Ejection, string? Slide, string? Mag, string? Bolt, string? Flash,
-    float Boom, float Pitch, string? Texture = null, float Eye = 0.18f)
+    float Boom, float Pitch, string? Texture = null, float Eye = 0.18f,
+    Vector3 RightGrip = default, Vector3 LeftGrip = default, bool TwoHandedPistol = false)
 {
     public static readonly WeaponDef[] All =
     {
         new("mosin", "Mosin rifle", "res://Assets/Synty/PolygonWar/SM_Wep_Russian_Rifle_01.fbx", 0.111f, FireMode.Bolt, 50, 860,
             5, 25, 3.4f, 0.055f, 0.012f, 0.09f, 55, new Vector3(0.17f, -0.17f, -0.32f), new Vector3(0, 0.61f, 2.6f), new Vector3(0, 0.4f, 8.2f),
-            new Vector3(0.3f, 0.45f, 0.9f), null, null, "SM_Wep_Russian_Rifle_01_Bolt", null, 1.0f, 0.75f, "res://Assets/Synty/PolygonWar/PolygonWar_Texture_01_A.png", Eye: 0.42f),
+            new Vector3(0.3f, 0.45f, 0.9f), null, null, "SM_Wep_Russian_Rifle_01_Bolt", null, 1.0f, 0.75f, "res://Assets/Synty/PolygonWar/PolygonWar_Texture_01_A.png", Eye: 0.42f,
+            RightGrip: new Vector3(0, -0.22f, -0.25f), LeftGrip: new Vector3(0, 0.12f, 3.5f)),
         new("ak", "AK rifle", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Rifle_Assault_03.tscn", 1f, FireMode.Auto, 600, 715,
             30, 90, 2.6f, 0.012f, 0.008f, 0.035f, 58, new Vector3(0.16f, -0.16f, -0.3f), new Vector3(0, 0.142f, 0.02f), new Vector3(0, 0.1f, 0.62f),
-            new Vector3(0.03f, 0.12f, 0.2f), "SM_Wep_Rifle_Assault_Slide_03", "SM_Wep_Rifle_Assault_Mag_03", null, "SM_Wep_Rifle_Assault_Flash_03", 0.75f, 1.0f),
+            new Vector3(0.03f, 0.12f, 0.2f), "SM_Wep_Rifle_Assault_Slide_03", "SM_Wep_Rifle_Assault_Mag_03", null, "SM_Wep_Rifle_Assault_Flash_03", 0.75f, 1.0f,
+            RightGrip: new Vector3(0, -0.02f, 0.0f), LeftGrip: new Vector3(0, 0.06f, 0.32f)),
         new("pistol", "Pistol", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Pistol_Heavy_01.tscn", 1f, FireMode.Semi, 400, 360,
             8, 32, 1.8f, 0.03f, 0.01f, 0.05f, 62, new Vector3(0.15f, -0.14f, -0.36f), new Vector3(0, 0.1f, -0.06f), new Vector3(0, 0.07f, 0.13f),
-            new Vector3(0.02f, 0.08f, 0.0f), "SM_Wep_Pistol_Heavy_Slide_01", "SM_Wep_Pistol_Heavy_Mag_01", null, null, 0.55f, 1.35f, Eye: 0.42f),
+            new Vector3(0.02f, 0.08f, 0.0f), "SM_Wep_Pistol_Heavy_Slide_01", "SM_Wep_Pistol_Heavy_Mag_01", null, null, 0.55f, 1.35f, Eye: 0.42f,
+            RightGrip: new Vector3(0, 0.0f, -0.01f), LeftGrip: new Vector3(0, -0.02f, -0.01f), TwoHandedPistol: true),
     };
 }
 
@@ -52,6 +56,7 @@ public partial class Weapons : Node3D
     private Vector3 _slideRest, _magRest, _boltRest;
     private Quaternion _boltRot;
     private OmniLight3D _flashLight = null!;
+    private FpArms _arms = null!;
     private AudioStreamPlayer _shot = null!, _mech = null!;
     private readonly Dictionary<string, AudioStreamWav> _sounds = new();
 
@@ -83,6 +88,9 @@ public partial class Weapons : Node3D
         _eye = _w.FirstPersonCamera;
         _holder = new Node3D { Name = "Holder" };
         _eye.AddChild(_holder);
+        // the walker's own arms on the gun (D41)
+        _arms = new FpArms();
+        _eye.AddChild(_arms);
         _flashLight = new OmniLight3D { LightColor = new Color(1f, 0.75f, 0.4f), LightEnergy = 0, OmniRange = 6, ShadowEnabled = false };
         _holder.AddChild(_flashLight);
         _shot = new AudioStreamPlayer { Bus = "Master", VolumeDb = -4 };
@@ -293,6 +301,7 @@ public partial class Weapons : Node3D
 
         _holder.Position = pos;
         _holder.Rotation = rot;
+        PoseArms();
         _flashTime -= dt;
         _flashLight.LightEnergy = _flashTime > 0 ? 6f : 0f;
         if (_flash != null) _flash.Visible = _flashTime > 0;
@@ -300,6 +309,39 @@ public partial class Weapons : Node3D
 
     private bool _dryClicked, _semiReady = true;
     private float _slideBack;
+
+    /// <summary>
+    /// Hands on the gun (D41): the right on the grip, the left on the handguard (a pistol: cupping the right hand). On
+    /// a reload the left hand goes down to the magazine; on the Mosin's bolt cycle the right hand works the bolt.
+    /// Directions are in the holder's frame: forward -Z, up +Y, right +X.
+    /// </summary>
+    private void PoseArms()
+    {
+        _arms.Visible = _holder.Visible && _arms.Ready;
+        if (!_arms.Visible || _def == null) return;
+        var d = _def;
+        var b = _holder.GlobalTransform.Basis;
+        Vector3 F = -b.Z, U = b.Y, R = b.X;
+        Vector3 Local(Vector3 m) => _holder.ToGlobal(new Vector3(-m.X, m.Y, -m.Z) * d.Scale);
+        var right = new FpArms.HandGoal(Local(d.RightGrip), F + U * 0.15f, -R, -U + R * 0.8f + b.Z * 0.3f, 0.9f);
+        var left = d.TwoHandedPistol
+            ? new FpArms.HandGoal(Local(d.LeftGrip), F * 0.8f + R * 0.3f - U * 0.25f, R, -U - R * 0.6f, 0.85f)
+            : new FpArms.HandGoal(Local(d.LeftGrip), F * 0.7f + R * 0.5f, U * 0.8f + R * 0.4f, -U - R * 0.5f, 0.8f);
+        // reload: the left hand down to the magazine and back
+        if (_reload >= 0 && _mag != null)
+        {
+            float w = Mathf.Clamp(MathF.Sin(MathF.Min(1f, _reload) * MathF.PI) * 1.6f, 0f, 1f);
+            left = left with { Grip = left.Grip.Lerp(_mag.GlobalPosition - U * 0.04f, w), Dir = left.Dir.Lerp(F * 0.3f + U, w), Palm = left.Palm.Lerp(R, w) };
+        }
+        // the bolt (Mosin): the right hand leaves the grip for the bolt knob
+        if (_boltCycle >= 0 && _bolt != null)
+        {
+            float w = Mathf.Clamp(MathF.Sin(_boltCycle * MathF.PI) * 2f, 0f, 1f);
+            var knob = _bolt.ToGlobal(new Vector3(-0.48f, 0.42f, 1.2f));
+            right = right with { Grip = right.Grip.Lerp(knob, w), Dir = right.Dir.Lerp(F * 0.4f - U, w), Palm = right.Palm.Lerp(-R, w), Curl = Mathf.Lerp(0.9f, 0.6f, w) };
+        }
+        _arms.Pose(right, left);
+    }
 
     private static float Smooth(float t) => t * t * (3 - 2 * t);
 
