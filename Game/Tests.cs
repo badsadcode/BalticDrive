@@ -14,6 +14,9 @@ namespace BalticDrive;
 /// save a screenshot to <c>--shots=dir</c>.</item>
 /// <item><c>--autotest=fly</c> — fly 6 km in a straight line at <c>--speed=</c> m/s (default 40, ~145 km/h) from the
 /// start and report frame times and holes (frames where the ground under the camera was missing).</item>
+/// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
+/// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
+/// (default 6) in different directions.</item>
 /// </list>
 /// The game quits when done; results go to the log as lines starting with <c>[Test]</c>.
 /// </summary>
@@ -39,6 +42,9 @@ public sealed class Tests
     private int _reversals;
     private double _driven;
     private bool _map;
+    private bool _respawn;
+    private int _round, _rounds;
+    private double _roundFlown, _roundWait = -1, _distance;
     private double _mapTime = -1;
 
     public Tests(Main main)
@@ -51,6 +57,9 @@ public sealed class Tests
         _fly = Main.Args.GetValueOrDefault("autotest", "").Contains("fly");
         _map = Main.Args.GetValueOrDefault("autotest", "").Contains("map");
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
+        _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
+        _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
+        _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
     }
 
@@ -106,6 +115,47 @@ public sealed class Tests
                 _fly = false;
             }
             else return;
+        }
+        if (_respawn)
+        {
+            if (_main.Car == null)
+            {
+                if (_settledFor < 1.5) return;
+                var (sx, sz) = _main.Focus;
+                _main.SpawnCar(sx, sz);
+                Log.Info("Test", "respawn: car placed");
+                return;
+            }
+            if (!_main.Flying)
+            {
+                if (_roundWait >= 0 && (_roundWait += delta) < 4) return;   // drive here, then sit for a moment
+                if (_round >= _rounds) { _respawn = false; Log.Info("Test", $"respawn: {_rounds} rounds, no crash"); }
+                else
+                {
+                    _main.ToggleFreeCamera();
+                    var cam = _main.Camera;
+                    cam.Yaw = _round * 1.1f; cam.Rotation = cam.Rotation with { Y = cam.Yaw };
+                    _roundFlown = 0; _roundWait = -1;
+                    Log.Info("Test", $"respawn: round {_round + 1}, free camera, flying {_distance:F0} m");
+                    return;
+                }
+            }
+            else
+            {
+                var cam = _main.Camera;
+                var step = -cam.Basis.Z with { Y = 0 };
+                double move = Math.Min(_speed * delta, _distance - _roundFlown);
+                cam.Position += step.Normalized() * (float)move;
+                cam.Position = cam.Position with { Y = cam.GroundHeight + 40f };
+                _roundFlown += move;
+                if (_roundFlown < _distance) return;
+                var (fx, fz) = _main.Focus;
+                Log.Info("Test", $"respawn: round {_round + 1}, pressing F at {fx:F0},{fz:F0}");
+                _main.ToggleFreeCamera();
+                _round++;
+                _roundWait = 0;
+                return;
+            }
         }
         if (_map && _main.MapView is { } view && _main.Nav is { } nav)
         {

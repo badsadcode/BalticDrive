@@ -193,21 +193,24 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
-		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null)
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null) ToggleFreeCamera();
+	}
+
+	/// <summary>F: from the car to the free camera, or from the free camera back to driving at the nearest road.</summary>
+	public void ToggleFreeCamera()
+	{
+		if (Flying)
 		{
-			if (Flying)
-			{
-				var (x, _, z) = WorldOrigin.ToWorld(_camera.GlobalPosition);
-				SpawnCar(x, z);
-			}
-			else if (_car != null)
-			{
-				Flying = true;
-				_car.Driving = false;
-				_camera.GlobalTransform = _car.ActiveCamera.GlobalTransform;
-				_camera.Yaw = _camera.Rotation.Y; _camera.Pitch = _camera.Rotation.X;
-				_camera.Current = true;
-			}
+			var (x, _, z) = WorldOrigin.ToWorld(_camera.GlobalPosition);
+			SpawnCar(x, z);
+		}
+		else if (_car != null)
+		{
+			Flying = true;
+			_car.Driving = false;
+			_camera.GlobalTransform = _car.ActiveCamera.GlobalTransform;
+			_camera.Yaw = _camera.Rotation.Y; _camera.Pitch = _camera.Rotation.X;
+			_camera.Current = true;
 		}
 	}
 

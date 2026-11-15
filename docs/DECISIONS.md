@@ -248,3 +248,12 @@ meshes, and so does LOD 2; LOD 1 cells get a skirt under the plinth for the coar
 Measured (central Warsaw, Tom's PC): 10–16 ms and ~4,100–4,600 triangles per building on the worker threads, none fell
 back; a 6 km fly-over at 40 m/s holds 60 fps (median and p99 16.7 ms, 10 frames over 33 ms against 4 with the old
 buildings); the drive test arrives.
+
+## D30 — The "fly far, press F" crash: no more VehicleWheel3D.GetContactBody
+Tom's crash (the window just closed, with BadBuilding on or off) reproduced with a new self-test,
+`--autotest=respawn` (free camera, fly 3 km, press F, repeat): on the second round Godot's `VehicleWheel3D` handed
+back a freed ground body from `GetContactBody()` after the teleport (an InvalidCastException), and the next node
+removal in the terrain streamer crashed with an access violation. The car asked every wheel every tick what it stood
+on, to tell paved from loose ground. It now casts a short ray down from each wheel in contact instead, which only
+returns live bodies. 8 rounds in both modes, no crash; the drive test still arrives with 2.9 s off road.
+Also: BadBuilding meshes now share vertices (one per library vertex and material) instead of three per triangle.

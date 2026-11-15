@@ -28,6 +28,7 @@ public partial class Car : VehicleBody3D
     public Func<Car, (float Throttle, float Brake, float Steer)>? Autopilot;
     /// <summary>Whether ground collision is loaded under a world point (the car freezes where it is not).</summary>
     public Func<double, double, bool>? HasGround;
+    private PhysicsRayQueryParameters3D? _wheelRay;
     public MapWorld? Map;
 
     private readonly VehicleWheel3D[] _wheels = new VehicleWheel3D[4]; // FL, FR, RL, RR
@@ -309,12 +310,22 @@ public partial class Car : VehicleBody3D
             handbrake = Input.IsKeyPressed(Key.Space);
         }
 
+        // What each wheel stands on. Not VehicleWheel3D.GetContactBody(): after a teleport or when the streamer unloads
+        // the ground under a wheel it can hand back a freed body, and touching that crashed the game (fly far, press F).
+        // A short ray from the wheel only ever returns live bodies.
         int contacts = 0, paved = 0;
+        var space = GetWorld3D().DirectSpaceState;
         foreach (var w in _wheels)
         {
             if (!w.IsInContact()) continue;
             contacts++;
-            if (w.GetContactBody() is Node n && n.HasMeta("surface") && n.GetMeta("surface").AsString() == "paved") paved++;
+            var from = w.GlobalPosition;
+            _wheelRay ??= new PhysicsRayQueryParameters3D { CollisionMask = World.Bodies.Ground | World.Bodies.Roads | World.Bodies.Buildings, Exclude = new Godot.Collections.Array<Rid> { GetRid() } };
+            _wheelRay.From = from;
+            _wheelRay.To = from - GlobalTransform.Basis.Y * (w.WheelRadius + w.WheelRestLength + 0.4f);
+            var hit = space.IntersectRay(_wheelRay);
+            if (hit.Count > 0 && hit["collider"].AsGodotObject() is Node n && IsInstanceValid(n)
+                && n.HasMeta("surface") && n.GetMeta("surface").AsString() == "paved") paved++;
         }
         OnRoad = contacts > 0 && paved * 2 >= contacts;
 

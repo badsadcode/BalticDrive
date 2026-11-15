@@ -29,6 +29,7 @@ public static class BadBuildingAdapter
     private const float Context = 40f;
 
     private static long _count, _ticks, _tris, _failed;
+    [ThreadStatic] private static Dictionary<int, int>? _vertexMap;
 
     /// <summary>"n buildings, x ms each, y triangles each": for the HUD, F9 dumps and the self-test log.</summary>
     public static string Stats()
@@ -116,18 +117,25 @@ public static class BadBuildingAdapter
             foreach (var (role, idx) in src.Groups)
             {
                 var col = Colour(built, role);
+                // one chunk vertex per library vertex and role, shared by every triangle that uses it
+                // (was three per triangle: a third of the memory and upload now)
+                var map = _vertexMap ??= new Dictionary<int, int>();
+                map.Clear();
+                int Vertex(int i)
+                {
+                    if (map.TryGetValue(i, out int v)) return v;
+                    var p = src.Positions[i];
+                    var n = src.Normals[i];
+                    v = mesh.Add(new Vector3(ox + p.X, p.Y, oz + p.Z), new Vector3(n.X, n.Y, n.Z),
+                        new Vector2(p.X + p.Z, p.Y - floor), new Vector2(0f, top), col);
+                    map[i] = v;
+                    return v;
+                }
                 for (int t = 0; t + 2 < idx.Count; t += 3)
                 {
-                    int v0 = mesh.V.Count;
-                    for (int c = 0; c < 3; c++)
-                    {
-                        var p = src.Positions[idx[t + c]];
-                        var n = src.Normals[idx[t + c]];
-                        mesh.Add(new Vector3(ox + p.X, p.Y, oz + p.Z), new Vector3(n.X, n.Y, n.Z),
-                            new Vector2(p.X + p.Z, p.Y - floor), new Vector2(0f, top), col);
-                    }
+                    int va = Vertex(idx[t]), vb = Vertex(idx[t + 1]), vc = Vertex(idx[t + 2]);
                     var nf = src.Normals[idx[t]];
-                    mesh.Tri(v0, v0 + 1, v0 + 2, new Vector3(nf.X, nf.Y, nf.Z));
+                    mesh.Tri(va, vb, vc, new Vector3(nf.X, nf.Y, nf.Z));
                     tris++;
                 }
             }

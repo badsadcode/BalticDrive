@@ -59,16 +59,7 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 * **Open from Tom (14 Nov, late):** F9 dumps in %APPDATA%\BalticDrive\dumps showing missing parts of classic
   buildings, to go through first; and gaps in BadBuilding's top cornices (gzyms) at roof corners.
-* **Crash while flying (Tom, 15 Nov, F7 on, central Warsaw, ~45k BadBuilding buildings made that session):** the
-  window just vanished; access violation 0xc0000005 in the engine, log cut off, dump in
-  %LOCALAPPDATA%/CrashDumps/BalticDrive.exe.10732.dmp. Suspects: memory or huge chunk meshes (BadBuilding bakes 3
-  vertices per triangle, nothing shared: hundreds of thousands of vertices per central chunk), or a race between
-  streaming workers and node teardown. Next: read the dump (module and memory), share vertices, run a long fly test
-  with --buildings=bb watching memory, and make close/teardown wait for in-flight jobs anyway.
-  **Repro (Tom):** fly far away from the car in free camera, press F ("drive here") → the window closes. Path:
-  Main.SpawnCar → Car.Recover (NearestRoad within 600 m, Warp) on a car that was frozen far away (Car freezes where no
-  ground collision). Script it as a self-test (fly N km, SpawnCar) with F7 on and off; suspects: warping a frozen
-  body, physics on fresh concave collision (degenerate triangles from BadBuilding masses?), origin shift.
+* **Crash while flying / pressing F far away: fixed (D30, 15 Nov).** Self-test: `--autotest=respawn`.
 * **BadBuilding and classic buildings overlapping (Tom, 15 Nov, stream; he will show it):** suspects: an outline
   built by BadBuilding while its building:part pieces are still drawn by the classic mesher; balconies, cornices and
   steps reaching into a neighbour that is too far for a party wall; duplicate or overlapping OSM footprints.
