@@ -949,6 +949,48 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>11,482 tiles rebuilt</li><li>1 financial centre, grounded</li><li>every address in the right place</li><li>at most 4 bandits</li><li>still 0 kebabs</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>26</strong></div>
+    <div>
+      <h2>No hiding in the car</h2>
+      <div class="date">16 November 2026, evening</div>
+      <p>Tom's next spin turned up a loophole: bandits forgot about you the moment you got in the car. No new ones
+        turned up while you drove, and the ones already shooting simply stopped. They only knew how to look for a
+        person on foot.</p>
+      <figure class="photo">
+        <img src="img/car-under-fire.webp" alt="The blue car parked on a wide Warsaw street, two bandits further up the road and bullets kicking up dust around the car; health, food and water bars in the corner" loading="lazy">
+        <figcaption>Parked on Emilii Plater, under fire. Time to drive.</figcaption>
+      </figure>
+      <p>Now they go after whatever you're in. They spot a car sooner than a person (it's big and loud), and while you
+        drive, groups turn up ahead of you along your route, still never more than four at once. Bullets that hit the
+        car reach you at a fifth of their damage, since the bodywork stops the rest. My first try let half through, and
+        three bandits took a parked driver from full health to almost nothing in ten seconds. Your health bar now
+        shows in the car too.</p>
+      <figure class="photo r">
+        <img src="img/bandit-horde.webp" alt="A long line of about thirty bandits pressed against the wall of a green building on Zamenhofa, all aiming their rifles at the blue car in the road" loading="lazy">
+        <figcaption>Tom, armed with the B key, on Zamenhofa.</figcaption>
+      </figure>
+      <p>Tom also tested the "never more than four" rule the proper way, by pressing B about ten times. The cap held for
+        the bandits that turn up on their own. The ones he summoned by hand ended up lined against a wall, because
+        bandits don't know how to walk around buildings yet.</p>
+      <p><b>Crouching</b> didn't work at all, and Tom was right that it felt like nothing happened. A side view showed
+        why: pressing Ctrl dropped him into a T-pose. The crouch animation was set up as a blend between three points
+        (still, forward, back) that all lie on one line, and that kind of blend needs triangles, so it played nothing.
+        With that fixed he crouched, but floated: Synty's crouch bends the legs and leaves the hips where they were. So
+        now the game lowers him until his feet touch the ground.</p>
+      <figure class="photo">
+        <img src="img/crouch-fix.webp" alt="Three side views of the walker pressing crouch: in a T-pose; crouched but floating in the air; crouched with his feet on the ground" loading="lazy">
+        <figcaption>The same key three times: T-pose, levitation, crouch.</figcaption>
+      </figure>
+      <p>And on Plac Grzybowski the streets laid across the square were still growing kerbed pavement corners, with a
+        dark asphalt triangle in the middle of the paving. Both are gone; the square runs clean between the bollards.</p>
+      <figure class="photo r">
+        <img src="img/plac-grzybowski.webp" alt="Before and after on Plac Grzybowski: on the left the car on a dark asphalt triangle with kerbed pavement slabs cutting across the light square; on the right the same square, smooth and light between rows of bollards" loading="lazy">
+        <figcaption>Plac Grzybowski, before and after.</figcaption>
+      </figure>
+      <ul class="facts"><li>a fifth: what the bodywork lets through</li><li>4 bandits at most (unless you press B)</li><li>3 crouch clips, finally playing</li><li>1 square, smoothed</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
