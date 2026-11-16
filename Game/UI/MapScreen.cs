@@ -26,6 +26,9 @@ public partial class MapScreen : Control
     private Func<(double X, double Z, Vector2 Forward)> _here = null!;
     private Action<double, double> _travel = null!;
     private readonly List<Vector2> _markers = new();
+    private Func<IEnumerable<(double X, double Z, string Where, bool Taken)>>? _leads;
+    /// <summary>Leads (D54): red diamonds with where they are; a taken one is a grey tick.</summary>
+    public void SetLeads(Func<IEnumerable<(double X, double Z, string Where, bool Taken)>> leads) => _leads = leads;
     private int _zoom = 2;
     private double _redraw;
     private readonly Dictionary<long, ImageTexture> _textures = new();
@@ -276,6 +279,18 @@ public partial class MapScreen : Control
             DrawColoredPolygon(new[] { s + new Vector2(0, -11), s + new Vector2(9, 0), s + new Vector2(0, 11), s + new Vector2(-9, 0) }, new Color(0, 0, 0, 0.85f));
             DrawColoredPolygon(new[] { s + new Vector2(0, -8), s + new Vector2(6.5f, 0), s + new Vector2(0, 8), s + new Vector2(-6.5f, 0) }, new Color(0.3f, 0.9f, 0.85f));
         }
+        // leads (D54)
+        if (_leads != null)
+            foreach (var (lx, lz, where, taken) in _leads())
+            {
+                var s = ToScreen(lx, lz);
+                var ink = taken ? new Color(0.6f, 0.6f, 0.58f) : new Color(0.95f, 0.3f, 0.2f);
+                DrawColoredPolygon(new[] { s + new Vector2(0, -12), s + new Vector2(12, 0), s + new Vector2(0, 12), s + new Vector2(-12, 0) }, new Color(0, 0, 0, 0.85f));
+                DrawColoredPolygon(new[] { s + new Vector2(0, -9), s + new Vector2(9, 0), s + new Vector2(0, 9), s + new Vector2(-9, 0) }, ink);
+                string label = (taken ? "taken: " : "stash: ") + where;
+                DrawString(_font, s + new Vector2(15, 6) + Vector2.One, label, HorizontalAlignment.Left, -1, 15, new Color(0, 0, 0, 0.9f));
+                DrawString(_font, s + new Vector2(15, 6), label, HorizontalAlignment.Left, -1, 15, taken ? Dim : Paper);
+            }
         // destination flag
         if (_nav.Destination is { } dest)
         {

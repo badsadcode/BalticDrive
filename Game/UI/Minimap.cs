@@ -41,7 +41,8 @@ public partial class Minimap : Control
 
     private Frame _frame = null!;
 
-    /// <summary>Things to mark (D50): world x, z and a kind. Kinds: 0 a crate, 1 a medical crate, 2 a body to search;
+    /// <summary>Things to mark (D50): world x, z and a kind. Kinds: 0 a crate, 1 a medical crate, 2 a body to search,
+    /// 3 a lead (D54: a red diamond, held at the rim when it's further than the disc shows);
     /// <c>Done</c> greys it out (opened).</summary>
     public Func<IEnumerable<(double X, double Z, int Kind, bool Done)>>? Markers;
 
@@ -143,6 +144,14 @@ public partial class Minimap : Control
                 foreach (var (mx, mz, kind, done) in _m.Markers())
                 {
                     var p = ToDisc(mx, mz);
+                    if (kind == 3)
+                    {
+                        if (p.DistanceTo(c) > Radius - 10) p = c + (p - c).Normalized() * (Radius - 10);
+                        var red = new Color(0.95f, 0.3f, 0.2f);
+                        DrawColoredPolygon(new[] { p + new Vector2(0, -8), p + new Vector2(8, 0), p + new Vector2(0, 8), p + new Vector2(-8, 0) }, new Color(0, 0, 0, 0.85f));
+                        DrawColoredPolygon(new[] { p + new Vector2(0, -6), p + new Vector2(6, 0), p + new Vector2(0, 6), p + new Vector2(-6, 0) }, red);
+                        continue;
+                    }
                     if (p.DistanceTo(c) > Radius - 6) continue;
                     var ink = done ? new Color(0.55f, 0.55f, 0.52f, 0.8f) : kind == 1 ? new Color(0.95f, 0.95f, 0.95f) : new Color(0.98f, 0.72f, 0.25f);
                     if (kind == 2)

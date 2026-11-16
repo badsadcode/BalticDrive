@@ -104,6 +104,9 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   4. Loot caches: placed from what the world already knows (BadBuilding shop_entrance markers, kiosks, garages,
      gate passages and yards, car parks, fuel stations), a pickup prompt and a small inventory; picked-up caches
      remembered by a stable id (first step of the persistent changes).
+  DONE (D54): a reason to roam — leads (notes in crates, bandit radios, stashes) to real places 1.2–4 km away,
+  guarded stashes. Not yet: Tom's play feedback; the other hooks Tom didn't pick this time (dangerous districts,
+  get out of town, scouting by place type).
   Parked cars (Tom, Project Zomboid style): fill mapped car parks and parking lanes (amenity=parking, parking:lane /
   parking:both on streets) with Synty City cars, sparse and generated around the player; some lootable (glovebox,
   boot), some drivable with keys or fuel to find.

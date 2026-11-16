@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using BalticDrive.Core;
+using BalticDrive.World;
 using Godot;
 
 namespace BalticDrive;
@@ -40,6 +41,8 @@ namespace BalticDrive;
 /// buildings, one out in the open, then a drive (engine revs, gears); the places the acoustics found, and when each
 /// sound should land, go to the log.</item>
 /// <item>Test runs play muted (the master bus at -80 dB; a recording still hears it), unless <c>--sound</c>.</item>
+/// <item><c>--autotest=leads</c> — a lead (D54): one is found 300–600 m away, shown on the map; then you're put
+/// 150 m from it: the stash is set down with its guards; the guards are shot, the stash opened (a note may lead on).</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -109,6 +112,7 @@ public sealed class Tests
         _crouchTest = Main.Args.GetValueOrDefault("autotest", "").Contains("crouch");
         _carBandits = Main.Args.GetValueOrDefault("autotest", "").Contains("carbandits");
         _soundTest = Main.Args.GetValueOrDefault("autotest", "").Contains("sound");
+        _leadTest = Main.Args.GetValueOrDefault("autotest", "").Contains("leads");
         // muted: Tom works while tests run
         if (!Main.Args.ContainsKey("sound")) AudioServer.SetBusVolumeDb(0, -80);
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
@@ -220,6 +224,93 @@ public sealed class Tests
         if (At(2.3)) Log.Info("Test", $"range: {name}: {(g.TargetHits > _rangeHitsBefore ? "hit, " + g.LastTarget : "missed")} ({g.LastHit})");
     }
     private int _rangeHitsBefore;
+
+    private bool _leadTest;
+    private double _leadTime = -1;
+
+    /// <summary>The leads test (D54).</summary>
+    private void LeadTest(double delta)
+    {
+        if (_leadTime < 0)
+        {
+            if (_settledFor < 1.5 || _main.Leads == null) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "leads: could not get out of the car"); _leadTest = false; return; }
+            _leadTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        var leads = _main.Leads!;
+        double before = _leadTime;
+        _leadTime += delta;
+        bool Now(double t) => before < t && _leadTime >= t;
+        if (Now(0.5)) leads.Look(w.GlobalPosition, "crate", 0.3, 0.6);
+        var lead = leads.All.FirstOrDefault();
+        if (Now(3))
+        {
+            if (lead == null) { Log.Error("Test", "leads: no lead found"); _leadTest = false; return; }
+            Log.Info("Test", $"leads: lead {lead.Id}: {lead.Where} ({lead.Kind}), {lead.Gang}");
+            _main.MapView!.Toggle(); _main.MapView.SetZoom(1);
+        }
+        if (Now(4.5)) Shot("leads_map");
+        if (Now(5)) _main.MapView!.Toggle();
+        if (Now(5.5) && lead != null)
+        {
+            // 150 m short of it, on the line from where you are
+            var target = WorldOrigin.ToLocal(lead.X, 0, lead.Z);
+            var from = w.GlobalPosition; from.Y = 0; target.Y = 0;
+            var p = target + (from - target).Normalized() * 150f;
+            var hit = w.GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(p + Vector3.Up * 300, p + Vector3.Down * 300, Bodies.Ground | Bodies.Roads));
+            // no ground collision that far out yet: keep the height you're at (the town is flat) until it streams in
+            w.GlobalPosition = (hit.Count > 0 ? (Vector3)hit["position"] : p with { Y = w.GlobalPosition.Y + 1f }) + Vector3.Up * 0.5f;
+            w.Velocity = Vector3.Zero;
+        }
+        if (Now(9) && lead != null)
+        {
+            var (px, _, pz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            Log.Info("Test", $"leads: you are {Math.Sqrt((px - lead.X) * (px - lead.X) + (pz - lead.Z) * (pz - lead.Z)):0} m from the place");
+            if (lead.Stash != null) { var (sx, sy, sz) = WorldOrigin.ToWorld(lead.Stash.GlobalPosition); Log.Info("Test", $"leads: place {lead.X:0},{lead.Z:0}; stash {sx:0},{sy:0},{sz:0} (local {lead.Stash.GlobalPosition}); you {px:0},{pz:0} (local {w.GlobalPosition})"); }
+            var guards = _main.Bandits!.All.Where(b => b.Guarding == lead.Id).ToList();
+            Log.Info("Test", $"leads: stage {lead.Stage}, stash {(lead.Stash != null ? $"at {lead.Stash.GlobalPosition.DistanceTo(w.GlobalPosition):0} m" : "none")}, {guards.Count} guards: "
+                + string.Join(", ", guards.Select(b => $"{b.Gun.Id} {b.GlobalPosition.DistanceTo(lead.Stash?.GlobalPosition ?? b.GlobalPosition):0} m from it")));
+            if (lead.Stash != null)
+            {
+                // 12 m off, third person, looking at the camp
+                var s = lead.Stash.GlobalPosition;
+                var away = w.GlobalPosition - s; away.Y = 0;
+                w.GlobalPosition = s + away.Normalized() * 12f + Vector3.Up * 0.5f;
+                w.SetView(false);
+            }
+        }
+        if (Now(9.3) && lead?.Stash != null) w.Face(lead.Stash.GlobalPosition);
+        if (Now(10)) Shot("leads_camp");
+        if (Now(10.5) && lead != null)
+        {
+            foreach (var b in _main.Bandits!.All.Where(b => b.Guarding == lead.Id && !b.Dead).ToList())
+                b.Hit(new OnFoot.BulletHit(b.GlobalPosition + Vector3.Up * 1.0f, Vector3.Up, Vector3.Forward * 800, 0.008f, 12, 500));
+            Log.Info("Test", $"leads: guards shot, {lead.Guards} left");
+        }
+        if (Now(11) && lead?.Stash != null)
+        {
+            var s = lead.Stash.GlobalPosition;
+            var away = w.GlobalPosition - s; away.Y = 0;
+            w.GlobalPosition = s + away.Normalized() * 3.5f + Vector3.Up * 0.3f;
+            Log.Info("Test", $"leads: stash look: {string.Join(", ", lead.Stash.GetChildren().Select(c => c.GetType().Name + (c is MeshInstance3D m && m.Mesh != null ? " " + m.Mesh.GetAabb().Size : "")))}");
+        }
+        if (Now(11.3) && lead?.Stash != null) { w.SetView(true); w.Face(lead.Stash.GlobalPosition); }   // first person: the camp can be cramped
+        if (Now(12)) Shot("leads_stash");
+        if (Now(12.5))
+        {
+            bool opened = lead?.Stash != null && _main.TryOpenCache(lead.Stash);
+            Log.Info("Test", $"leads: stash opened {opened}, stage {lead?.Stage}; carrying food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; {w.Guns.Status}");
+        }
+        if (Now(13.2)) Shot("leads_taken");
+        if (Now(15))
+        {
+            Log.Info("Test", $"leads: {leads.All.Count} leads now: " + string.Join("; ", leads.All.Select(l => $"{l.Id} {l.Stage} {l.Where}")));
+            _main.MapView!.Toggle(); _main.MapView.SetZoom(3);
+        }
+        if (Now(16)) { Shot("leads_map_after"); _main.MapView!.Toggle(); Log.Info("Test", "leads: done"); _leadTest = false; }
+    }
 
     /// <summary>The survival test (D46).</summary>
     private void LootTest(double delta)
@@ -663,6 +754,7 @@ public sealed class Tests
         if (_crouchTest && _main.Car != null) { CrouchTest(delta); return; }
         if (_carBandits && _main.Car != null) { CarBanditTest(delta); return; }
         if (_soundTest && _main.Car != null) { SoundTest(delta); return; }
+        if (_leadTest && _main.Car != null) { LeadTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

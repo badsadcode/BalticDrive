@@ -127,6 +127,7 @@ public sealed record Loot(int Food, string FoodName, int Water, int Medkits, (st
 public sealed partial class CacheField : Node3D
 {
     private const string Small = "res://Assets/PolygonBattleRoyale/Prefabs/Props/SM_Prop_Crate_Small_01.tscn";
+    private const string Large = "res://Assets/PolygonBattleRoyale/Prefabs/Props/SM_Prop_Crate_01.tscn";
     private const string Medical = "res://Assets/PolygonBattleRoyale/Prefabs/Props/SM_Prop_Crate_Medical_01.tscn";
     public const float Near = 150f, Far = 220f, Reach = 2.6f;
     private readonly MapWorld _world;
@@ -140,7 +141,12 @@ public sealed partial class CacheField : Node3D
         public MapPoiKind Kind;
         public Loot Loot = null!;
         public bool Opened;
+        /// <summary>A lead's stash (D54): not removed with distance; <see cref="Leads"/> looks after it.</summary>
+        public bool Keep;
     }
+
+    /// <summary>A crate was opened (the crate, where): leads listen for notes (D54).</summary>
+    public event Action<Cache, Vector3>? Opened;
 
     public IEnumerable<Cache> Live => _live.Values;
 
@@ -160,7 +166,7 @@ public sealed partial class CacheField : Node3D
         if (now < _nextLook) return;
         _nextLook = now + 2;
         var (wx, _, wz) = WorldOrigin.ToWorld(at);
-        foreach (var key in _live.Where(kv => kv.Value.GlobalPosition.DistanceTo(at) > Far).Select(kv => kv.Key).ToList())
+        foreach (var key in _live.Where(kv => !kv.Value.Keep && kv.Value.GlobalPosition.DistanceTo(at) > Far).Select(kv => kv.Key).ToList())
         {
             _live[key].QueueFree();
             _live.Remove(key);
@@ -198,14 +204,17 @@ public sealed partial class CacheField : Node3D
     };
 
     /// <summary>Open ground near the place (not inside a building, not in the carriageway), with a ray for the height.</summary>
-    private Vector3? Spot(double px, double pz, Random rng)
+    /// <param name="clear">Room wanted round it (D54: a stash needs a clear patch, not a fenced tree pit): nothing of
+    /// buildings, props or fences within that radius.</param>
+    private Vector3? Spot(double px, double pz, Random rng, float clear = 0)
     {
         var space = GetWorld3D().DirectSpaceState;
         double a0 = rng.NextDouble() * Math.Tau;
-        for (int ring = 0; ring < 5; ring++)
+        var room = clear > 0 ? new PhysicsShapeQueryParameters3D { Shape = new SphereShape3D { Radius = clear }, CollisionMask = Bodies.Buildings | Bodies.Props | Bodies.Vehicles } : null;
+        for (int ring = 0; ring < (clear > 0 ? 7 : 5); ring++)
             for (int k = 0; k < 8; k++)
             {
-                double r = 2 + ring * 3, a = a0 + k * Math.Tau / 8;
+                double r = (clear > 0 ? 4 : 2) + ring * 3, a = a0 + k * Math.Tau / 8;
                 double x = px + Math.Cos(a) * r, z = pz + Math.Sin(a) * r;
                 if (_world.InBuilding(x, z, 0.8f)) continue;
                 if (_world.RoadEdgeDistance(x, z, 6f) < 0.5f) continue;   // on a road: no
@@ -213,18 +222,24 @@ public sealed partial class CacheField : Node3D
                 var q = PhysicsRayQueryParameters3D.Create(local + Vector3.Up * 300, local + Vector3.Down * 300, Bodies.Ground | Bodies.Roads);
                 var hit = space.IntersectRay(q);
                 if (hit.Count == 0) continue;   // no collision there yet: try again on the next look
-                return (Vector3)hit["position"];
+                var g = (Vector3)hit["position"];
+                if (room != null)
+                {
+                    room.Transform = new Transform3D(Basis.Identity, g + Vector3.Up * (clear + 0.15f));
+                    if (space.IntersectShape(room, 1).Count > 0) continue;
+                }
+                return g;
             }
         return null;
     }
 
-    private Cache MakeCache(string key, MapPoi poi, Random rng, Vector3 at)
+    private Cache MakeCache(string key, MapPoi poi, Random rng, Vector3 at, Loot? loot = null, string? scene = null)
     {
-        var loot = Fill(poi, rng);
+        loot ??= Fill(poi, rng);
         var c = new Cache { Key = key, Place = poi.Name, Kind = poi.Kind, Loot = loot, CollisionLayer = Bodies.Props, CollisionMask = 0 };
         c.SetMeta("surface", "hard");
         bool medical = poi.Kind == MapPoiKind.Medical;
-        string scene = medical ? Medical : Small;
+        scene ??= medical ? Medical : Small;
         Aabb box = new(new Vector3(-0.4f, 0, -0.22f), new Vector3(0.8f, 0.25f, 0.44f));
         if (ResourceLoader.Exists(scene) && ResourceLoader.Load<PackedScene>(scene) is { } ps)
         {
@@ -264,6 +279,36 @@ public sealed partial class CacheField : Node3D
         };
     }
 
+    /// <summary>A lead's stash (D54): the big crate, outside the place, kept until <see cref="Remove"/>. Null when
+    /// there's no ground collision there yet (try again later).</summary>
+    public Cache? PlaceStash(string key, double x, double z, Loot loot, string place)
+    {
+        if (_live.TryGetValue(key, out var have)) return have;
+        var rng = new Random(Hash(key));
+        if (Spot(x, z, rng, clear: 1.6f) is not { } spot) return null;
+        var c = MakeCache(key, new MapPoi { Name = place, Kind = MapPoiKind.Camp }, rng, spot, loot, Large);
+        c.Keep = true;
+        c.Opened = _opened.Contains(key);
+        // a pile, not one flat box you walk past: a small crate on top, a medical one beside it
+        float top = c.GetChild(0) is MeshInstance3D { Mesh: { } m } ? m.GetAabb().End.Y : 0.4f;
+        foreach (var (scene, at, yaw) in new[] { (Small, new Vector3(0.1f, top, 0.05f), 0.5f), (Medical, new Vector3(1.05f, 0, 0.35f), -0.3f) })
+            if (ResourceLoader.Exists(scene) && ResourceLoader.Load<PackedScene>(scene) is { } ps)
+            {
+                var n = ps.Instantiate<Node3D>();
+                foreach (var body in n.FindChildren("*", "CollisionObject3D", true, false)) body.Free();
+                n.Position = at; n.Rotation = new Vector3(0, yaw, 0);
+                c.AddChild(n);
+            }
+        _live[key] = c;
+        return c;
+    }
+
+    public void Remove(Cache c)
+    {
+        _live.Remove(c.Key);
+        c.QueueFree();
+    }
+
     private int _drops;
 
     /// <summary>A searchable spot with no crate: what a fallen bandit had on them (D47).</summary>
@@ -284,6 +329,7 @@ public sealed partial class CacheField : Node3D
     {
         c.Opened = true;
         _opened.Add(c.Key);
+        Opened?.Invoke(c, c.GlobalPosition);
         if (c.GetChildCount() > 0 && c.GetChild(0) is MeshInstance3D look) look.RotationDegrees = new Vector3(0, 0, 4);
     }
 }

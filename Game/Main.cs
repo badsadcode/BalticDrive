@@ -183,14 +183,16 @@ public partial class Main : Node3D
 	private Label? _prompt;
 	private OnFoot.BanditField? _bandits;
 	public OnFoot.BanditField? Bandits => _bandits;
+	private OnFoot.Leads? _leads;
+	public OnFoot.Leads? Leads => _leads;
 	private ColorRect? _hurt;
 	private Control? _bars;
 
 	/// <summary>E on foot by an unopened crate (D46): opens it; otherwise E is the car, as before.</summary>
-	public bool TryOpenCache()
+	public bool TryOpenCache(OnFoot.CacheField.Cache? which = null)
 	{
 		if (!OnFoot || _caches == null || _walker == null) return false;
-		var c = _caches.InReach(_walker.GlobalPosition);
+		var c = which ?? _caches.InReach(_walker.GlobalPosition);
 		if (c == null) return false;
 		_caches.Open(c);
 		ShowNote(_walker.Body.Take(c.Loot) + (string.IsNullOrEmpty(c.Place) ? "" : $"  ({c.Place})"));
@@ -275,11 +277,16 @@ public partial class Main : Node3D
 		{
 			_caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud();
 			_bandits = new OnFoot.BanditField(_world, _caches); AddChild(_bandits);
+			// a reason to roam (D54): notes and radios name stashes across the map
+			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);
+			_leads.Said += s => ShowNote(s, 12, keep: true);
+			_mapScreen?.SetLeads(() => _leads.All.Select(l => (l.X, l.Z, l.Where, l.Stage == BalticDrive.OnFoot.Leads.Stage.Taken)));
 			// crates and bodies on the radar while on foot (D50)
 			if (_minimap != null)
 				_minimap.Markers = () => OnFoot && _caches != null
-					? _caches.Live.Select(c => { var (wx, _, wz) = WorldOrigin.ToWorld(c.GlobalPosition); return (wx, wz, c.Key.StartsWith("drop:") ? 2 : c.Kind == MapPoiKind.Medical ? 1 : 0, c.Opened); }).ToList()
-					: Enumerable.Empty<(double, double, int, bool)>();
+					? _caches.Live.Where(c => !c.Keep).Select(c => { var (wx, _, wz) = WorldOrigin.ToWorld(c.GlobalPosition); return (wx, wz, c.Key.StartsWith("drop:") ? 2 : c.Kind == MapPoiKind.Medical ? 1 : 0, c.Opened); })
+						.Concat(_leads!.All.Where(l => l.Stage != BalticDrive.OnFoot.Leads.Stage.Taken).Select(l => (l.X, l.Z, 3, false))).ToList()
+					: _leads!.All.Where(l => l.Stage != BalticDrive.OnFoot.Leads.Stage.Taken).Select(l => (l.X, l.Z, 3, false)).ToList();
 			// hit: the screen edge flashes red (D47)
 			_hurt = new ColorRect { Color = new Color(0.7f, 0, 0, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
 			_hurt.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -304,12 +311,13 @@ public partial class Main : Node3D
 		UpdateDown((float)GetProcessDeltaTime());
 		_bandits!.Update(now);
 		bool on = OnFoot && _walker != null;
+		_leads!.Update(on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : null);
 		_bars!.Visible = on || (_car != null && _car.Driving && !Flying && _walker != null);   // health in the car too (D52)
 		if (!on) { _prompt!.Visible = false; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
 		_prompt!.Visible = c != null;
-		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "E: search the body" : "E: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
+		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "E: search the body" : c.Keep ? "E: take the stash" : "E: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
 		_bars.QueueRedraw();
 	}
 	public OnFoot.ShootingRange? Range => _range;
@@ -538,20 +546,25 @@ public partial class Main : Node3D
 	}
 
 	private Label? _note;
-	private double _noteUntil;
+	private double _noteUntil, _noteAt;
 
 	/// <summary>A short message at the bottom of the screen for a few seconds.</summary>
-	public void ShowNote(string text)
+	/// <param name="keep">Add under a note that's just gone up instead of replacing it (D54: a lead found in a crate
+	/// mustn't wipe what the crate held).</param>
+	public void ShowNote(string text, double seconds = 6, bool keep = false)
 	{
+		double now = Time.GetTicksMsec() / 1000.0;
+		if (keep && _note != null && _note.Visible && now - _noteAt < 2) text = _note.Text + "\n" + text;
+		_noteAt = now;
 		if (_note == null)
 		{
-			_note = new Label { AnchorLeft = 0, AnchorRight = 1, AnchorTop = 1, AnchorBottom = 1, OffsetTop = -70, OffsetBottom = -40, HorizontalAlignment = HorizontalAlignment.Center };
+			_note = new Label { AnchorLeft = 0, AnchorRight = 1, AnchorTop = 1, AnchorBottom = 1, OffsetTop = -70, OffsetBottom = -40, HorizontalAlignment = HorizontalAlignment.Center, GrowVertical = Control.GrowDirection.Begin };
 			_note.AddThemeColorOverride("font_shadow_color", Colors.Black);
 			_ui.AddChild(_note);
 		}
 		_note.Text = text;
 		_note.Visible = true;
-		_noteUntil = Time.GetTicksMsec() / 1000.0 + 6;
+		_noteUntil = Time.GetTicksMsec() / 1000.0 + seconds;
 	}
 
 	private void BuildEnvironment()

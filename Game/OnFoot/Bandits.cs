@@ -29,6 +29,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     public float Health = 90;
     public readonly WeaponDef Gun;
     public Vector3 Home;
+    /// <summary>The lead whose stash this one guards (D54), 0 for none.</summary>
+    public int Guarding;
     /// <summary>Synty City characters in everyday clothes (not the police one: a bandit in uniform would mislead).</summary>
     public static readonly string[] Looks = { "Character_Male_Jacket", "Character_Female_Jacket", "Character_Female_Coat" };
 
@@ -553,9 +555,13 @@ public sealed partial class BanditField : Node3D
             if (b != who && !b.Dead && b.GlobalPosition.DistanceTo(who.GlobalPosition) < 60) b.MateEngaged(enemy);
     }
 
+    /// <summary>A bandit went down (after their pockets are left to search): leads count guards (D54).</summary>
+    public event Action<Bandit>? Fell;
+
     public void Died(Bandit b)
     {
         Killed++;
+        Fell?.Invoke(b);
         // what they had on them: a few rounds for their gun, sometimes food or a medkit
         var loot = new Loot(_rng.NextDouble() < 0.4 ? 1 : 0, "tin of beans", _rng.NextDouble() < 0.3 ? 1 : 0, _rng.NextDouble() < 0.25 ? 1 : 0,
             new[] { (b.Gun.Id, b.Gun.Mode == FireMode.Auto ? 20 : b.Gun.Mode == FireMode.Semi ? 10 : 5) });
@@ -599,16 +605,29 @@ public sealed partial class BanditField : Node3D
         return 0;
     }
 
-    private int SpawnGroup(Vector3 at)
+    /// <summary>A gang camped round a stash (D54): <paramref name="n"/> of them within ~10 m, mostly AKs, one Mosin
+    /// watching the approach.</summary>
+    public int SpawnGuards(Vector3 at, int n, int lead) => SpawnGroup(at, n, lead, spread: 18);
+
+    public int GuardsOf(int lead) => _all.Count(b => b.Guarding == lead && !b.Dead);
+
+    /// <summary>The player walked off: the stash's guards go with it (the living ones are counted by the lead).</summary>
+    public void Dismiss(int lead)
     {
-        int n = 2 + (_rng.NextDouble() < 0.4 ? 1 : 0);
+        foreach (var b in _all.Where(b => b.Guarding == lead).ToList()) { _all.Remove(b); b.QueueFree(); }
+    }
+
+    private int SpawnGroup(Vector3 at, int n = 0, int lead = 0, float spread = 6)
+    {
+        if (n <= 0) n = 2 + (_rng.NextDouble() < 0.4 ? 1 : 0);
         int made = 0;
         for (int i = 0; i < n; i++)
         {
             double roll = _rng.NextDouble();
-            var gun = WeaponDef.All.First(d => d.Id == (roll < 0.5 ? "ak" : roll < 0.8 ? "pistol" : "mosin"));
-            var p = Spot(at + new Vector3((float)_rng.NextDouble() * 6 - 3, 0, (float)_rng.NextDouble() * 6 - 3), false) ?? at;
-            var b = new Bandit(this, gun, _rng.Next());
+            string id = lead != 0 ? (i == 0 ? "mosin" : roll < 0.7 ? "ak" : "pistol") : roll < 0.5 ? "ak" : roll < 0.8 ? "pistol" : "mosin";
+            var gun = WeaponDef.All.First(d => d.Id == id);
+            var p = Spot(at + new Vector3((float)_rng.NextDouble() * spread - spread / 2, 0, (float)_rng.NextDouble() * spread - spread / 2), false) ?? at;
+            var b = new Bandit(this, gun, _rng.Next()) { Guarding = lead };
             AddChild(b);
             b.Place(p + Vector3.Up * 0.2f, at);
             _all.Add(b);

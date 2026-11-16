@@ -730,3 +730,34 @@ be replaceable. `Game/Audio/`:
   * far: mono, low-passed at ~500 Hz, a longer fade.
   A real gunshot's crack and body beat the generated ones even when borrowed. Measured: Mosin brightness 3,240 Hz,
   AK 3,380 Hz, pistol 3,890 Hz.
+
+## D54 — A reason to roam: leads to guarded stashes (Tom's pick)
+
+Asked what should pull you across the map, Tom picked **leads** (over dangerous districts, a get-out-of-town run and
+scouting by place type), and for the stash, **guarded and rich**.
+
+* **Where a lead comes from.** The first crate you open always holds one, so the hook appears early. After that, 20 %
+  of crates have one. A dead bandit's radio has one 15 % of the time, and a taken stash points on 70 % of the time.
+  At most three open leads at once.
+* **What it names.** A real OSM point of interest 1.2–4 km away, of a kind with stock and room round the back:
+  petrol station, police, garage, hardware shop, pharmacy, shop or camp. Named places come first, and the nearest
+  named street within 80 m is added: "a scrap of paper in the crate: Stash at Polmed on Twarda. The Praga boys are
+  sitting on it." The gang name comes from a short invented list. The search runs on a worker thread and loads
+  only the tile at a random point at that distance (up to 10 tries), never a ring of 25 tiles.
+* **On the map.** The map screen shows a red diamond with "stash: …"; a taken stash turns grey. The radar shows the
+  diamond too, pinned to the rim while it's out of range, so you can drive or walk towards it without the map.
+* **Arriving (180 m, on foot or driving).** The stash is set down outside the place: a big crate with a small one
+  on top and a medical crate beside it. It goes on a patch clear of walls, fences and props within 1.6 m (the first
+  try landed in a fenced tree pit). A gang of 3–5 camps round it within ~10 m: one Mosin watching, the rest mostly
+  AKs. They're ordinary bandits with `Guarding` set, so they patrol round the stash. Their count is kept on the
+  lead: the ones you shoot stay dead. If you walk off (300 m, under the bandits' own 320 m cull), the stash and the
+  surviving guards go back to being a promise and come back when you return. If they're cleared away without being
+  shot (you went down), they're back.
+* **What's in it.** 45–75 AK rounds, 10–20 Mosin, 16–32 pistol, 1–2 medkits, 1–3 food and water. Worth the fight.
+* **Messages.** A lead found in a crate is added under the "Found …" note instead of replacing it (ShowNote
+  `keep`), and lead notes stay up for 12 s.
+* Per session, like opened crates; nothing far away is simulated.
+
+Test: `--autotest=leads`. It finds a lead 300–600 m away and photographs the map, puts you 150 m from it (stash
+and guards appear), shoots the guards, opens the stash and photographs the chained lead on the map.
+Not done: saving leads between sessions.

@@ -37,6 +37,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--views=x:z:above:yaw:pitch;...` — go to each view, wait for everything to stream in, save a screenshot.
 * `--autotest=fly --speed=40` — fly 6 km at 40 m/s, report frame times and frames without ground collision.
 * `--autotest=drive` — the car keeps to the road for 20 s; reports speed and time off the road.
+* `--autotest=leads` — a lead to a guarded stash (D54): map, arrival, guards, stash, the next lead.
 
 ## Layout
 
