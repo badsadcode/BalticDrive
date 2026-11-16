@@ -713,3 +713,12 @@ be replaceable. `Game/Audio/`:
   then raised 4 dB and the idle made quieter.
 * **Test runs are muted** (master at -80 dB; the recording still hears it), so they don't fire guns through Tom's
   speakers while he works; `--sound` turns it back on.
+* **After Tom listened** ("my shots sound like a gunshot from afar; near buildings it's like a small room with an
+  echo"):
+  * your own shot now plays dry, without the reverb, at full strength;
+  * near shots get a snap: 6 ms of bright, unfiltered N-wave before the body. The generated body low-passes its
+    crack, which is what made it sound distant. The first 8 ms are now 6 dB sharper;
+  * outdoor reverb is down to almost nothing (street 0.04, courtyard 0.07, open 0.015 wet): outdoors the space is
+    heard in the separate echoes, and dense reverb is what rooms sound like. Only under a roof does it ring (0.2);
+  * echoes are brighter and shorter, a slap rather than a thud;
+  * the roll in the open is 8 dB quieter.

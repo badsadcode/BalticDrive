@@ -21,6 +21,32 @@ public static class AudioSynth
         return w;
     }
 
+    /// <summary>
+    /// A shot close by: the guns' body (crack, thump, tail; D40) with the snap a close shot starts with, a few
+    /// milliseconds of bright, unfiltered pressure wave. Without it the shot sounded far away (Tom).
+    /// </summary>
+    public static AudioStreamWav NearShot(float boom, float pitch)
+    {
+        var body = OnFoot.Synth.Shot(boom, pitch);
+        var data = body.Data;
+        int n = data.Length / 2;
+        var x = new float[n];
+        for (int i = 0; i < n; i++) x[i] = (short)(data[i * 2] | (data[i * 2 + 1] << 8)) / 32000f;
+        var rng = new Random(41);
+        float prev = 0;
+        int snap = (int)(Rate * 0.006f);
+        for (int i = 0; i < snap && i < n; i++)
+        {
+            float t = i / (float)snap;
+            float noise = (float)(rng.NextDouble() * 2 - 1);
+            float hp = noise - prev; prev = noise;        // high-passed: all edge
+            float nwave = t < 0.5f ? 1f - 4f * t : -1f + 2f * (t - 0.5f) * 2f;   // the N-shaped pressure jump
+            x[i] = x[i] * 0.6f + (nwave * 0.7f + hp * 0.5f) * (1f - t * 0.6f);
+        }
+        for (int i = 0; i < n; i++) x[i] *= 0.85f;
+        return Wav(x);
+    }
+
     /// <summary>A shot heard from far away: the crack is gone (air eats the highs), a low boom rolls on.</summary>
     public static AudioStreamWav FarShot(float boom)
     {
@@ -51,8 +77,9 @@ public static class AudioSynth
         for (int i = 0; i < n; i++)
         {
             float t = i / (float)Rate;
-            lp += ((float)(rng.NextDouble() * 2 - 1) - lp) * 0.12f;
-            x[i] = (lp * 2.2f * MathF.Exp(-t * 11f) + MathF.Sin(MathF.Tau * 70f * t) * MathF.Exp(-t * 16f) * 0.4f) * MathF.Min(1f, t * 600f);
+            // a slap, not a thud: brighter and shorter than the first try (Tom heard it as muffled)
+            lp += ((float)(rng.NextDouble() * 2 - 1) - lp) * 0.35f;
+            x[i] = (lp * 1.8f * MathF.Exp(-t * 16f) + MathF.Sin(MathF.Tau * 90f * t) * MathF.Exp(-t * 20f) * 0.3f) * MathF.Min(1f, t * 900f);
         }
         return Wav(x);
     }

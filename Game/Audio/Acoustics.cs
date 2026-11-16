@@ -77,11 +77,14 @@ public sealed partial class Acoustics : Node
         float mean = hits > 0 ? sum / hits : Reach;
         bool forest = !OpenAround(ear) && hits < 4;
         // a place: what the reverb should be
-        if (!Sky) { Place = "covered"; _roomSize = 0.55f; _wet = 0.32f; _damping = 0.35f; }
-        else if (Enclosure > 0.75f) { Place = "courtyard"; _roomSize = Mathf.Clamp(mean / 60f, 0.2f, 0.6f); _wet = 0.3f; _damping = 0.3f; }
-        else if (Enclosure > 0.35f) { Place = "street"; _roomSize = Mathf.Clamp(mean / 70f, 0.3f, 0.75f); _wet = 0.18f; _damping = 0.45f; }
-        else if (forest) { Place = "woods"; _roomSize = 0.7f; _wet = 0.12f; _damping = 0.85f; }
-        else { Place = "open"; _roomSize = 0.25f; _wet = 0.05f; _damping = 0.6f; }
+        // Outdoors there is almost no dense reverb: the space is heard in the separate echoes off the walls
+        // (GunSound). A loud reverb made a street sound like a small room with an echo (Tom); only under a roof is it
+        // allowed to ring.
+        if (!Sky) { Place = "covered"; _roomSize = 0.6f; _wet = 0.2f; _damping = 0.4f; }
+        else if (Enclosure > 0.75f) { Place = "courtyard"; _roomSize = 0.75f; _wet = 0.07f; _damping = 0.5f; }
+        else if (Enclosure > 0.35f) { Place = "street"; _roomSize = 0.85f; _wet = 0.04f; _damping = 0.6f; }
+        else if (forest) { Place = "woods"; _roomSize = 0.8f; _wet = 0.035f; _damping = 0.9f; }
+        else { Place = "open"; _roomSize = 0.5f; _wet = 0.015f; _damping = 0.7f; }
         _predelay = Mathf.Clamp(2f * nearest / 343f * 1000f, 5f, 150f);
     }
 

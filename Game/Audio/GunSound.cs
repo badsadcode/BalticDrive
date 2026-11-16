@@ -30,8 +30,10 @@ public static class GunSound
 
         if (d < 70f)
         {
-            var near = SoundBank.Get("shot_" + gun.Id, () => Synth.Shot(gun.Boom, gun.Pitch));
-            if (own) After(tree, 0, () => Play2D(from, near, -2));
+            var near = SoundBank.Get("shot_" + gun.Id, () => AudioSynth.NearShot(gun.Boom, gun.Pitch));
+            // your own shot is right at your ear: dry (no reverb) and full strength; it sounded far away through the
+            // reverb (Tom)
+            if (own) After(tree, 0, () => Play2D(from, near, 2, "Master"));
             else After(tree, arrive, () => Play3D(from, at, near, 4, 400, 22000));
         }
         // the distant boom: always there beyond 40 m, blending in as the crack fades
@@ -52,14 +54,14 @@ public static class GunSound
             {
                 float path = at.DistanceTo(wall) + wall.DistanceTo(ear);
                 float delay = path / SpeedOfSound;
-                float db = 0f - path * 0.12f + gun.Boom * 3f;
-                After(tree, delay, () => Play3D(from, wall, echo, db, 600, 6000));
+                float db = -3f - path * 0.1f + gun.Boom * 3f;
+                After(tree, delay, () => Play3D(from, wall, echo, db, 600, 12000));
             }
             // open ground: no walls to answer, the shot rolls away over the land instead
             if (ac.Enclosure < 0.35f && ac.Sky)
             {
                 var roll = SoundBank.Get("roll", AudioSynth.Roll);
-                After(tree, arrive + 0.12f, () => Play2D(from, roll, -12f + gun.Boom * 4f - d * 0.02f));
+                After(tree, arrive + 0.25f, () => Play2D(from, roll, -20f + gun.Boom * 4f - d * 0.02f));
             }
         }
     }
@@ -70,10 +72,10 @@ public static class GunSound
         tree.CreateTimer(seconds).Timeout += a;
     }
 
-    public static void Play2D(Node from, AudioStream s, float db)
+    public static void Play2D(Node from, AudioStream s, float db, string bus = Buses.Sfx)
     {
         if (!GodotObject.IsInstanceValid(from)) return;
-        var p = new AudioStreamPlayer { Stream = s, VolumeDb = db, Bus = Buses.Sfx, PitchScale = (float)GD.RandRange(0.96, 1.04) };
+        var p = new AudioStreamPlayer { Stream = s, VolumeDb = db, Bus = bus, PitchScale = (float)GD.RandRange(0.96, 1.04) };
         from.GetTree().Root.AddChild(p);
         p.Play();
         p.Finished += p.QueueFree;
