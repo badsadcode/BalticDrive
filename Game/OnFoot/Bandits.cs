@@ -175,24 +175,25 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     private Skeleton3D? _skel;
     private int _headBone = -1;
 
-    private void Sense(Walker? player)
+    private void Sense(BanditField.Target? target)
     {
         _seesPlayer = false;
-        if (player == null || !player.Active) { if (State == Mode.Engage) State = Mode.Investigate; return; }
-        var head = player.FirstPersonCamera.GlobalPosition;
+        if (target is not { } t) { if (State == Mode.Engage) State = Mode.Investigate; return; }
+        var head = t.Head;
         var to = head - Eye;
         float d = to.Length();
         if (d > 70) return;
         var facing = new Vector3(-MathF.Sin(_yaw), 0, -MathF.Cos(_yaw));
         bool inView = d < 8 || facing.Dot(new Vector3(to.X, 0, to.Z).Normalized()) > MathF.Cos(MathF.PI * 60 / 180);
         if (!inView && State != Mode.Engage) return;
-        if (!Clear(Eye, head, player)) return;
+        if (!Clear(Eye, head, t.Body)) return;
         _seesPlayer = true;
-        _lastSeen = player.GlobalPosition + Vector3.Up * 1.2f;
+        _lastSeen = t.Aim;
         if (State != Mode.Engage)
         {
             // awareness builds faster up close; crouching halves it
-            float rate = (d < 15 ? 3f : d < 35 ? 1.4f : 0.7f) * (player.Crouching ? 0.5f : 1f);
+            // a car is noticed sooner (it's big and loud), a crouching walker later
+            float rate = (d < 15 ? 3f : d < 35 ? 1.4f : 0.7f) * (t.Low ? 0.5f : 1f) * (t.InCar ? 1.6f : 1f);
             _awareness += rate * 0.25f;
             _lookAt = head;
             if (_awareness >= 1) Engage();
@@ -200,10 +201,10 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     }
 
     /// <summary>Nothing in the way between two points (the player's own body doesn't count).</summary>
-    private bool Clear(Vector3 a, Vector3 b, Node? ignore = null)
+    private bool Clear(Vector3 a, Vector3 b, Rid ignore = default)
     {
         var q = PhysicsRayQueryParameters3D.Create(a, b, Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props);
-        q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+        q.Exclude = ignore.IsValid ? new Godot.Collections.Array<Rid> { GetRid(), ignore } : new Godot.Collections.Array<Rid> { GetRid() };
         return GetWorld3D().DirectSpaceState.IntersectRay(q).Count == 0;
     }
 
@@ -233,11 +234,11 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;
-        var player = _field.Player;
+        var target = _field.Current;
         if (State == Mode.Dead) { Fall(dt); return; }
 
         _think -= dt;
-        if (_think <= 0) { _think = 0.25f; Sense(player); }
+        if (_think <= 0) { _think = 0.25f; Sense(target); }
         _flinch -= dt; _cooldown -= dt; _reaction -= dt;
         Vector3 aimAt = _lookAt;
         bool shoulder = false;
@@ -269,7 +270,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
             case Mode.Engage:
                 shoulder = true;
                 aimAt = _lastSeen;
-                if (player == null || !player.Active) { State = Mode.Investigate; break; }
+                if (target == null) { State = Mode.Investigate; break; }
                 if (!_haveCover || _coverTimer <= 0)
                 {
                     var c = FindCover(_lastSeen);
@@ -296,7 +297,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
                 // fire when standing (or moving) with a clear line
                 if (!_crouch && _seesPlayer && _reaction <= 0 && _flinch <= 0 && _cooldown <= 0 && (_burstLeft > 0 || !there))
                 {
-                    Shoot(player);
+                    Shoot(target.Value);
                     if (_burstLeft > 0) _burstLeft--;
                     if (_burstLeft == 0 && there) { _peekTimer = 0.3f; }
                     // caught in the open (no cover): a breath between bursts, not a hose
@@ -336,17 +337,16 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _ => 1,
     };
 
-    private void Shoot(Walker? player)
+    private void Shoot(BanditField.Target t)
     {
-        if (player == null) return;
         _cooldown = Gun.Mode switch { FireMode.Auto => 60f / Gun.Rpm, FireMode.Semi => 0.35f + (float)_rng.NextDouble() * 0.2f, _ => 2.2f };
         var muzzle = _holder.ToGlobal(new Vector3(-Gun.Muzzle.X, Gun.Muzzle.Y, -Gun.Muzzle.Z) * Gun.Scale);
-        var target = player.GlobalPosition + Vector3.Up * (player.Crouching ? 0.8f : 1.25f);
+        var target = t.Aim;
         var dir = (target - muzzle).Normalized();
         float d = muzzle.DistanceTo(target);
         // never perfect: range, the player's speed, a recent hit; settling on the target tightens it a little
         // the first burst of a fight goes wide (surprise); then range, the player's speed, a recent hit
-        float spread = 0.02f + d * 0.0006f + (player.Speed > 3 ? 0.02f : 0) + (_flinch > -1 ? 0.025f : 0) + (_settle < 3 ? 0.06f : 0);
+        float spread = 0.02f + d * 0.0006f + (t.Speed > 3 ? 0.02f : 0) + (t.Speed > 12 ? 0.02f : 0) + (_flinch > -1 ? 0.025f : 0) + (_settle < 3 ? 0.06f : 0);
         spread *= Gun.Mode == FireMode.Bolt ? 0.45f : Gun.Mode == FireMode.Semi ? 1.4f : 1f;
         spread *= Mathf.Lerp(1.3f, 0.75f, Mathf.Clamp(_settle / 4f, 0, 1));
         _settle += 1;
@@ -385,6 +385,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _airTime = IsOnFloor() ? 0f : _airTime + dt;
         if (_tree != null) CharacterRig.Animate(_tree, new Vector2(local.X, -local.Z), _crouchBlend, Mathf.Clamp((_airTime - 0.12f) * 6f, 0f, 1f));
         _cycle?.Update(dt, new Vector2(Velocity.X, Velocity.Z).Length(), _crouch, IsOnFloor());
+        if (_skel != null) CharacterRig.GroundFeet(_model, _skel, _crouchBlend, dt);
     }
 
     private void Fall(float dt)
@@ -491,6 +492,26 @@ public sealed partial class BanditField : Node3D
     private readonly Random _rng = new();
     private double _nextLook, _lastEncounter = -999;
     public Walker? Player;
+    /// <summary>The player's car (D52): while you drive, the bandits come for the car.</summary>
+    public Vehicle.Car? Car;
+
+    /// <summary>Who the bandits are after: the walker on foot, or the car you're driving (D52). Feet, head (what
+    /// they look for), aim point, speed, low (crouching), the body their rays mustn't stop on, in a car.</summary>
+    public readonly record struct Target(Vector3 Feet, Vector3 Head, Vector3 Aim, float Speed, bool Low, Rid Body, bool InCar);
+
+    public Target? Current
+    {
+        get
+        {
+            if (Player is { Active: true } p)
+                return new Target(p.GlobalPosition, p.FirstPersonCamera.GlobalPosition, p.GlobalPosition + Vector3.Up * (p.Crouching ? 0.8f : 1.25f),
+                    p.Speed, p.Crouching, p.GetRid(), false);
+            if (Car is { Driving: true } c && IsInstanceValid(c))
+                return new Target(c.GlobalPosition, c.GlobalPosition + Vector3.Up * 1.3f, c.GlobalPosition + Vector3.Up * 0.9f,
+                    MathF.Abs(c.Speed), false, c.GetRid(), true);
+            return null;
+        }
+    }
     public IReadOnlyList<Bandit> All => _all;
     public void Clear() => _all.Clear();
     public void Remove(Bandit b) => _all.Remove(b);
@@ -520,7 +541,7 @@ public sealed partial class BanditField : Node3D
         {
             if (b == by || b.Dead) continue;
             float d = b.GlobalPosition.DistanceTo(at);
-            if (d < 150) b.Heard(by == null ? at : (Player?.GlobalPosition ?? at), d);
+            if (d < 150) b.Heard(by == null ? at : (Current?.Feet ?? at), d);
         }
     }
 
@@ -543,8 +564,8 @@ public sealed partial class BanditField : Node3D
 
     public void Update(double now)
     {
-        if (Player == null || !Player.Active) return;
-        var at = Player.GlobalPosition;
+        if (Current is not { } t) return;
+        var at = t.Feet;
         foreach (var b in _all.Where(b => b.GlobalPosition.DistanceTo(at) > 320 || (b.Dead && b.DeadFor > 120)).ToList())
         {
             _all.Remove(b);
@@ -556,6 +577,15 @@ public sealed partial class BanditField : Node3D
         if (_all.Count(b => !b.Dead && b.GlobalPosition.DistanceTo(at) < 250) >= 2) return;
         if (now - _lastEncounter < 60) return;
         if (_rng.NextDouble() > 0.5) return;
+        if (t.InCar)
+        {
+            // driving (D52): somewhere ahead along the way you're going, 140-200 m, off the road
+            var fwd = Car!.LinearVelocity with { Y = 0 };
+            if (fwd.LengthSquared() < 4f) fwd = -Car.GlobalTransform.Basis.Z with { Y = 0 };
+            float a = MathF.Atan2(fwd.Z, fwd.X) + (float)(_rng.NextDouble() - 0.5) * 1.2f, d = 140 + (float)_rng.NextDouble() * 60;
+            if (Spot(at + new Vector3(MathF.Cos(a) * d, 0, MathF.Sin(a) * d), hidden: false) is { } q) SpawnGroup(q);
+            return;
+        }
         float yaw = (float)(_rng.NextDouble() * Math.Tau), r = 90 + (float)_rng.NextDouble() * 60;
         if (Spot(at + new Vector3(MathF.Cos(yaw) * r, 0, MathF.Sin(yaw) * r), hidden: true) is { } p) SpawnGroup(p);
     }
@@ -599,9 +629,9 @@ public sealed partial class BanditField : Node3D
             var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(p + Vector3.Up * 300, p + Vector3.Down * 300, Bodies.Ground | Bodies.Roads));
             if (hit.Count == 0) continue;
             var g = (Vector3)hit["position"];
-            if (hidden && Player != null)
+            if (hidden && Current is { } tt)
             {
-                var q = PhysicsRayQueryParameters3D.Create(Player.FirstPersonCamera.GlobalPosition, g + Vector3.Up * 1.5f, Bodies.Ground | Bodies.Buildings | Bodies.Roads);
+                var q = PhysicsRayQueryParameters3D.Create(tt.Head, g + Vector3.Up * 1.5f, Bodies.Ground | Bodies.Buildings | Bodies.Roads);
                 if (space.IntersectRay(q).Count == 0) continue;   // in plain view: not here
             }
             return g;

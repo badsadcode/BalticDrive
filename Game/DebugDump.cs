@@ -108,7 +108,12 @@ public static class DebugDump
                             if (o.Road != sg.Road && !o.Road.IsRail && !o.Road.IsBridge) m = MathF.Min(m, o.Distance(px, pz, out _) - o.Hw);
                         free.Add(F(m, 1));
                     }
-                    sb.AppendLine($"  {ClassName(sg.Road.Cls)} piece {sg.Index} ({F(sg.Ax)},{F(sg.Az)})→({F(sg.Bx)},{F(sg.Bz)}) hw {F(sg.Hw, 2)} {(sgn < 0 ? "left" : "right")}: {(blocked ? "blocked" : "KEPT")}  free {string.Join(" ", free)}");
+                    // what lies just behind the slabs (land cover, and any junction / paved area / square holding the point)
+                    float bpx = sg.Ax + dx * .5f + rx * (sg.Hw + sg.Road.WalkWidth + 1.5f), bpz = sg.Az + dz * .5f + rz * (sg.Hw + sg.Road.WalkWidth + 1.5f);
+                    string inJ = string.Join("/", ctx.Junctions.Where(jr => jr.J.Contains(bpx - jr.OffX, bpz - jr.OffZ)).Select(jr => jr.J.Pedestrian ? "square" : jr.J.Paved ? "paved" : "junction"));
+                    float roadE = ctx.NearestGroundRoad(bpx, bpz, out _, out var nr, false);
+                    sb.AppendLine($"  {ClassName(sg.Road.Cls)} piece {sg.Index} ({F(sg.Ax)},{F(sg.Az)})→({F(sg.Bx)},{F(sg.Bz)}) hw {F(sg.Hw, 2)} {(sgn < 0 ? "left" : "right")}: {(blocked ? "blocked" : "KEPT")}  free {string.Join(" ", free)}" +
+                                  $"  behind: land {ctx.Land(bpx, bpz)}{(inJ.Length > 0 ? " in " + inJ : "")}, road edge {F(roadE, 1)}{(nr != null ? " (" + ClassName(nr.Cls) + (nr.OnPaved ? " on-paved" : "") + ")" : "")}");
                 }
             int jn = 0;
             foreach (var jr in ctx.Junctions)

@@ -13,7 +13,7 @@ namespace BalticDrive.Vehicle;
 /// Quaternius' pickup (CC0). Keys: W/S or arrows drive and brake, A/D steer, Space handbrake, C camera, H lights,
 /// R recover onto the nearest road. Survives origin jumps by being warped with its velocity kept.
 /// </summary>
-public partial class Car : VehicleBody3D
+public partial class Car : VehicleBody3D, OnFoot.IHittable
 {
     private const float TopSpeed = 50f;           // m/s (180 km/h)
     // VehicleBody3D drives towards +Z for positive engine force; the car's nose is -Z.
@@ -24,6 +24,16 @@ public partial class Car : VehicleBody3D
     public bool OnRoad { get; private set; }
     public bool FirstPerson { get; private set; }
     public bool Driving = true;
+
+    /// <summary>A bullet hit the car while you drive (D52): the damage it would have done, for the driver.</summary>
+    public event Action<float>? Shot;
+
+    public string? Hit(OnFoot.BulletHit h)
+    {
+        if (!Driving) return null;
+        Shot?.Invoke(h.Damage);
+        return "car";
+    }
     /// <summary>Scripted inputs (tests): throttle 0..1, brake 0..1, steer -1..1 (left positive).</summary>
     public Func<Car, (float Throttle, float Brake, float Steer)>? Autopilot;
     /// <summary>Whether ground collision is loaded under a world point (the car freezes where it is not).</summary>

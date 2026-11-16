@@ -308,6 +308,7 @@ public partial class Walker : CharacterBody3D, IHittable
         _cycle?.Update((float)delta, Speed, Crouching, IsOnFloor());
         UpdateAnimations((float)delta);
         UpdateThirdPersonGun((float)delta);
+        if (_skel != null) CharacterRig.GroundFeet(_model, _skel, _crouchBlend, (float)delta);
     }
 
     private void UpdateCamera(float dt)

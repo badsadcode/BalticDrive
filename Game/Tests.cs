@@ -33,6 +33,9 @@ namespace BalticDrive;
 /// from the side.</item>
 /// <item><c>--autotest=death</c> — crates on the radar (D50), then going down: the screen goes dark, you come round
 /// by the car with the pack gone.</item>
+/// <item><c>--autotest=crouch</c> — third person from the side: standing, crouched still, crouch-walking (D52).</item>
+/// <item><c>--autotest=carbandits</c> — sitting in the car, a group of bandits 30 m away (D52): do they come for the
+/// car and shoot, and does it hurt the driver.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -99,6 +102,8 @@ public sealed class Tests
         _banditLook = Main.Args.GetValueOrDefault("autotest", "").Contains("banditlook");
         _tpGun = Main.Args.GetValueOrDefault("autotest", "").Contains("tpgun");
         _death = Main.Args.GetValueOrDefault("autotest", "").Contains("death");
+        _crouchTest = Main.Args.GetValueOrDefault("autotest", "").Contains("crouch");
+        _carBandits = Main.Args.GetValueOrDefault("autotest", "").Contains("carbandits");
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -260,10 +265,60 @@ public sealed class Tests
         }
     }
 
-    private bool _banditLook, _tpGun, _death;
+    private bool _banditLook, _tpGun, _death, _crouchTest, _carBandits;
+    private double _carBanditTime = -1;
+    private double _crouchTime = -1;
     private double _deathTime = -1;
     private double _tpTime = -1;
     private double _lookTime = -1;
+
+    /// <summary>Bandits and the car (D52).</summary>
+    private void CarBanditTest(double delta)
+    {
+        if (_carBanditTime < 0)
+        {
+            if (_settledFor < 2.5 || _main.Bandits == null) return;
+            _carBanditTime = 0;
+            var c = _main.Car!;
+            int n = _main.Bandits.SpawnAhead(c.GlobalPosition, c.Rotation.Y, 30);
+            Log.Info("Test", $"carbandits: {n} spawned 30 m from the car; driving {c.Driving}; your health {_main.Walker?.Body.Health:0}");
+            return;
+        }
+        double before = _carBanditTime;
+        _carBanditTime += delta;
+        bool Now(double t) => before < t && _carBanditTime >= t;
+        var f = _main.Bandits!;
+        string States() => string.Join(", ", f.All.Select(b => $"{b.Gun.Id} {b.State}"));
+        foreach (var t in new[] { 3.0, 6.0, 10.0 })
+            if (Now(t)) Log.Info("Test", $"carbandits: {t:0} s: {States()}; your health {_main.Walker?.Body.Health:0}");
+        if (Now(6)) Shot("carbandits");
+        if (Now(10.5)) { Log.Info("Test", "carbandits: done"); _carBandits = false; }
+    }
+
+    /// <summary>Crouching in third person (D52).</summary>
+    private void CrouchTest(double delta)
+    {
+        if (_crouchTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _crouchTest = false; return; }
+            _crouchTime = 0;
+            var wk = _main.Walker!;
+            wk.SetView(false);
+            wk.GlobalPosition += new Vector3(-MathF.Sin(wk.Yaw), 0, -MathF.Cos(wk.Yaw)) * 8 + Vector3.Up * 0.3f;
+            wk.Autopilot = w => (_crouchTime > 4 && _crouchTime < 6 ? new Vector2(0, 1) : Vector2.Zero, false);
+            return;
+        }
+        var w = _main.Walker!;
+        double before = _crouchTime;
+        _crouchTime += delta;
+        bool Now(double t) => before < t && _crouchTime >= t;
+        w.CameraOrbit = 1.4f;
+        if (Now(1)) { Shot("crouch_stand"); w.Crouch(true); }
+        if (Now(3)) { Shot("crouch_still"); Log.Info("Test", $"crouch: crouching {w.Crouching}, {w.DebugPose()}"); }
+        if (Now(5.5)) { Shot("crouch_walk"); Log.Info("Test", $"crouch: walking {w.Speed:F1} m/s"); }
+        if (Now(6.5)) { w.Crouch(false); w.Autopilot = null; Log.Info("Test", "crouch: done"); _crouchTest = false; }
+    }
 
     /// <summary>Crates on the radar and going down (D50).</summary>
     private void DeathTest(double delta)
@@ -550,6 +605,8 @@ public sealed class Tests
         if (_banditLook && _main.Car != null) { BanditLook(delta); return; }
         if (_tpGun && _main.Car != null) { TpGunTest(delta); return; }
         if (_death && _main.Car != null) { DeathTest(delta); return; }
+        if (_crouchTest && _main.Car != null) { CrouchTest(delta); return; }
+        if (_carBandits && _main.Car != null) { CarBanditTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

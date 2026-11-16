@@ -244,6 +244,12 @@ public partial class Main : Node3D
 			if (_car != null)
 			{
 				var t = _car.GlobalTransform;
+				if (_car.Driving)
+				{
+					// shot at the wheel (D52): you come round beside the car
+					_car.Driving = false;
+					_walker.Activate(t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f, _car.Rotation.Y);
+				}
 				_walker.GlobalPosition = t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f;
 				_walker.Velocity = Vector3.Zero;
 			}
@@ -271,6 +277,15 @@ public partial class Main : Node3D
 			_hurt.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 			_ui.AddChild(_hurt);
 		}
+		// the walker carries your health even before you first get out (bandits shoot at the car, D52)
+		if (_walker == null && _car != null) _walker = CreateWalker();
+		if (_car != null && _bandits!.Car != _car)
+		{
+			_bandits.Car = _car;
+			// the bodywork stops most of it (D52): a fifth reaches the driver. At a half, three bandits took a parked
+			// driver from 100 to 8 in ten seconds: a car is a big target that's hard to miss
+			_car.Shot += d => { if (_car.Driving) _walker?.Body.Damage(d * 0.2f); };
+		}
 		if (_walker != null && _bandits!.Player != _walker)
 		{
 			_bandits.Player = _walker;
@@ -281,7 +296,7 @@ public partial class Main : Node3D
 		UpdateDown((float)GetProcessDeltaTime());
 		_bandits!.Update(now);
 		bool on = OnFoot && _walker != null;
-		_bars!.Visible = on;
+		_bars!.Visible = on || (_car != null && _car.Driving && !Flying && _walker != null);   // health in the car too (D52)
 		if (!on) { _prompt!.Visible = false; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);

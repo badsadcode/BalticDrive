@@ -247,7 +247,10 @@ public static class MapMesher
         var mesh = geo.Roads;
         // paved and pedestrian areas (squares like Plac Konstytucji) sit under every road that crosses them; junction
         // surfaces over them (a pedestrian area used to cover its roads, tram tracks and markings, D32)
-        float bias = (j.Paved || j.Pedestrian ? 0.045f : 0.105f) + (lod > 0 ? 0.06f * lod : 0f);
+        // a junction of streets that are all laid on a square goes under the square with them (D52, Tom's dump on Plac
+        // Grzybowski: a dark asphalt triangle on the light paving)
+        bool onSquare = !j.Paved && !j.Pedestrian && ArmsAllOnPaved(ctx, jr);
+        float bias = (j.Paved || j.Pedestrian ? 0.045f : onSquare ? 0.02f : 0.105f) + (lod > 0 ? 0.06f * lod : 0f);
         // The road shader reads UV.x as the offset from the centre line and COLOR.b * 16 as the half width (beyond it:
         // gravel shoulder). A junction is all carriageway: half width 16 m, UV.x kept within ±10 m (wrapping every 40 m).
         var col = new Color(j.Pedestrian ? SurfConcrete : SurfAsphalt, 0f, 1f, LaneCode(2, 0));
@@ -276,7 +279,7 @@ public static class MapMesher
                 float len = e.Length();
                 if (len < 0.05f) continue;
                 var outv = new Vector2(e.Y, -e.X) / len * sign;
-                if (lod <= 1 && !j.Paved && start == 0 && CornerPavement(ctx, a, b, outv, out float cw))
+                if (lod <= 1 && !j.Paved && !onSquare && start == 0 && CornerPavement(ctx, a, b, outv, out float cw))
                 {
                     // a street corner between two pavements (D27): kerb up, slabs round the corner, slope to the ground
                     AddCornerPavement(mesh, geo.PavedFaces, a, b, outv, cw);
@@ -321,7 +324,34 @@ public static class MapMesher
             foreach (var jr in ctx.Junctions)
                 if (!jr.J.Elevated && jr.J.Contains(px - jr.OffX, pz - jr.OffZ)) return true;
         }
-        return false;
+        // just behind the slabs lies a paved area or a square: the paving is the pavement there (D52, Tom's dump on
+        // Świętokrzyska: a kerbed strip standing alone in a sea of car park asphalt)
+        float behind = s.Hw + road.WalkWidth + 1.5f;
+        int paved = 0;
+        for (float t = .25f; t <= .76f; t += .25f)
+        {
+            float px = s.Ax + dx * t + rx * behind, pz = s.Az + dz * t + rz * behind;
+            if (ctx.Land(px, pz) == MapLand.Paved) { paved++; continue; }   // asphalt ground cover (car parks, yards)
+            foreach (var jr in ctx.Junctions)
+                if ((jr.J.Paved || jr.J.Pedestrian) && !jr.J.Elevated && jr.J.Contains(px - jr.OffX, pz - jr.OffZ)) { paved++; break; }
+        }
+        return paved >= 2;
+    }
+
+    /// <summary>Every road that ends at this junction is laid on a paved area (and there is at least one).</summary>
+    private static bool ArmsAllOnPaved(MapContext ctx, in MapJunctionRef jr)
+    {
+        var j = jr.J;
+        int arms = 0;
+        foreach (var s in ctx.Segs)
+        {
+            if (s.Road.IsRail) continue;
+            bool touches = j.Contains(s.Ax - jr.OffX, s.Az - jr.OffZ) || j.Contains(s.Bx - jr.OffX, s.Bz - jr.OffZ);
+            if (!touches) continue;
+            if (!s.Road.OnPaved) return false;
+            arms++;
+        }
+        return arms > 0;
     }
 
     private static bool CornerPavement(MapContext ctx, Vector3 a, Vector3 b, Vector2 outv, out float width)
@@ -343,7 +373,8 @@ public static class MapMesher
         foreach (var s in ctx.Segs)
         {
             var r = s.Road;
-            if (r.Walk == 0 || r.IsBridge || r.IsRail || r.IsTram) continue;
+            // (streets laid on a square draw no pavements: no corners from them either, D52)
+            if (r.Walk == 0 || r.IsBridge || r.IsRail || r.IsTram || r.OnPaved) continue;
             float d = s.Distance(mx, mz, out _) - s.Hw;
             if (d >= r.WalkWidth + 8f) continue;
             float side = (mx - s.Ax) * -(s.Bz - s.Az) + (mz - s.Az) * (s.Bx - s.Ax);

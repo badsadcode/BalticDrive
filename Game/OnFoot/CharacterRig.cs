@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Godot;
 
@@ -107,10 +108,12 @@ public static class CharacterRig
         stand.AddBlendPoint(A("walk_r"), new Vector2(WalkSpeed, 0));
         stand.AddBlendPoint(A("run_l"), new Vector2(-RunSpeed, 0));
         stand.AddBlendPoint(A("run_r"), new Vector2(RunSpeed, 0));
-        var crouch = new AnimationNodeBlendSpace2D { MinSpace = new Vector2(-3, -3), MaxSpace = new Vector2(3, 3) };
-        crouch.AddBlendPoint(A("crouch_idle"), Vector2.Zero);
-        crouch.AddBlendPoint(A("crouch_f"), new Vector2(0, CrouchSpeed));
-        crouch.AddBlendPoint(A("crouch_b"), new Vector2(0, -CrouchSpeed));
+        // crouching: a 1D blend on forward speed. (It was a 2D blend space whose three points all lie on one line: no
+        // triangle, so it played nothing and the body fell into its T-pose, D52, Tom: "crouching doesn't work".)
+        var crouch = new AnimationNodeBlendSpace1D { MinSpace = -3, MaxSpace = 3 };
+        crouch.AddBlendPoint(A("crouch_b"), -CrouchSpeed);
+        crouch.AddBlendPoint(A("crouch_idle"), 0);
+        crouch.AddBlendPoint(A("crouch_f"), CrouchSpeed);
         var bt = new AnimationNodeBlendTree();
         bt.AddNode("stand", stand);
         bt.AddNode("crouchbs", crouch);
@@ -129,11 +132,28 @@ public static class CharacterRig
         return tree;
     }
 
+    /// <summary>
+    /// Keeps the feet on the ground while crouching (D52): Synty's crouch clips bend the legs but leave the hips at
+    /// standing height, so the body hovered. The model is lowered until the lower toe sits where it does standing,
+    /// weighted by <paramref name="weight"/> (the crouch blend); returns the drop for the next frame.
+    /// </summary>
+    public static void GroundFeet(Node3D model, Skeleton3D skel, float weight, float dt)
+    {
+        int l = skel.FindBone("LeftToes"), r = skel.FindBone("RightToes");
+        if (l < 0 || r < 0) return;
+        float baseY = model.Position.Y;
+        float Y(int b) => (skel.GlobalTransform * skel.GetBoneGlobalPose(b).Origin).Y - model.GlobalPosition.Y + baseY;
+        float RestY(int b) => skel.GetBoneGlobalRest(b).Origin.Y * skel.Scale.Y;
+        float lift = MathF.Min(Y(l), Y(r)) - baseY - MathF.Min(RestY(l), RestY(r));
+        float want = weight > 0.01f ? -MathF.Max(0, lift) * weight : 0;
+        model.Position = model.Position with { Y = Mathf.Lerp(baseY, want, 1f - MathF.Exp(-20f * dt)) };
+    }
+
     /// <summary>One frame of the tree: <paramref name="v"/> is the velocity in the body's frame (x right, y forward).</summary>
     public static void Animate(AnimationTree tree, Vector2 v, float crouch, float air)
     {
         tree.Set("parameters/stand/blend_position", v);
-        tree.Set("parameters/crouchbs/blend_position", v);
+        tree.Set("parameters/crouchbs/blend_position", v.Y);
         tree.Set("parameters/crouch/blend_amount", crouch);
         tree.Set("parameters/air/blend_amount", air);
     }

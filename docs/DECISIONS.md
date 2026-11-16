@@ -649,3 +649,31 @@ Godot's input, as a player would.
   deck's carriageway (an edge distance over -0.3 m).
 * **The F9 dump** lists each building nearby (OSM id, part or not, height, min height, roof, who draws it) and, for
   barriers within 12 m, their points with the road-edge distance there.
+
+## D52 — Bandits and the car, a real crouch, pavements on squares (Tom's next spin)
+
+* **Bandits and the car:** they used to know only the walker, so driving made you invisible.
+  * They now chase a target: the walker on foot, or the car while you drive (`BanditField.Current`). A car is
+    noticed 1.6× sooner, and a fast one is harder to hit.
+  * While you drive, groups appear 140–200 m ahead along the way you're going, off the road (on foot: 90–150 m away,
+    out of sight). The same cap applies: at most four near you.
+  * The car is now an `IHittable`: a bullet in it while you drive hurts the driver for a fifth of its damage. At a
+    half, three bandits took a parked driver from 100 to 8 in ten seconds; now it's about 35, enough to drive off.
+  * The health, food and water bars show in the car too.
+  * Going down at the wheel puts you beside the car (D50).
+  * The walker exists from the start, since it carries your health even if you never get out.
+* **Crouch** (Tom: "no animation, it feels like I'm not crouching"): the crouch blend was a 2D blend space whose
+  three points (still, forward, back) lie on one line. A 2D blend space needs triangles, so it played nothing and the
+  body fell into its T-pose; a crouch test from the side showed it. It's now a 1D blend on forward speed. Synty's
+  crouch clips bend the legs but leave the hips up, so the body hovered: `CharacterRig.GroundFeet` lowers the model
+  until the lower toe sits where it does standing, weighted by the crouch. Bandits use it too.
+* **Pavements:**
+  * One is left out where the ground just behind it is a paved area, a square, or paved land cover (2 of 3 samples):
+    the paving already does the job there.
+  * Street corners don't grow kerbed slabs from roads laid on a square, which draw no pavements of their own.
+  * A junction whose streets all lie on a square is drawn under the square, as they are, not as a dark asphalt patch
+    on top (Plac Grzybowski).
+* **Still open:** one strip on Świętokrzyska that isn't a road's pavement (all of those there are now left out); most
+  likely a separately mapped piece of pavement area. To look at.
+* The F9 dump says what lies behind each pavement (land cover, paved area or square, the nearest road).
+* Tests: `--autotest=crouch` and `--autotest=carbandits`.
