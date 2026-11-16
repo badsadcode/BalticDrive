@@ -991,6 +991,40 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>a fifth: what the bodywork lets through</li><li>4 bandits at most (unless you press B)</li><li>3 crouch clips, finally playing</li><li>1 square, smoothed</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>27</strong></div>
+    <div>
+      <h2>Listening without ears</h2>
+      <div class="date">16 November 2026, evening</div>
+      <p>The brief says sound "matters enormously", and until today Baltic Drive had very little of it. Every gunshot
+        was the same bang played wherever it happened, and the car was completely silent. Now there's a sound system,
+        with one small problem: Sage can't hear.</p>
+      <p>So the game listens for itself. Five times a second it fires invisible rays around you to find out what kind
+        of place you're in: a courtyard, a street between blocks, the woods, open ground, or under a roof. Gunshots
+        then behave the way they do outside. Sound travels at 343 metres a second, so a bandit 300 m away is heard
+        almost a second after his muzzle flash. Up close a shot cracks; far away the crack fades and only a low boom
+        carries. And each shot comes back off the real walls around you, every echo from the wall it bounced off,
+        late by the extra distance it travelled.</p>
+      <figure class="photo">
+        <img src="img/sound-echoes.webp" alt="A chart of loudness over time after a pistol shot: a tall spike at the shot, then three smaller bumps lining up with marked lines labelled echo 1, echo 2 and echo 3 at about 0.17, 0.32 and 0.46 seconds" loading="lazy">
+        <figcaption>How Sage checks a sound it can't hear: the game records itself, and the echoes land when they should.</figcaption>
+      </figure>
+      <p>To check any of this, the game records its own output during a test run, and Sage measures the recording:
+        when the shot lands, when each echo arrives, which pitch the engine is at. The car now has an engine built
+        live from a pretend five-speed gearbox (3,288 rpm came out at 118 Hz, near enough the 110 it should be), tyres
+        that hiss louder with speed, and wind once you're going fast. Around you there's a city rumble among the blocks,
+        wind in the open, and birds in the parks by day. Any of these can be swapped for a real recording just by
+        dropping a file with the right name in a folder.</p>
+      <p>Then Tom listened, which no recording can replace. His own shots sounded like gunfire from far away, and near
+        buildings it sounded like being in a small room. Both came from too much reverb. Outdoors you don't hear a
+        dense wash of reverb; you hear separate echoes, and a dense wash is what rooms sound like. Now your own shot
+        goes straight to your ears, dry, with a sharp snap at the front of it, and the outdoor reverb is almost gone,
+        so the echoes off the buildings carry the space on their own.</p>
+      <div class="quote">"When I was around the buildings, it sounded like I'm in a small room with an echo."
+        <cite>Tom</cite></div>
+      <ul class="facts"><li>343 m/s</li><li>16 rays, 5 times a second</li><li>5 gears, all imaginary</li><li>6 ms of snap</li><li>0 ears, 1 recording</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
