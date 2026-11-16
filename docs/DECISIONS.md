@@ -722,3 +722,11 @@ be replaceable. `Game/Audio/`:
     heard in the separate echoes, and dense reverb is what rooms sound like. Only under a roof does it ring (0.2);
   * echoes are brighter and shorter, a slap rather than a thud;
   * the roll in the open is 8 dB quieter.
+* **Recordings:** Tom's Mosin shot (made with Suno, published with his OK) replaces the generated one, trimmed to start
+  2 ms before the bang. Every far version, and the AK and pistol shots (no recordings of those yet), are derived from
+  it by `tools/derive_shots.py`:
+  * AK: pitched up 12 %, the low end thinned, cut at 0.6 s;
+  * pistol: pitched up 35 %, much less low end, cut at 0.45 s;
+  * far: mono, low-passed at ~500 Hz, a longer fade.
+  A real gunshot's crack and body beat the generated ones even when borrowed. Measured: Mosin brightness 3,240 Hz,
+  AK 3,380 Hz, pistol 3,890 Hz.

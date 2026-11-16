@@ -21,4 +21,9 @@ Only sounds you are allowed to publish go in git (the repository is public).
 |---|---|
 | `shot_mosin.wav` | Tom (Bad Ideas Works), made with Suno; trimmed to start at the shot |
 | `shot_far_mosin.wav` | derived from `shot_mosin.wav`: mono, low-passed at ~500 Hz, longer fade |
+| `shot_ak.wav`, `shot_pistol.wav` | derived from `shot_mosin.wav` until real ones exist: pitched up (12 %, 35 %), thinner low end, cut shorter (`tools/derive_shots.py`) |
+| `shot_far_ak.wav`, `shot_far_pistol.wav` | derived from those, as for the Mosin |
+
+`python tools/derive_shots.py` rebuilds the derived files from `shot_mosin.wav`. To use a real recording of a gun,
+put it in place of the derived file (and remove that gun from the script, or it will be overwritten).
 
