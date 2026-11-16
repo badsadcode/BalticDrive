@@ -299,7 +299,7 @@ public sealed class Tests
         bool Now(double t) => before < t && _soundTime >= t;
         var ac = Audio.Acoustics.Instance;
         if (Now(1)) Log.Info("Test", $"sound: in the car: place {ac?.Place}, enclosure {ac?.Enclosure:F2}, walls {ac?.Walls.Count}");
-        if (Now(2)) { _main.ToggleOnFoot(); _main.Walker!.Guns.Equip("pistol"); }
+        if (Now(2)) { _main.ToggleOnFoot(); _main.Walker!.Guns.Equip(Main.Args.GetValueOrDefault("gun", "pistol")); }
         if (Now(3.5))
         {
             Log.Info("Test", $"sound: on foot: place {ac?.Place}, enclosure {ac?.Enclosure:F2}; shot at {_soundTime:F2} s; echoes due at " +

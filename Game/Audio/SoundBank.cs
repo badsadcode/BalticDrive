@@ -21,7 +21,10 @@ public static class SoundBank
         if (Cache.TryGetValue(key, out var s)) return s;
         foreach (var ext in new[] { ".ogg", ".wav" })
             if (ResourceLoader.Exists(Folder + key + ext) && ResourceLoader.Load<AudioStream>(Folder + key + ext) is { } file)
+            {
+                GD.Print($"[Sound] {key}: the recording {key}{ext}");
                 return Cache[key] = file;
+            }
         return Cache[key] = make();
     }
 }

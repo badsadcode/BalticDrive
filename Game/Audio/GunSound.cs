@@ -33,7 +33,7 @@ public static class GunSound
             var near = SoundBank.Get("shot_" + gun.Id, () => AudioSynth.NearShot(gun.Boom, gun.Pitch));
             // your own shot is right at your ear: dry (no reverb) and full strength; it sounded far away through the
             // reverb (Tom)
-            if (own) After(tree, 0, () => Play2D(from, near, 2, "Master"));
+            if (own) After(tree, 0, () => Play2D(from, near, 0, "Master"));
             else After(tree, arrive, () => Play3D(from, at, near, 4, 400, 22000));
         }
         // the distant boom: always there beyond 40 m, blending in as the crack fades
