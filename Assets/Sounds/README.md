@@ -14,3 +14,11 @@ placeholder (D53, `Game/Audio/SoundBank.cs`). Names:
 | `bird0` … `bird5` | short bird phrases |
 
 Only sounds you are allowed to publish go in git (the repository is public).
+
+## Credits
+
+| File | Source |
+|---|---|
+| `shot_mosin.wav` | Tom (Bad Ideas Works), made with Suno; trimmed to start at the shot |
+| `shot_far_mosin.wav` | derived from `shot_mosin.wav`: mono, low-passed at ~500 Hz, longer fade |
+
