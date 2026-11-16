@@ -36,6 +36,10 @@ namespace BalticDrive;
 /// <item><c>--autotest=crouch</c> — third person from the side: standing, crouched still, crouch-walking (D52).</item>
 /// <item><c>--autotest=carbandits</c> — sitting in the car, a group of bandits 30 m away (D52): do they come for the
 /// car and shoot, and does it hurt the driver.</item>
+/// <item><c>--autotest=sound</c> — records the game's own sound to <c>sound.wav</c> (D53): a pistol shot by the
+/// buildings, one out in the open, then a drive (engine revs, gears); the places the acoustics found, and when each
+/// sound should land, go to the log.</item>
+/// <item>Test runs play muted (the master bus at -80 dB; a recording still hears it), unless <c>--sound</c>.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -104,6 +108,9 @@ public sealed class Tests
         _death = Main.Args.GetValueOrDefault("autotest", "").Contains("death");
         _crouchTest = Main.Args.GetValueOrDefault("autotest", "").Contains("crouch");
         _carBandits = Main.Args.GetValueOrDefault("autotest", "").Contains("carbandits");
+        _soundTest = Main.Args.GetValueOrDefault("autotest", "").Contains("sound");
+        // muted: Tom works while tests run
+        if (!Main.Args.ContainsKey("sound")) AudioServer.SetBusVolumeDb(0, -80);
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
         _distance = double.Parse(Main.Args.GetValueOrDefault("distance", "3000"), CultureInfo.InvariantCulture);
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
@@ -265,12 +272,60 @@ public sealed class Tests
         }
     }
 
-    private bool _banditLook, _tpGun, _death, _crouchTest, _carBandits;
+    private bool _banditLook, _tpGun, _death, _crouchTest, _carBandits, _soundTest;
+    private double _soundTime = -1;
+    private AudioEffectRecord? _rec;
     private double _carBanditTime = -1;
     private double _crouchTime = -1;
     private double _deathTime = -1;
     private double _tpTime = -1;
     private double _lookTime = -1;
+
+    /// <summary>The game's own sound, recorded (D53).</summary>
+    private void SoundTest(double delta)
+    {
+        if (_soundTime < 0)
+        {
+            if (_settledFor < 2.0) return;
+            _rec = new AudioEffectRecord { Format = AudioStreamWav.FormatEnum.Format16Bits };
+            AudioServer.AddBusEffect(0, _rec, 0);
+            _rec.SetRecordingActive(true);
+            _soundTime = 0;
+            return;
+        }
+        var c = _main.Car!;
+        double before = _soundTime;
+        _soundTime += delta;
+        bool Now(double t) => before < t && _soundTime >= t;
+        var ac = Audio.Acoustics.Instance;
+        if (Now(1)) Log.Info("Test", $"sound: in the car: place {ac?.Place}, enclosure {ac?.Enclosure:F2}, walls {ac?.Walls.Count}");
+        if (Now(2)) { _main.ToggleOnFoot(); _main.Walker!.Guns.Equip("pistol"); }
+        if (Now(3.5))
+        {
+            Log.Info("Test", $"sound: on foot: place {ac?.Place}, enclosure {ac?.Enclosure:F2}; shot at {_soundTime:F2} s; echoes due at " +
+                string.Join(", ", ac!.Walls.OrderBy(w => w.Distance).Where((_, i) => i % 3 == 0).Take(5).Select(w => $"{_soundTime + 2 * w.Distance / 343:F2}")));
+            _main.Walker!.Guns.TestTrigger = true;
+        }
+        if (Now(3.6)) _main.Walker!.Guns.TestTrigger = false;
+        if (Now(6))
+        {
+            // out into the open: the free-camera spot over the river meadows would do; here, 60 m up for a crude "open"
+            _main.ToggleOnFoot();
+            c.Autopilot = car => (_soundTime < 16 ? 1f : 0f, _soundTime >= 16 ? 1f : 0f, 0f);
+        }
+        foreach (var t in new[] { 7.0, 9.0, 11.0, 13.0, 15.0, 17.0 })
+            if (Now(t)) Log.Info("Test", $"sound: driving {MathF.Abs(c.Speed) * 3.6f:F0} km/h, throttle {c.Throttle:F1}, rpm {c.GetNodeOrNull<Audio.EngineSound>("EngineSound")?.Rpm:F0}, gear {c.GetNodeOrNull<Audio.EngineSound>("EngineSound")?.Gear}, place {ac?.Place}");
+        if (Now(18))
+        {
+            _rec!.SetRecordingActive(false);
+            var wav = _rec.GetRecording();
+            string path = Path.Combine(_shots, "sound.wav");
+            wav?.SaveToWav(path);
+            Log.Info("Test", $"sound: recorded {wav?.GetLength():F1} s to {path}");
+            c.Autopilot = null;
+            _soundTest = false;
+        }
+    }
 
     /// <summary>Bandits and the car (D52).</summary>
     private void CarBanditTest(double delta)
@@ -607,6 +662,7 @@ public sealed class Tests
         if (_death && _main.Car != null) { DeathTest(delta); return; }
         if (_crouchTest && _main.Car != null) { CrouchTest(delta); return; }
         if (_carBandits && _main.Car != null) { CarBanditTest(delta); return; }
+        if (_soundTest && _main.Car != null) { SoundTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

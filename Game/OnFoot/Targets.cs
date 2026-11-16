@@ -323,7 +323,7 @@ public static class Sfx
                 "clunk" => Synth.Ring(new[] { 180f, 410f, 760f }, 0.5f),
                 _ => Synth.Hit(0.3f),
             };
-        var p = new AudioStreamPlayer3D { Stream = s, UnitSize = 6, MaxDistance = 300, VolumeDb = -3 };
+        var p = new AudioStreamPlayer3D { Stream = s, UnitSize = 6, MaxDistance = 300, VolumeDb = -3, Bus = Audio.Buses.Sfx };
         from.GetTree().Root.AddChild(p);
         p.GlobalPosition = at;
         p.Play();

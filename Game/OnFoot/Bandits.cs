@@ -355,7 +355,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         dir = (dir + side * MathF.Cos(a) * r + up * MathF.Sin(a) * r).Normalized();
         // a bandit's bullet does 30 % of what the same gun does to them: a fight you can survive (an AK hit 10, the Mosin 28)
         Ballistics.Get(this).Fire(muzzle, dir * Gun.MuzzleVelocity, Gun.BulletGrams / 1000f, Gun.Damage * 0.3f, GetRid());
-        Ballistics.Play3D(this, muzzle, Gun.Id + "_shot", 4, 600);
+        Audio.GunSound.Play(this, muzzle, Gun, own: false);   // late by distance, a boom from afar, echoes (D53)
         _flash.LightEnergy = 5;
         _flashOff = 0.05f;
         _field.ShotFired(muzzle, this);

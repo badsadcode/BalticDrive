@@ -146,7 +146,7 @@ public sealed partial class Ballistics : Node
                 _ => Synth.Hit(0.5f),
             };
         }
-        var p = new AudioStreamPlayer3D { Stream = s, UnitSize = 4, MaxDistance = maxDistance, VolumeDb = db, PitchScale = (float)GD.RandRange(0.95, 1.05) };
+        var p = new AudioStreamPlayer3D { Stream = s, UnitSize = 4, MaxDistance = maxDistance, VolumeDb = db, PitchScale = (float)GD.RandRange(0.95, 1.05), Bus = Audio.Buses.Sfx };
         from.GetTree().Root.AddChild(p);
         p.GlobalPosition = at;
         p.Play();

@@ -24,6 +24,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     public bool OnRoad { get; private set; }
     public bool FirstPerson { get; private set; }
     public bool Driving = true;
+    /// <summary>The throttle applied last physics step (0..1), for the engine's sound (D53).</summary>
+    public float Throttle { get; private set; }
 
     /// <summary>A bullet hit the car while you drive (D52): the damage it would have done, for the driver.</summary>
     public event Action<float>? Shot;
@@ -363,6 +365,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
         float top = TopSpeed * (OnRoad ? 1f : 0.55f);
         float force = 0f, brake = 0f;
+        Throttle = Driving ? throttle : 0f;
         if (throttle > 0.02f)
         {
             if (Speed < -1.0f) brake = 40f * throttle;

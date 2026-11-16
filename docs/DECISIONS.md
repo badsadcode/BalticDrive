@@ -677,3 +677,39 @@ Godot's input, as a player would.
   likely a separately mapped piece of pavement area. To look at.
 * The F9 dump says what lies behind each pavement (land cover, paved area or square, the nearest road).
 * Tests: `--autotest=crouch` and `--autotest=carbandits`.
+
+## D53 — Sound: the space you're in, shots over distance, the car, the world
+
+The brief: "sound matters enormously: powerful shots, mechanical clacks, distant reports, and different acoustic
+character between apartment courtyards, streets and forests"; generated placeholders are fine, but the layers must
+be replaceable. `Game/Audio/`:
+* **Sound bank:** every sound by name, generated in code unless a recording with that name is in
+  `Assets/Sounds/` (.ogg or .wav). The names are in that folder's README.
+* **Buses:** SFX (through a reverb), Ambience, Engine.
+* **Acoustics:** five times a second, 16 rays out at ear height (to 90 m) and one up. From how many hit, how far,
+  and whether there's sky, the place is a courtyard, a street, the woods (forest land cover), open ground, or covered.
+  That sets the reverb (room size, wetness, damping, pre-delay from the nearest wall), eased so a corner doesn't
+  jump. The walls the rays found are kept for echoes.
+* **Gunshots** (`GunSound`):
+  * Sound arrives d / 343 s after the shot.
+  * Under 70 m: the full crack and thump, placed at the gun. Beyond 40 m: a far boom (no crack) audible for
+    kilometres, with Godot's attenuation filter muffling the highs.
+  * Echoes: up to five walls round the listener each send the shot back from the wall itself, late by the
+    shot→wall→ear path.
+  * In the open (few walls, sky): a long roll instead.
+  * Your own shots and bandits' shots use the same path.
+* **The car** (`EngineSound`): an engine made live (`AudioStreamGenerator`):
+  * revs from a pretend five-speed gearbox (up at 5,200, down at 1,900, idling at 800), since the physics has no
+    engine;
+  * firing frequency (four cylinders, two firings a revolution) plus harmonics and a little per-firing roughness,
+    louder and brighter with the throttle;
+  * a tyre hiss loop that rises with speed, and wind with the square of speed.
+  Measured from a recording: 3,288 rpm gave 118 Hz (110 Hz expected), 4,788 rpm gave 164 Hz (160).
+* **Ambience:** city rumble by buildings and roads (quieter at night), wind that grows in the open and up high,
+  birds by day (more at dawn) in parks, woods, fields and gardens, each phrase from a spot 10–40 m away in the trees.
+* **Testing sound without ears:** `--autotest=sound` records the master bus to `sound.wav` (a shot by buildings, then
+  a drive) and logs when the shot and each echo should land, the revs and gears, and the places found. In the first
+  recording the shot peaks at 3.51 s and echoes rise at 3.69, 3.82 and 3.90 s (due 3.68, 3.83, 3.97). Echoes were
+  then raised 4 dB and the idle made quieter.
+* **Test runs are muted** (master at -80 dB; the recording still hears it), so they don't fire guns through Tom's
+  speakers while he works; `--sound` turns it back on.

@@ -68,6 +68,11 @@ public partial class Main : Node3D
 
 	public override void _Ready()
 	{
+		Instance = this;
+		// sound (D53): buses with a reverb that follows the space, the listener's acoustics, the world's ambience
+		Audio.Buses.Setup();
+		AddChild(new Audio.Acoustics());
+		AddChild(new Audio.Ambience());
 		Log.Sink = (level, line) =>
 		{
 			if (level == Log.Level.Info) GD.Print(line);
@@ -163,6 +168,9 @@ public partial class Main : Node3D
 	}
 
 	public MapWorld? World => _world;
+	/// <summary>The running game (the audio reads the world and the hour, D53).</summary>
+	public static Main? Instance { get; private set; }
+	public float Hour => (float)_atmosphere.Hour;
 	public TerrainStreamer Terrain => _terrain;
 	public MapContentStreamer Content => _content;
 	public FlyCamera Camera => _camera;
@@ -329,6 +337,7 @@ public partial class Main : Node3D
 		{
 			_car = new Car { Name = "Car", Map = _world, HasGround = _terrain.HasGround, Model = Car.ChooseModel(Args.GetValueOrDefault("car")) };
 			AddChild(_car);
+			_car.AddChild(new Audio.EngineSound(_car));   // engine, tyres, wind (D53)
 		}
 		_walker?.Deactivate();
 		_car.Recover(x, z);

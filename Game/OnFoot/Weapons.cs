@@ -452,7 +452,7 @@ public partial class Weapons : Node3D
         _slideBack = d.Slide != null ? 0.035f : 0;
         _flashTime = 0.045f;
         if (_flash != null) _flash.Rotation = _flash.Rotation with { Z = (float)GD.RandRange(0, MathF.Tau) };
-        Play(_shot, d.Id + "_shot");
+        Audio.GunSound.Play(this, _eye.GlobalPosition, d, own: true);   // crack, echoes off the walls round you, roll (D53)
         if (d.Mode != FireMode.Bolt) EjectCasing();
     }
 
