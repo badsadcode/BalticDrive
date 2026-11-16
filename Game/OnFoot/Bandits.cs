@@ -128,7 +128,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _flash.LightEnergy = 0;
         // the body tips away from the shot
         var away = new Vector3(h.Velocity.X, 0, h.Velocity.Z).Normalized();
-        _fallAxis = away.Cross(Vector3.Up).Normalized();
+        // up x away: the head goes away from the shot (D55: away x up had tipped every body toward the shooter)
+        _fallAxis = Vector3.Up.Cross(away).Normalized();
         _field.Died(this);
     }
     private Vector3 _fallAxis = Vector3.Right;
@@ -505,7 +506,7 @@ public sealed partial class BanditField : Node3D
     {
         get
         {
-            if (Player is { Active: true } p)
+            if (Player is { Active: true, Dead: false } p)
                 return new Target(p.GlobalPosition, p.FirstPersonCamera.GlobalPosition, p.GlobalPosition + Vector3.Up * (p.Crouching ? 0.8f : 1.25f),
                     p.Speed, p.Crouching, p.GetRid(), false);
             if (Car is { Driving: true } c && IsInstanceValid(c))

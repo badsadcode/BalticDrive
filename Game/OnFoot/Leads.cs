@@ -84,7 +84,7 @@ public sealed partial class Leads : Node
             if (_rng.NextDouble() < 0.7) Look(at, "stash");
             return;
         }
-        if (c.Key.StartsWith("drop:")) return;   // bodies: see OnBanditDied
+        if (c.Key.StartsWith("drop:") || c.Key.StartsWith("death:")) return;   // bodies (OnBanditDied), your own things
         if (_first || _rng.NextDouble() < 0.2) Look(at, "crate");
         _first = false;
     }

@@ -52,9 +52,63 @@ public partial class Walker : CharacterBody3D, IHittable
     /// <summary>A bandit's bullet (D47): it hurts.</summary>
     public string? Hit(BulletHit h)
     {
-        if (!Active) return null;
+        if (!Active || Dead) return null;
+        LastShot = h.Velocity;
         Body.Damage(h.Damage);
         return null;
+    }
+
+    // ---- dying (D55, Tom) ------------------------------------------------------------------------------------------
+    /// <summary>Down and not yet woken: no controls, the body falls, the view goes down with the eyes.</summary>
+    public bool Dead { get; private set; }
+    /// <summary>The last bullet that hit (its velocity): the body falls away from it.</summary>
+    public Vector3 LastShot;
+    private float _deadT;
+    private Vector3 _fallAxis = Vector3.Right;
+    private static readonly Basis Faced = Basis.FromEuler(new Vector3(0, MathF.PI, 0));   // Synty faces +Z
+
+    /// <summary>Where the body lies once fallen: for the one left behind (a copy, after waking elsewhere).</summary>
+    public Transform3D CorpseTransform => _model.GlobalTransform;
+
+    public void Die()
+    {
+        if (Dead) return;
+        Dead = true;
+        _deadT = 0;
+        Lean = 0; TestLean = null;
+        AimOverride = false;
+        Guns.Equip(null);
+        Guns.HideHud();
+        Guns.ProcessMode = ProcessModeEnum.Disabled;
+        var away = new Vector3(LastShot.X, 0, LastShot.Z);
+        if (away.LengthSquared() < 1e-4f) away = new Vector3(-MathF.Sin(Yaw), 0, -MathF.Cos(Yaw));   // starved: forward
+        _fallAxis = Vector3.Up.Cross(away.Normalized()).Normalized();   // turning about up x away tips the head away from the shot
+        _model.Visible = false;   // the view is the eyes'
+        _fp.Current = true;
+    }
+
+    /// <summary>Wakes up somewhere else (local coordinates), upright, with the controls back.</summary>
+    public void Revive(Vector3 at, float yaw)
+    {
+        Dead = false;
+        LastShot = Vector3.Zero;
+        _model.Basis = Faced;
+        Guns.ProcessMode = ProcessModeEnum.Inherit;
+        Activate(at, yaw);
+        SetView(FirstPerson);
+    }
+
+    /// <summary>The fall: quicker than a bandit's (0.42 s), tipping from the feet away from the shot; the first-person
+    /// eye goes down with the head, looking wherever the head looks.</summary>
+    private void UpdateDeath(float dt)
+    {
+        _deadT = MathF.Min(1, _deadT + dt / 0.42f);
+        float angle = _deadT * _deadT * 1.45f;
+        var tip = new Basis(_fallAxis, angle);
+        _model.Basis = new Basis(GlobalBasis.Orthonormalized().Inverse() * _fallAxis, angle) * Faced;
+        var fwd = new Vector3(-MathF.Sin(Yaw), 0, -MathF.Cos(Yaw));
+        _fp.GlobalPosition = GlobalPosition + tip * (Vector3.Up * 1.62f + fwd * 0.1f) + Vector3.Up * 0.08f * _deadT;
+        _fp.GlobalBasis = tip * Basis.FromEuler(new Vector3(_pitch, Yaw, 0));
     }
 
     /// <summary>Turns the view to look at a world point (self-tests).</summary>
@@ -83,6 +137,42 @@ public partial class Walker : CharacterBody3D, IHittable
     private AnimationTree? _tree;
     private float _airTime, _crouchBlend;
 
+    // ---- leaning (D55, Tom: "looking around the corner") ----------------------------------------------------------
+    /// <summary>Lean held: -1 left (Q), +1 right (E), 0 upright; eased, and cut short by a wall at the head's side.</summary>
+    public float Lean { get; private set; }
+    /// <summary>For the self-test: overrides Q/E while set.</summary>
+    public float? TestLean;
+    public const float LeanReach = 0.34f, LeanRoll = 0.17f, LeanBend = 0.45f;
+    private float _leanRoom = LeanReach;
+    private CollisionShape3D _head = null!;
+    private LeanBendModifier? _bend;
+
+    /// <summary>Sideways from the upright eye (metres, to the right of where you look).</summary>
+    public float LeanOffset => Lean * MathF.Min(LeanReach, _leanRoom);
+
+    private void UpdateLean(float dt)
+    {
+        float want = TestLean ?? (Autopilot != null ? 0 : (Input.IsKeyPressed(Key.E) ? 1 : 0) - (Input.IsKeyPressed(Key.Q) ? 1 : 0));
+        if (Speed > RunSpeed + 0.5f) want = 0;   // no leaning at a sprint
+        Lean = Mathf.MoveToward(Lean, want, dt * 5f);
+        // room at the side of the head: a wall stops the lean before the eye goes through it
+        float eye = Crouching ? 1.12f : 1.62f;
+        var right = new Vector3(MathF.Cos(Yaw), 0, -MathF.Sin(Yaw));
+        var from = GlobalPosition + Vector3.Up * eye;
+        _leanRoom = LeanReach;
+        if (MathF.Abs(Lean) > 0.01f)
+        {
+            var q = PhysicsRayQueryParameters3D.Create(from, from + right * MathF.Sign(Lean) * (LeanReach + 0.18f), Bodies.Buildings | Bodies.Ground | Bodies.Props | Bodies.Vehicles);
+            q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+            var hit = GetWorld3D().DirectSpaceState.IntersectRay(q);
+            if (hit.Count > 0) _leanRoom = MathF.Max(0, ((Vector3)hit["position"]).DistanceTo(from) - 0.18f);
+        }
+        // the head that can be shot goes where the eye goes (the capsule stays put)
+        _head.Disabled = MathF.Abs(LeanOffset) < 0.08f;
+        _head.GlobalPosition = from + right * LeanOffset;
+        if (_bend != null) _bend.Angle = LeanBend * Lean * MathF.Min(1f, _leanRoom / LeanReach);
+    }
+
     public override void _Ready()
     {
         CollisionLayer = Bodies.Characters;
@@ -106,6 +196,8 @@ public partial class Walker : CharacterBody3D, IHittable
         _arm.AddChild(_tp);
         _fp = new Camera3D { Name = "FirstPerson", Fov = 75, Far = 20000, Position = new Vector3(0, 1.66f, -0.12f) };
         AddChild(_fp);
+        _head = new CollisionShape3D { Name = "LeaningHead", Shape = new SphereShape3D { Radius = 0.13f }, Disabled = true, TopLevel = true };
+        AddChild(_head);
         Guns = new Weapons(this) { Name = "Weapons" };
         AddChild(Guns);
         Body = new Survival(this);
@@ -130,6 +222,9 @@ public partial class Walker : CharacterBody3D, IHittable
         _skel = skel;
         if (skel != null)
         {
+            // the lean bends the spine before the hands find the gun (modifiers run in order)
+            _bend = new LeanBendModifier(skel, () => -GlobalBasis.Z);
+            skel.AddChild(_bend);
             // the gun in the hands, seen in third person (D49): its own model, the hands put on it after the animation
             _tpGun = new Node3D { Name = "TpGun", Visible = false };
             AddChild(_tpGun);
@@ -177,7 +272,7 @@ public partial class Walker : CharacterBody3D, IHittable
         _shoulder = Guns.Firing ? 1f : Mathf.MoveToward(_shoulder, 0f, dt / 0.8f);
         float sprint = Speed > RunSpeed + 0.5f ? 1f : 0f;
         var body = new Basis(Vector3.Up, _bodyYaw);
-        var chest = GlobalPosition + Vector3.Up * (Crouching ? 0.95f : 1.32f);
+        var chest = GlobalPosition + Vector3.Up * (Crouching ? 0.95f : 1.32f) + body.X * (LeanOffset * 0.6f);
         // at the ready: forward and down from the chest; shouldered: along the look, from the right shoulder
         float pitch = Mathf.Lerp(-0.45f - 0.35f * sprint, _pitch, _shoulder);
         var look = body * new Basis(Vector3.Right, pitch);
@@ -234,7 +329,7 @@ public partial class Walker : CharacterBody3D, IHittable
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (!Active) return;
+        if (!Active || Dead) return;
         if (e is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
             Yaw -= mm.Relative.X * 0.0025f;
@@ -258,6 +353,13 @@ public partial class Walker : CharacterBody3D, IHittable
         float dt = (float)delta;
         var (wx, _, wz) = WorldOrigin.ToWorld(GlobalPosition);
         if (HasGround != null && !HasGround(wx, wz)) { Velocity = Vector3.Zero; return; }   // wait for the ground
+        if (Dead)
+        {
+            Velocity = new Vector3(0, IsOnFloor() ? -0.5f : Velocity.Y - Gravity * dt, 0);
+            MoveAndSlide();
+            Speed = 0;
+            return;
+        }
 
         Vector2 move; bool sprint;
         if (Autopilot != null) (move, sprint) = Autopilot(this);
@@ -304,6 +406,8 @@ public partial class Walker : CharacterBody3D, IHittable
 
     public override void _Process(double delta)
     {
+        if (Dead) { UpdateDeath((float)delta); return; }
+        UpdateLean((float)delta);
         UpdateCamera((float)delta);
         _cycle?.Update((float)delta, Speed, Crouching, IsOnFloor());
         UpdateAnimations((float)delta);
@@ -314,12 +418,18 @@ public partial class Walker : CharacterBody3D, IHittable
     private void UpdateCamera(float dt)
     {
         float eye = Crouching ? 1.05f : 1.55f;
-        var target = GlobalPosition + new Vector3(0, eye, 0);
+        var right = new Vector3(MathF.Cos(Yaw), 0, -MathF.Sin(Yaw));
+        var target = GlobalPosition + new Vector3(0, eye, 0) + right * (LeanOffset * 0.8f);
         _pivot.GlobalPosition = dt > 0 ? _pivot.GlobalPosition.Lerp(target, 1f - MathF.Exp(-18f * dt)) : target;
         _pivot.Rotation = new Vector3(_pitch, Yaw + CameraOrbit, 0);
-        // first person: the eye, turned with the look (the body follows the yaw)
-        _fp.Position = new Vector3(0, Crouching ? 1.12f : 1.66f, -0.12f);
-        _fp.GlobalRotation = new Vector3(_pitch, Yaw, 0);
+        // third person: leaning left swaps the camera to the left shoulder, so you see round the corner you lean at
+        _arm.Position = new Vector3(Mathf.Lerp(0.45f, -0.45f, Mathf.Clamp(-Lean, 0, 1)), 0, 0);
+        // first person: the eye, turned with the look (the body follows the yaw); leaning moves it sideways and a
+        // little down, and tilts the view
+        float up = Crouching ? 1.12f : 1.66f;
+        var fwd = new Vector3(-MathF.Sin(Yaw), 0, -MathF.Cos(Yaw));
+        _fp.GlobalPosition = GlobalPosition + Vector3.Up * (up - MathF.Abs(LeanOffset) * 0.15f) + fwd * 0.12f + right * LeanOffset;
+        _fp.GlobalRotation = new Vector3(_pitch, Yaw, -LeanRoll * Lean * MathF.Min(1f, _leanRoom / LeanReach));
     }
 }
 
@@ -408,5 +518,37 @@ public sealed class WalkCycle
         // the elbow bends forward once the arm hangs down
         var gLo = new Basis(Vector3.Right, -swing) * new Basis(Vector3.Right, -elbow) * lower * GRest(lo);
         Set(lo, gLo, gUp);
+    }
+}
+
+/// <summary>
+/// The lean in the body (D55): bends spine, chest and neck about the way the body faces, after the animation and
+/// before the hands are put on the gun. <see cref="Angle"/> in radians, positive to the right.
+/// </summary>
+public sealed partial class LeanBendModifier : SkeletonModifier3D
+{
+    public float Angle;
+    private readonly Func<Vector3> _forward;
+    private readonly (int Bone, float Share)[] _bones;
+
+    public LeanBendModifier(Skeleton3D s, Func<Vector3> forward)
+    {
+        Name = "LeanBend";
+        _forward = forward;
+        _bones = new[] { ("Spine", 0.4f), ("Chest", 0.4f), ("Neck", 0.2f) }
+            .Select(b => (s.FindBone(b.Item1), b.Item2)).Where(b => b.Item1 >= 0).ToArray();
+    }
+
+    public override void _ProcessModificationWithDelta(double delta)
+    {
+        if (MathF.Abs(Angle) < 0.002f || GetSkeleton() is not { } sk) return;
+        var axis = (sk.GlobalBasis.Orthonormalized().Inverse() * _forward()).Normalized();   // in the skeleton's space
+        foreach (var (bone, share) in _bones)
+        {
+            int parent = sk.GetBoneParent(bone);
+            var parentBasis = parent >= 0 ? sk.GetBoneGlobalPose(parent).Basis.Orthonormalized() : Basis.Identity;
+            var local = (parentBasis.Inverse() * axis).Normalized();
+            sk.SetBonePoseRotation(bone, new Quaternion(local, Angle * share) * sk.GetBonePoseRotation(bone));
+        }
     }
 }

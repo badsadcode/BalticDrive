@@ -241,18 +241,14 @@ public partial class Weapons : Node3D
         return take;
     }
 
-    /// <summary>Going down (D50): half of every gun's spare rounds are gone; returns how many.</summary>
-    public int LoseHalfReserve()
+    /// <summary>Dying (D55): every spare round comes out (into the package); the magazines stay loaded.</summary>
+    public (string Gun, int Rounds)[] TakeReserve()
     {
-        int lost = 0;
-        foreach (var id in _ammo.Keys.ToList())
-        {
-            var (mag, res) = _ammo[id];
-            lost += res - res / 2;
-            _ammo[id] = (mag, res / 2);
-        }
-        return lost;
+        var taken = _ammo.Where(kv => kv.Value.Item2 > 0).Select(kv => (kv.Key, kv.Value.Item2)).ToArray();
+        foreach (var (id, _) in taken) _ammo[id] = (_ammo[id].Item1, 0);
+        return taken;
     }
+
 
     public void StartReload()
     {

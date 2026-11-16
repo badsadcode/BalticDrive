@@ -26,9 +26,10 @@ public partial class MapScreen : Control
     private Func<(double X, double Z, Vector2 Forward)> _here = null!;
     private Action<double, double> _travel = null!;
     private readonly List<Vector2> _markers = new();
-    private Func<IEnumerable<(double X, double Z, string Where, bool Taken)>>? _leads;
-    /// <summary>Leads (D54): red diamonds with where they are; a taken one is a grey tick.</summary>
-    public void SetLeads(Func<IEnumerable<(double X, double Z, string Where, bool Taken)>> leads) => _leads = leads;
+    private Func<IEnumerable<(double X, double Z, string Label, int Kind)>>? _places;
+    /// <summary>The game's own places, labelled. Kinds: 0 a lead (D54, red diamond), 1 a taken lead (grey), 2 your
+    /// things where you fell (D55, white), 3 your safehouse (D55, green house).</summary>
+    public void SetPlaces(Func<IEnumerable<(double X, double Z, string Label, int Kind)>> places) => _places = places;
     private int _zoom = 2;
     private double _redraw;
     private readonly Dictionary<long, ImageTexture> _textures = new();
@@ -279,17 +280,35 @@ public partial class MapScreen : Control
             DrawColoredPolygon(new[] { s + new Vector2(0, -11), s + new Vector2(9, 0), s + new Vector2(0, 11), s + new Vector2(-9, 0) }, new Color(0, 0, 0, 0.85f));
             DrawColoredPolygon(new[] { s + new Vector2(0, -8), s + new Vector2(6.5f, 0), s + new Vector2(0, 8), s + new Vector2(-6.5f, 0) }, new Color(0.3f, 0.9f, 0.85f));
         }
-        // leads (D54)
-        if (_leads != null)
-            foreach (var (lx, lz, where, taken) in _leads())
+        // the game's places: leads (D54), your things, your safehouse (D55)
+        if (_places != null)
+            foreach (var (lx, lz, text, kind) in _places())
             {
                 var s = ToScreen(lx, lz);
-                var ink = taken ? new Color(0.6f, 0.6f, 0.58f) : new Color(0.95f, 0.3f, 0.2f);
-                DrawColoredPolygon(new[] { s + new Vector2(0, -12), s + new Vector2(12, 0), s + new Vector2(0, 12), s + new Vector2(-12, 0) }, new Color(0, 0, 0, 0.85f));
-                DrawColoredPolygon(new[] { s + new Vector2(0, -9), s + new Vector2(9, 0), s + new Vector2(0, 9), s + new Vector2(-9, 0) }, ink);
-                string label = (taken ? "taken: " : "stash: ") + where;
+                var black = new Color(0, 0, 0, 0.85f);
+                if (kind == 3)
+                {
+                    // a little house
+                    var green = new Color(0.35f, 0.85f, 0.45f);
+                    DrawColoredPolygon(new[] { s + new Vector2(-11, -1), s + new Vector2(0, -13), s + new Vector2(11, -1), s + new Vector2(8, -1), s + new Vector2(8, 10), s + new Vector2(-8, 10), s + new Vector2(-8, -1) }, black);
+                    DrawColoredPolygon(new[] { s + new Vector2(-8, -1), s + new Vector2(0, -10), s + new Vector2(8, -1), s + new Vector2(6, -1), s + new Vector2(6, 8), s + new Vector2(-6, 8), s + new Vector2(-6, -1) }, green);
+                }
+                else if (kind == 2)
+                {
+                    DrawRect(new Rect2(s - new Vector2(10, 10), new Vector2(20, 20)), black);
+                    DrawRect(new Rect2(s - new Vector2(7, 7), new Vector2(14, 14)), Paper);
+                    DrawLine(s - new Vector2(4, 4), s + new Vector2(4, 4), black, 2f);
+                    DrawLine(s + new Vector2(-4, 4), s + new Vector2(4, -4), black, 2f);
+                }
+                else
+                {
+                    var ink = kind == 1 ? new Color(0.6f, 0.6f, 0.58f) : new Color(0.95f, 0.3f, 0.2f);
+                    DrawColoredPolygon(new[] { s + new Vector2(0, -12), s + new Vector2(12, 0), s + new Vector2(0, 12), s + new Vector2(-12, 0) }, black);
+                    DrawColoredPolygon(new[] { s + new Vector2(0, -9), s + new Vector2(9, 0), s + new Vector2(0, 9), s + new Vector2(-9, 0) }, ink);
+                }
+                string label = kind switch { 0 => "stash: " + text, 1 => "taken: " + text, _ => text };
                 DrawString(_font, s + new Vector2(15, 6) + Vector2.One, label, HorizontalAlignment.Left, -1, 15, new Color(0, 0, 0, 0.9f));
-                DrawString(_font, s + new Vector2(15, 6), label, HorizontalAlignment.Left, -1, 15, taken ? Dim : Paper);
+                DrawString(_font, s + new Vector2(15, 6), label, HorizontalAlignment.Left, -1, 15, kind == 1 ? Dim : Paper);
             }
         // destination flag
         if (_nav.Destination is { } dest)

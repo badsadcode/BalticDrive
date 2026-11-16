@@ -20,8 +20,9 @@ Baltic Drive combines two earlier projects:
 godot --path . -- --map=mazowsze --place=Warszawa
 ```
 
-Keys: W/S drive and brake, A/D steer, Space handbrake, C camera, H lights, R back onto the road, F free camera
-(right mouse to look, WASD/QE, Shift/Ctrl faster).
+Keys: W/S drive and brake, A/D steer, Space handbrake, C camera, H lights, R back onto the road, F get in or out,
+F8 free camera (right mouse to look, WASD/QE, Shift/Ctrl faster). On foot: WASD, Shift run, Ctrl crouch, Q/E lean,
+V first/third person, 1/2/3 guns, F crates and the car, H medkit, M map.
 
 Command-line options (after `--`): `--map=NAME`, `--mapdir=PATH`, `--place=NAME` or `--start=x,z` (world metres),
 `--fly`, and the tests below.
@@ -38,6 +39,8 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=fly --speed=40` — fly 6 km at 40 m/s, report frame times and frames without ground collision.
 * `--autotest=drive` — the car keeps to the road for 20 s; reports speed and time off the road.
 * `--autotest=leads` — a lead to a guarded stash (D54): map, arrival, guards, stash, the next lead.
+* `--autotest=lean` — leaning left and right, first and third person (D55).
+* `--autotest=death` — dying, waking elsewhere, going back for your things, a safehouse (D55).
 
 ## Layout
 

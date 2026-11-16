@@ -237,37 +237,124 @@ public partial class Main : Node3D
 	public bool PlayerDown => _downTime >= 0;
 
 	/// <summary>
-	/// Going down (D50): the screen goes dark over a second and a half; then you come round beside your car with your
-	/// pack gone and the bandits moved on, and the screen clears again.
+	/// Dying (D55, Tom): the body drops where it was shot and the view goes down with the eyes; the screen dims and
+	/// waits for a click. Then you wake up somewhere else: your safehouse if you've claimed one, otherwise outside a
+	/// real home 1.5-3 km away. What you carried (food, water, medkits, spare rounds) stays where you fell, with your
+	/// body, marked on the map: go back for it. Not by the car any more.
 	/// </summary>
 	private void UpdateDown(float dt)
 	{
-		if (_downTime < 0 || _hurt == null || _walker == null) return;
-		float before = _downTime;
-		_downTime += dt;
-		float dark = _downTime < 1.6f ? _downTime / 1.6f : MathF.Max(0, 1 - (_downTime - 2.6f) / 1.2f);
-		_hurt.Color = new Color(0.05f * (1 - dark), 0, 0, Mathf.Clamp(dark, 0, 1));
-		if (before < 2.0f && _downTime >= 2.0f)
+		if (_hurt == null || _walker == null) return;
+		if (_wakeTime >= 0)
 		{
-			foreach (var b in _bandits!.All) b.QueueFree();
-			_bandits.Clear();
-			if (_car != null)
-			{
-				var t = _car.GlobalTransform;
-				if (_car.Driving)
-				{
-					// shot at the wheel (D52): you come round beside the car
-					_car.Driving = false;
-					_walker.Activate(t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f, _car.Rotation.Y);
-				}
-				_walker.GlobalPosition = t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f;
-				_walker.Velocity = Vector3.Zero;
-			}
-			string lost = _walker.Body.WakeUp();
-			string what = _downCause switch { "starved" => "You collapsed from hunger", "dehydrated" => "You collapsed from thirst", _ => "You were shot and left for dead" };
-			ShowNote($"{what}. You come round by your car{(lost.Length > 0 ? " — " + lost : "")}.");
+			// waking: from black to clear
+			_wakeTime += dt;
+			_hurt.Color = new Color(0, 0, 0, Mathf.Clamp(1 - (_wakeTime - 0.3f) / 1.4f, 0, 1));
+			if (_wakeTime > 1.7f) { _wakeTime = -1; _hurt.Color = new Color(0.7f, 0, 0, 0); }
+			return;
 		}
-		if (_downTime > 3.8f) { _downTime = -1; _hurt.Color = new Color(0.7f, 0, 0, 0); }
+		if (_downTime < 0) return;
+		_downTime += dt;
+		float dark = Mathf.Clamp(_downTime / 1.5f, 0, 1);
+		_hurt.Color = new Color(0.12f * (1 - dark * 0.6f), 0, 0, 0.62f * dark);
+		if (_deathLabel != null)
+		{
+			_deathLabel.Visible = _downTime > 1.2f;
+			string what = _downCause switch { "starved" => "You collapsed from hunger.", "dehydrated" => "You collapsed from thirst.", _ => "You were shot." };
+			_deathLabel.Text = $"{what}\nYour things stay here with you.\n\nClick to wake up {(BalticDrive.OnFoot.Safehouse.Get(MapName) is { } sh ? "in your safehouse" : "somewhere else")}.";
+		}
+	}
+
+	private float _wakeTime = -1;
+	private Label? _deathLabel;
+	private BalticDrive.OnFoot.Doorstep? _safehouse;
+	private bool _safehouseLoaded;
+	private float _claim;
+	private double _nextHomeLook;
+	private (BalticDrive.OnFoot.Doorstep Step, string Name)? _homeHere;
+	/// <summary>Self-tests: acts as holding K.</summary>
+	public bool TestClaim;
+	public static string MapName => Args.GetValueOrDefault("map", "mazowsze");
+	public BalticDrive.OnFoot.Doorstep? SafehouseAt => _safehouse;
+
+	/// <summary>Down: out of the car first if it happened at the wheel (D52), then the fall.</summary>
+	private void OnDown(string cause)
+	{
+		_downCause = cause; _downTime = 0;
+		if (_walker == null) return;
+		if (!_walker.Active && _car != null && _car.Driving)
+		{
+			var t = _car.GlobalTransform;
+			_car.Driving = false;
+			_walker.Activate(t.Origin - t.Basis.X * 1.7f + Vector3.Up * 0.3f, _car.Rotation.Y);
+		}
+		_walker.Die();
+	}
+
+	/// <summary>The click after dying (D55). Public for the self-test.</summary>
+	public void Respawn()
+	{
+		if (_walker == null || _world == null || _caches == null || _downTime < 0) return;
+		var fell = _walker.GlobalPosition;
+		var (fx, _, fz) = WorldOrigin.ToWorld(fell);
+		var loot = _walker.Body.PackUp();
+		var package = _caches.PlacePackage(fell, loot, _walker.CorpseTransform);
+		if (loot.Food + loot.Water + loot.Medkits + loot.Ammo.Sum(a => a.Rounds) == 0) _caches.Open(package);   // nothing to go back for
+		foreach (var b in _bandits!.All) b.QueueFree();
+		_bandits.Clear();
+		var home = _safehouse;
+		var step = home ?? BalticDrive.OnFoot.Homes.Pick(_world, fx, fz, new Random()) ?? new BalticDrive.OnFoot.Doorstep(fx + 40, fz, 0, 0, "");
+		float h = _world.Height(step.X, step.Z);
+		_walker.Revive(WorldOrigin.ToLocal(step.X, h + 0.4, step.Z), step.Yaw);
+		_walker.Body.Revive();
+		_downTime = -1;
+		_wakeTime = 0;
+		if (_deathLabel != null) _deathLabel.Visible = false;
+		double dx = fx - step.X, dz = fz - step.Z, km = Math.Sqrt(dx * dx + dz * dz) / 1000;
+		string toward = Compass(dx, dz);
+		string where = home != null ? $"in your safehouse{(home.Value.Address.Length > 0 ? ", " + home.Value.Address : "")}"
+			: step.Address.Length > 0 ? $"outside {step.Address}" : "outside a block of flats";
+		ShowNote(package.Opened ? $"You wake up {where}." : km < 0.05 ? $"You wake up {where}. Your things are right here."
+			: $"You wake up {where}. Your things are {km:0.0} km {toward}, where you fell: marked on the map (M).", 12);
+		Core.Log.Info("Death", $"woke {where}, {km:0.00} km from the body (package {(package.Opened ? "empty" : "left")})");
+	}
+
+	private static string Compass(double dx, double dz)
+	{
+		// world +Z is south
+		string[] names = { "north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west" };
+		double a = Math.Atan2(dx, -dz);
+		int i = (int)Math.Round(a / (Math.PI / 4));
+		return names[((i % 8) + 8) % 8];
+	}
+
+	/// <summary>Hold K by the wall of a home (D55): it becomes your safehouse.</summary>
+	private bool UpdateClaim(double now, float dt)
+	{
+		if (_walker == null || _world == null) return false;
+		if (now >= _nextHomeLook)
+		{
+			_nextHomeLook = now + 0.3;
+			var (wx, _, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
+			_homeHere = BalticDrive.OnFoot.Homes.At(_world, wx, wz, _walker.Yaw + MathF.PI) is { } at ? (at.Step, at.Step.Address.Length > 0 ? at.Step.Address : at.Home.Type == BuildingKind.House ? "this house" : "this block") : null;
+		}
+		if (_homeHere is not { } here || (_safehouse is { } mine && mine.OsmId == here.Step.OsmId && mine.OsmId != 0)) { _claim = 0; return false; }
+		bool holding = TestClaim || Input.IsKeyPressed(Key.K);
+		_claim = holding ? _claim + dt : 0;
+		_prompt!.Visible = true;
+		_prompt.Text = holding ? $"Claiming {here.Name}... {MathF.Min(_claim / 2f, 1):P0}" : $"Hold K: make {here.Name} your safehouse";
+		if (_claim >= 2f)
+		{
+			// facing out from the wall when you wake: the way you'd walk out of the door
+			var (wx, _, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
+			var s = here.Step with { X = wx, Z = wz };
+			BalticDrive.OnFoot.Safehouse.Set(MapName, s);
+			_safehouse = s;
+			_claim = 0;
+			ShowNote($"{char.ToUpper(here.Name[0]) + here.Name[1..]} is your safehouse now. You'll wake up here.", 8);
+			Core.Log.Info("Safehouse", $"claimed {here.Name} (osm {s.OsmId}) at {s.X:0},{s.Z:0}");
+		}
+		return true;
 	}
 
 	private void UpdateSurvival(double now)
@@ -280,17 +367,25 @@ public partial class Main : Node3D
 			// a reason to roam (D54): notes and radios name stashes across the map
 			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);
 			_leads.Said += s => ShowNote(s, 12, keep: true);
-			_mapScreen?.SetLeads(() => _leads.All.Select(l => (l.X, l.Z, l.Where, l.Stage == BalticDrive.OnFoot.Leads.Stage.Taken)));
+			// the map's own places: leads (D54), your things where you fell and your safehouse (D55)
+			_mapScreen?.SetPlaces(() => _leads.All.Select(l => (l.X, l.Z, l.Where, l.Stage == BalticDrive.OnFoot.Leads.Stage.Taken ? 1 : 0))
+				.Concat(Packages().Select(p => (p.X, p.Z, "your things", 2)))
+				.Concat(_safehouse is { } sh ? new[] { (sh.X, sh.Z, "safehouse" + (sh.Address.Length > 0 ? ": " + sh.Address : ""), 3) } : Array.Empty<(double, double, string, int)>()));
 			// crates and bodies on the radar while on foot (D50)
 			if (_minimap != null)
 				_minimap.Markers = () => OnFoot && _caches != null
 					? _caches.Live.Where(c => !c.Keep).Select(c => { var (wx, _, wz) = WorldOrigin.ToWorld(c.GlobalPosition); return (wx, wz, c.Key.StartsWith("drop:") ? 2 : c.Kind == MapPoiKind.Medical ? 1 : 0, c.Opened); })
-						.Concat(_leads!.All.Where(l => l.Stage != BalticDrive.OnFoot.Leads.Stage.Taken).Select(l => (l.X, l.Z, 3, false))).ToList()
-					: _leads!.All.Where(l => l.Stage != BalticDrive.OnFoot.Leads.Stage.Taken).Select(l => (l.X, l.Z, 3, false)).ToList();
+						.Concat(FarMarkers()).ToList()
+					: FarMarkers().ToList();
 			// hit: the screen edge flashes red (D47)
 			_hurt = new ColorRect { Color = new Color(0.7f, 0, 0, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
 			_hurt.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 			_ui.AddChild(_hurt);
+			_deathLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+			_deathLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+			_deathLabel.AddThemeFontSizeOverride("font_size", 26);
+			_deathLabel.AddThemeColorOverride("font_shadow_color", Colors.Black);
+			_ui.AddChild(_deathLabel);
 		}
 		// the walker carries your health even before you first get out (bandits shoot at the car, D52)
 		if (_walker == null && _car != null) _walker = CreateWalker();
@@ -305,22 +400,34 @@ public partial class Main : Node3D
 		{
 			_bandits.Player = _walker;
 			_walker.Body.Hurt += a => { if (_hurt != null) _hurt.Color = _hurt.Color with { A = Mathf.Clamp(_hurt.Color.A + a / 60f, 0, 0.5f) }; };
-			_walker.Body.Down += cause => { _downCause = cause; _downTime = 0; };
+			_walker.Body.Down += OnDown;
 		}
 		if (_hurt != null && _hurt.Color.A > 0 && _downTime < 0) _hurt.Color = _hurt.Color with { A = MathF.Max(0, _hurt.Color.A - (float)GetProcessDeltaTime() * 0.8f) };
 		UpdateDown((float)GetProcessDeltaTime());
 		_bandits!.Update(now);
 		bool on = OnFoot && _walker != null;
 		_leads!.Update(on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : null);
-		_bars!.Visible = on || (_car != null && _car.Driving && !Flying && _walker != null);   // health in the car too (D52)
-		if (!on) { _prompt!.Visible = false; return; }
+		_bars!.Visible = (on || (_car != null && _car.Driving && !Flying && _walker != null)) && !PlayerDown;   // health in the car too (D52)
+		if (!_safehouseLoaded) { _safehouseLoaded = true; _safehouse = BalticDrive.OnFoot.Safehouse.Get(MapName); }
+		if (!on || PlayerDown) { _prompt!.Visible = false; _claim = 0; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
 		_prompt!.Visible = c != null;
-		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "E: search the body" : c.Keep ? "E: take the stash" : "E: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
+		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "F: search the body" : c.Key.StartsWith("death:") ? "F: take your things" : c.Keep ? "F: take the stash" : "F: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
+		else UpdateClaim(now, (float)GetProcessDeltaTime());
 		_bars.QueueRedraw();
 	}
 	public OnFoot.ShootingRange? Range => _range;
+
+	/// <summary>Your things left where you fell, not yet taken (world x, z).</summary>
+	private IEnumerable<(double X, double Z)> Packages() => _caches == null ? Enumerable.Empty<(double, double)>()
+		: _caches.Live.Where(c => c.Key.StartsWith("death:") && !c.Opened).Select(c => { var (x, _, z) = WorldOrigin.ToWorld(c.GlobalPosition); return (x, z); });
+
+	/// <summary>Radar marks held at the rim when far (D54, D55): leads 3, your things 4, the safehouse 5.</summary>
+	private IEnumerable<(double, double, int, bool)> FarMarkers() =>
+		_leads!.All.Where(l => l.Stage != BalticDrive.OnFoot.Leads.Stage.Taken).Select(l => (l.X, l.Z, 3, false))
+			.Concat(Packages().Select(p => (p.X, p.Z, 4, false)))
+			.Concat(_safehouse is { } sh ? new[] { (sh.X, sh.Z, 5, false) } : Array.Empty<(double, double, int, bool)>());
 
 	/// <summary>T on foot (D42): a little shooting range in front of the walker; T again sets it up afresh where you stand.</summary>
 	public OnFoot.ShootingRange? SetUpRange()
@@ -398,7 +505,16 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
-		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.E } && _world != null && !Flying)
+		// dead: a click or F wakes you up somewhere else (D55)
+		if (PlayerDown && _downTime > 1.2f && (e is InputEventMouseButton { Pressed: true } || e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F }))
+		{
+			Respawn();
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+		if (PlayerDown) return;
+		// F: crates, the car (D55: E leans right now, Tom's pick); the free camera moved to F8
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null && !Flying)
 		{
 			if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
 			ToggleOnFoot();
@@ -417,7 +533,7 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
-		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null) ToggleFreeCamera();
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F8 } && _world != null) ToggleFreeCamera();
 	}
 
 	/// <summary>E (D38): out of the car on the driver's side, or back in when standing by it.</summary>
@@ -535,9 +651,9 @@ public partial class Main : Node3D
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
-					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
-						: OnFoot ? "E: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Space jump, V camera, Esc mouse, F free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets, B bandits, H medkit, E crates"
-						: "E: get out   F: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
+					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F8: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
+						: OnFoot ? "F: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim, R reload, T targets, B bandits, H medkit, F crates"
+						: "F: get out   F8: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		UpdateSurvival(Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);

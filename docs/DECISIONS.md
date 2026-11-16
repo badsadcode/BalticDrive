@@ -761,3 +761,42 @@ scouting by place type), and for the stash, **guarded and rich**.
 Test: `--autotest=leads`. It finds a lead 300–600 m away and photographs the map, puts you 150 m from it (stash
 and guards appear), shoots the guards, opens the stash and photographs the chained lead on the map.
 Not done: saving leads between sessions.
+
+## D55 — Leaning, dying where you fall, waking elsewhere, a safehouse (Tom's next spin)
+
+Tom played the leads, liked them, and walked round a corner into gunfire. He asked for leaning, then a proper death
+in the spirit of Project Zomboid. His four picks: Q/E lean with interact moved to F; no safehouse means a random home
+1.5–3 km away; a safehouse is any home whose wall you hold a key at; the package holds your pack and spare ammo,
+and your guns stay with you.
+
+* **Keys.** Q/E lean. F is now interact (crates, bodies, stash, your things, getting in and out of the car). The free
+  camera moved from F to F8.
+* **Leaning.** The eye moves 0.34 m sideways and a little down, and the view rolls about 10°. A ray at head height
+  stops the lean before the eye enters a wall. There's no leaning at a sprint. The body bends Spine, Chest and Neck
+  (`LeanBendModifier`, run before `GunHold` so the hands stay on the gun). In third person, leaning left swaps the
+  camera to the left shoulder. A head sphere follows the leaned eye, so a bandit who sees your head can hit it:
+  peeking round a corner shows only a little of you, not nothing.
+* **Dying.** The body tips from the feet away from the last bullet (forward if you starved) in 0.42 s, and the
+  first-person eye goes down with the head, looking wherever it looks. No controls; bandits stop counting you as a
+  target. The screen dims red and says what happened. A click or F wakes you.
+* **Waking.** In your safehouse if you have one; otherwise outside a real house or block of flats (OSM
+  `building=house/apartments`) picked at random 1.5–3 km away, on open ground 1.4 m off the middle of a wall,
+  facing away from it (`Homes.Pick` / `Homes.Step`). Full health, hunger and thirst at least 60. The note gives
+  the address, and how far away and in which direction your things are. Not by the car any more.
+* **Your things.** Food, water, medkits and every spare round go into a package where you fell
+  (`CacheField.PlacePackage`), with a copy of your body lying in the pose it fell in. It's kept however far you go,
+  shown on the map as a white box ("your things") and held at the radar's rim. Loaded magazines and the guns stay
+  with you. Once taken, the body goes when you're far away, like a bandit's. An empty pack leaves no marker. Your
+  own package never holds a lead note.
+* **Safehouse.** Stand by the wall of a home (within 2.5 m, not inside) and hold K for 2 s
+  ("Hold K: make Sienna 41 your safehouse"). It's marked with a green house on the map and the radar. One per map;
+  claiming another moves it. It's kept in `user://safehouses.json`
+  (`{"safehouses":[{"x","z","yaw","osmId","address","map"}]}`), as data rather than code, so the world editor Tom
+  wants can later place safehouse areas in the same shape. Unlike the session's crates and leads, it lasts between
+  sessions.
+* **A fix found on the way:** every body fell toward the shooter. The fall axis was away × up; up × away tips the head
+  away. Bandits are fixed too.
+
+Tests: `--autotest=lean` (first person upright, left and right; third person from front and back) and
+`--autotest=death` (the fall, waking 2–3 km away, the map, taking your things back, claiming Sienna 41, dying again,
+waking 0.0 m from its door). Next, Tom's idea: ragdolls instead of the tipping fall.

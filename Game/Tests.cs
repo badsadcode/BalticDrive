@@ -32,7 +32,7 @@ namespace BalticDrive;
 /// hold their guns).</item>
 /// <item><c>--autotest=tpgun</c> — third person with each gun (D49): standing, walking, sprinting, firing, seen
 /// from the side.</item>
-/// <item><c>--autotest=death</c> — crates on the radar (D50), then going down: the screen goes dark, you come round
+/// <item><c>--autotest=death</c> (D55: the fall, waking far away, your things, a safehouse) — — crates on the radar (D50), then going down: the screen goes dark, you come round
 /// by the car with the pack gone.</item>
 /// <item><c>--autotest=crouch</c> — third person from the side: standing, crouched still, crouch-walking (D52).</item>
 /// <item><c>--autotest=carbandits</c> — sitting in the car, a group of bandits 30 m away (D52): do they come for the
@@ -43,6 +43,8 @@ namespace BalticDrive;
 /// <item>Test runs play muted (the master bus at -80 dB; a recording still hears it), unless <c>--sound</c>.</item>
 /// <item><c>--autotest=leads</c> — a lead (D54): one is found 300–600 m away, shown on the map; then you're put
 /// 150 m from it: the stash is set down with its guards; the guards are shot, the stash opened (a note may lead on).</item>
+/// <item><c>--autotest=lean</c> — leaning (D55): first person upright, left, right; third person left and right
+/// with the AK out; logs how far the eye moved and the room a wall left.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -113,6 +115,7 @@ public sealed class Tests
         _carBandits = Main.Args.GetValueOrDefault("autotest", "").Contains("carbandits");
         _soundTest = Main.Args.GetValueOrDefault("autotest", "").Contains("sound");
         _leadTest = Main.Args.GetValueOrDefault("autotest", "").Contains("leads");
+        _leanTest = Main.Args.GetValueOrDefault("autotest", "").Contains("lean");
         // muted: Tom works while tests run
         if (!Main.Args.ContainsKey("sound")) AudioServer.SetBusVolumeDb(0, -80);
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
@@ -224,6 +227,36 @@ public sealed class Tests
         if (At(2.3)) Log.Info("Test", $"range: {name}: {(g.TargetHits > _rangeHitsBefore ? "hit, " + g.LastTarget : "missed")} ({g.LastHit})");
     }
     private int _rangeHitsBefore;
+
+    private bool _leanTest;
+    private double _leanTime = -1;
+
+    /// <summary>The lean test (D55).</summary>
+    private void LeanTest(double delta)
+    {
+        if (_leanTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "lean: could not get out of the car"); _leanTest = false; return; }
+            _main.Walker!.SetView(true);
+            _main.Walker.Guns.Equip("ak");
+            _leanTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        double before = _leanTime;
+        _leanTime += delta;
+        bool Now(double t) => before < t && _leanTime >= t;
+        void Report(string what) => Log.Info("Test", $"lean: {what}: lean {w.Lean:0.00}, eye {w.LeanOffset:0.00} m to the side, camera at {w.FirstPersonCamera.GlobalPosition - w.GlobalPosition}");
+        if (Now(1.0)) { Shot("lean_fp_upright"); Report("upright"); w.TestLean = -1; }
+        if (Now(2.0)) { Shot("lean_fp_left"); Report("left"); w.TestLean = 1; }
+        if (Now(3.0)) { Shot("lean_fp_right"); Report("right"); w.TestLean = 0; w.SetView(false); w.CameraOrbit = MathF.PI; }
+        if (Now(4.0)) { Shot("lean_tp_front_upright"); w.TestLean = -1; }
+        if (Now(5.0)) { Shot("lean_tp_front_left"); Report("third person, left"); w.TestLean = 1; }
+        if (Now(6.0)) { Shot("lean_tp_front_right"); Report("third person, right"); w.CameraOrbit = 0; }
+        if (Now(7.0)) { Shot("lean_tp_back_right"); w.TestLean = -1; }
+        if (Now(8.0)) { Shot("lean_tp_back_left"); w.TestLean = null; Log.Info("Test", "lean: done"); _leanTest = false; }
+    }
 
     private bool _leadTest;
     private double _leadTime = -1;
@@ -466,13 +499,18 @@ public sealed class Tests
         if (Now(6.5)) { w.Crouch(false); w.Autopilot = null; Log.Info("Test", "crouch: done"); _crouchTest = false; }
     }
 
-    /// <summary>Crates on the radar and going down (D50).</summary>
+    private OnFoot.Doorstep? _deathHome;
+    private Vector3 _fellAt;
+
+    /// <summary>Dying and waking (D55): the fall seen from the eyes, waking 1.5-3 km away, your things on the map,
+    /// going back for them; then a safehouse claimed at a home's wall, dying again and waking there.</summary>
     private void DeathTest(double delta)
     {
         if (_deathTime < 0)
         {
             if (_settledFor < 1.5) return;
             if (!_main.ToggleOnFoot()) { _death = false; return; }
+            OnFoot.Safehouse.Clear(Main.MapName);
             _deathTime = 0;
             return;
         }
@@ -480,21 +518,71 @@ public sealed class Tests
         double before = _deathTime;
         _deathTime += delta;
         bool Now(double t) => before < t && _deathTime >= t;
-        if (Now(5))
+        string Where(Vector3 local) { var (x, _, z) = WorldOrigin.ToWorld(local); return $"{x:0},{z:0}"; }
+        if (Now(3))
         {
-            Log.Info("Test", $"death: {_main.Caches!.Live.Count()} crates near, on the radar");
-            Shot("death_radar");
-            // walk away from the car a bit and fill the pack
-            var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
-            w.GlobalPosition += fwd * 30 + Vector3.Up * 0.3f;
+            // a full pack and some spare rounds, then a bullet from ahead-left
             w.Body.Food = 3; w.Body.Water = 2; w.Body.Medkits = 1;
+            w.Guns.AddAmmo("ak", 40);
+            w.SetView(false);
+            Log.Info("Test", $"death: before: food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}, at {Where(w.GlobalPosition)}");
+            w.LastShot = new Vector3(-MathF.Sin(w.Yaw) + 0.5f, 0, -MathF.Cos(w.Yaw)) * -800;
+            w.Body.Damage(500);
+            _fellAt = w.GlobalPosition;
         }
-        if (Now(6.5)) { Log.Info("Test", $"death: before: {w.Body.Health:0} hp, food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; {_main.Car!.GlobalPosition.DistanceTo(w.GlobalPosition):0} m from the car"); w.Body.Damage(500); }
-        if (Now(7.6)) Shot("death_dark");
-        if (Now(11))
+        if (Now(3.2)) Shot("death_falling");
+        if (Now(4.0)) Shot("death_down");
+        if (Now(4.5))
         {
-            Log.Info("Test", $"death: after: {w.Body.Health:0} hp, food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; {_main.Car!.GlobalPosition.DistanceTo(w.GlobalPosition):0} m from the car; down {_main.PlayerDown}");
-            Shot("death_awake");
+            Log.Info("Test", $"death: down {_main.PlayerDown}, dead {w.Dead}");
+            _main.Respawn();
+            Log.Info("Test", $"death: woke at {Where(w.GlobalPosition)}; carrying food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}; health {w.Body.Health:0}");
+        }
+        if (Now(12)) Shot("death_awake");
+        if (Now(12.5)) { _main.MapView!.Toggle(); _main.MapView.SetZoom(3); }
+        if (Now(13.5)) { Shot("death_map"); _main.MapView!.Toggle(); }
+        if (Now(14))
+        {
+            // back to the body
+            var pkg = _main.Caches!.Live.FirstOrDefault(c => c.Key.StartsWith("death:"));
+            if (pkg == null) { Log.Error("Test", "death: no package"); _death = false; return; }
+            Log.Info("Test", $"death: package at {Where(pkg.GlobalPosition)}, {pkg.GlobalPosition.DistanceTo(w.GlobalPosition):0} m away");
+            var away = new Vector3(1, 0, 0.4f).Normalized();
+            w.GlobalPosition = pkg.GlobalPosition + away * 2.6f + Vector3.Up * 0.5f;
+        }
+        if (Now(20))
+        {
+            var pkg = _main.Caches!.Live.FirstOrDefault(c => c.Key.StartsWith("death:"));
+            if (pkg != null) { w.Face(pkg.GlobalPosition + Vector3.Up * 0.3f); Shot("death_body"); }
+        }
+        if (Now(20.5))
+        {
+            var pkg = _main.Caches!.Live.FirstOrDefault(c => c.Key.StartsWith("death:"));
+            bool took = pkg != null && _main.TryOpenCache(pkg);
+            Log.Info("Test", $"death: took your things {took}: food {w.Body.Food}, water {w.Body.Water}, medkits {w.Body.Medkits}");
+        }
+        if (Now(21))
+        {
+            // a home nearby: stand at its wall and hold K
+            var (x, _, z) = WorldOrigin.ToWorld(w.GlobalPosition);
+            _deathHome = OnFoot.Homes.Pick(_main.World!, x, z, new Random(5), 20, 250);
+            if (_deathHome is not { } h) { Log.Error("Test", "death: no home near"); _death = false; return; }
+            w.GlobalPosition = WorldOrigin.ToLocal(h.X, _main.World!.Height(h.X, h.Z) + 0.5, h.Z);
+            w.Face(w.GlobalPosition + new Vector3(MathF.Sin(h.Yaw), 0, MathF.Cos(h.Yaw)) * 3 + Vector3.Up * 1.5f);   // the wall
+            Log.Info("Test", $"death: at a home: {h.Address} ({h.X:0},{h.Z:0})");
+        }
+        if (Now(25)) { Shot("death_claim_prompt"); _main.TestClaim = true; }
+        if (Now(26)) Shot("death_claiming");
+        if (Now(27.6)) { _main.TestClaim = false; Log.Info("Test", $"death: safehouse {(_main.SafehouseAt is { } sh ? $"{sh.Address} at {sh.X:0},{sh.Z:0}" : "none")}"); }
+        if (Now(28)) { w.LastShot = Vector3.Zero; w.Body.Damage(500); }
+        if (Now(30)) _main.Respawn();
+        if (Now(34))
+        {
+            var (x, _, z) = WorldOrigin.ToWorld(w.GlobalPosition);
+            var sh = _main.SafehouseAt;
+            Log.Info("Test", $"death: woke {(sh is { } h2 ? Math.Sqrt((x - h2.X) * (x - h2.X) + (z - h2.Z) * (z - h2.Z)) : -1):0.0} m from the safehouse door");
+            Shot("death_safehouse");
+            OnFoot.Safehouse.Clear(Main.MapName);
             Log.Info("Test", "death: done");
             _death = false;
         }
@@ -755,6 +843,7 @@ public sealed class Tests
         if (_carBandits && _main.Car != null) { CarBanditTest(delta); return; }
         if (_soundTest && _main.Car != null) { SoundTest(delta); return; }
         if (_leadTest && _main.Car != null) { LeadTest(delta); return; }
+        if (_leanTest && _main.Car != null) { LeanTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

@@ -69,8 +69,8 @@ public sealed partial class Survival : Node
 
     /// <summary>Damage taken (for the red flash).</summary>
     public event Action<float>? Hurt;
-    /// <summary>The player went down (D50): what did it ("shot", "starved", "dehydrated"). The game fades out, moves
-    /// you to your car and calls <see cref="WakeUp"/>.</summary>
+    /// <summary>The player went down (D50): what did it ("shot", "starved", "dehydrated"). The body falls and the game
+    /// waits for a click to wake you somewhere else (D55: <see cref="PackUp"/>, <see cref="Revive"/>).</summary>
     public event Action<string>? Down;
     public bool IsDown { get; private set; }
     private string _cause = "shot";
@@ -98,16 +98,20 @@ public sealed partial class Survival : Node
         Down?.Invoke(_cause);
     }
 
-    /// <summary>Coming round (D50): 60 health, hunger and thirst at least 40, and the pack gone: food, water, medkits,
-    /// and half the spare rounds of every gun. The guns and what's in them stay.</summary>
-    public string WakeUp()
+    /// <summary>What you had on you (D55): food, water, medkits and every spare round come off into the package left
+    /// where you fell. The guns and what's loaded in them stay with you (Tom's pick).</summary>
+    public Loot PackUp()
+    {
+        var loot = new Loot(Food, _lastFood, Water, Medkits, _w.Guns.TakeReserve());
+        Food = Water = Medkits = 0;
+        return loot;
+    }
+
+    /// <summary>Waking up somewhere else (D55): whole again, fed and watered enough to walk back for your things.</summary>
+    public void Revive()
     {
         IsDown = false;
-        Health = 60; Hunger = MathF.Max(Hunger, 40); Thirst = MathF.Max(Thirst, 40);
-        int lost = Food + Water + Medkits;
-        Food = Water = Medkits = 0;
-        int rounds = _w.Guns.LoseHalfReserve();
-        return lost + rounds == 0 ? "" : $"your pack is gone{(rounds > 0 ? $", and {rounds} rounds" : "")}";
+        Health = 100; Hunger = MathF.Max(Hunger, 60); Thirst = MathF.Max(Thirst, 60);
     }
 
     private void Say(string s) => Said?.Invoke(s);
@@ -309,6 +313,24 @@ public sealed partial class CacheField : Node3D
         c.QueueFree();
     }
 
+    private int _deaths;
+
+    /// <summary>Your things where you fell (D55): searchable like a body, kept however far you go until you take
+    /// them, with your body lying there (a copy of the walker's, in the pose it fell in).</summary>
+    public Cache PlacePackage(Vector3 at, Loot loot, Transform3D corpse)
+    {
+        var c = new Cache { Key = $"death:{++_deaths}", Place = "your things", Kind = MapPoiKind.Camp, Loot = loot, Keep = true, CollisionLayer = 0, CollisionMask = 0 };
+        AddChild(c);
+        c.GlobalPosition = at;
+        var body = new Node3D { Name = "Body" };
+        var (_, tree) = CharacterRig.Build(body, "Character_Male_Hoodie", out _);
+        c.AddChild(body);
+        body.GlobalTransform = corpse;
+        if (tree != null) CharacterRig.Animate(tree, Vector2.Zero, 1f, 0f);   // slumped, as a bandit lies (D47)
+        _live[c.Key] = c;
+        return c;
+    }
+
     private int _drops;
 
     /// <summary>A searchable spot with no crate: what a fallen bandit had on them (D47).</summary>
@@ -329,6 +351,7 @@ public sealed partial class CacheField : Node3D
     {
         c.Opened = true;
         _opened.Add(c.Key);
+        if (c.Key.StartsWith("death:")) c.Keep = false;   // taken: the body goes when you're far, like the bandits'
         Opened?.Invoke(c, c.GlobalPosition);
         if (c.GetChildCount() > 0 && c.GetChild(0) is MeshInstance3D look) look.RotationDegrees = new Vector3(0, 0, 4);
     }
