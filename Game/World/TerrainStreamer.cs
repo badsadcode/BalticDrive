@@ -202,6 +202,7 @@ public partial class TerrainStreamer : Node3D
         arrays[(int)Mesh.ArrayType.Vertex] = data.Vertices;
         arrays[(int)Mesh.ArrayType.Normal] = data.Normals;
         arrays[(int)Mesh.ArrayType.Color] = data.Colors;
+        arrays[(int)Mesh.ArrayType.TexUV2] = data.Uv2;
         arrays[(int)Mesh.ArrayType.Index] = data.Indices;
         var mesh = new ArrayMesh();
         mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);

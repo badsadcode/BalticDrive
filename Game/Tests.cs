@@ -48,6 +48,9 @@ namespace BalticDrive;
 /// <item><c>--autotest=ragdoll</c> — ragdolls (D56): a bandit shot from the side falls (photographed as it goes), the
 /// body checked for flying off or sinking, the world origin moved under it and back; then the walker is shot and the
 /// fall seen through its eyes.</item>
+/// <item><c>--autotest=roadscan [--radius=3000]</c> — looks through the roads around the start for bends tighter than
+/// the road is wide (the inner edge folds over itself: Tom's wobbly service roads), logs the worst with a
+/// <c>--views=</c> line to photograph them from above, and quits.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -231,6 +234,55 @@ public sealed class Tests
         if (At(2.3)) Log.Info("Test", $"range: {name}: {(g.TargetHits > _rangeHitsBefore ? "hit, " + g.LastTarget : "missed")} ({g.LastHit})");
     }
     private int _rangeHitsBefore;
+
+    /// <summary>Bends where a road's inner edge folds: the sideways shift of the edge at a corner (half width times
+    /// tan of half the turn) is longer than the shorter piece beside it.</summary>
+    private void RoadScan()
+    {
+        var w = _main.World!;
+        var (fx, fz) = _main.Focus;
+        double radius = Num(Main.Args.GetValueOrDefault("radius", "3000"));
+        var found = new List<(double X, double Z, int Folds, string What)>();
+        int roads = 0, bends = 0;
+        int tx0 = (int)Math.Floor((fx - radius) / Map.MapTile.Size), tx1 = (int)Math.Floor((fx + radius) / Map.MapTile.Size);
+        int tz0 = (int)Math.Floor((fz - radius) / Map.MapTile.Size), tz1 = (int)Math.Floor((fz + radius) / Map.MapTile.Size);
+        for (int tx = tx0; tx <= tx1; tx++)
+            for (int tz = tz0; tz <= tz1; tz++)
+            {
+                if (!w.Data.HasTile(tx, tz)) continue;
+                var tile = w.Data.Tile(tx, tz);
+                foreach (var r in tile.Roads)
+                {
+                    if (r.IsRail || r.IsTram || r.X.Length < 3) continue;
+                    roads++;
+                    float hw = r.HalfWidth + 0.6f;   // with the shoulder
+                    int folds = 0; double worstX = 0, worstZ = 0; float worstTurn = 0;
+                    for (int i = 1; i < r.X.Length - 1; i++)
+                    {
+                        var a = new Vector2(r.X[i] - r.X[i - 1], r.Z[i] - r.Z[i - 1]);
+                        var b = new Vector2(r.X[i + 1] - r.X[i], r.Z[i + 1] - r.Z[i]);
+                        float la = a.Length(), lb = b.Length();
+                        if (la < 0.05f || lb < 0.05f) continue;
+                        float turn = MathF.Acos(Mathf.Clamp(a.Dot(b) / (la * lb), -1, 1));
+                        if (turn < 0.05f) continue;
+                        bends++;
+                        if (hw * MathF.Tan(MathF.Min(turn, 2.8f) / 2) > MathF.Min(la, lb))
+                        {
+                            folds++;
+                            if (turn > worstTurn) { worstTurn = turn; worstX = tile.OriginX + r.X[i]; worstZ = tile.OriginZ + r.Z[i]; }
+                        }
+                    }
+                    if (folds > 0 && (worstX - fx) * (worstX - fx) + (worstZ - fz) * (worstZ - fz) < radius * radius)
+                        found.Add((worstX, worstZ, folds, $"class {r.Cls} '{r.Name}' width {r.HalfWidth * 2:0.0} m, worst turn {worstTurn * 180 / MathF.PI:0} deg"));
+                }
+            }
+        Log.Info("Test", $"roadscan: {roads} roads, {bends} bends, {found.Count} roads with folding bends within {radius:0} m");
+        foreach (var cls in found.GroupBy(f => f.What.Split(' ')[1]).OrderByDescending(g => g.Count()))
+            Log.Info("Test", $"roadscan: class {cls.Key}: {cls.Count()} roads, {cls.Sum(f => f.Folds)} folding bends");
+        var worst = found.OrderByDescending(f => f.Folds).Take(10).ToList();
+        foreach (var f in worst) Log.Info("Test", $"roadscan: {f.X:0},{f.Z:0}: {f.Folds} folding bends, {f.What}");
+        Log.Info("Test", "roadscan: --views=\"" + string.Join(";", worst.Take(6).Select(f => $"{f.X:0}:{f.Z:0}:35:0:-80")) + "\"");
+    }
 
     private bool _ragdollTest;
     private double _ragTime = -1;
@@ -841,6 +893,7 @@ public sealed class Tests
         if (_elapsed > 600) { Log.Error("Test", "timed out"); _main.GetTree().Quit(2); return; }
         _settledFor = Settled ? _settledFor + delta : 0;
 
+        if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
             if (_view >= 0 && _settledFor < 1.5) return;

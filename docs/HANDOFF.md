@@ -66,7 +66,10 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 * **BadBuilding and classic buildings overlapping (Tom, 15 Nov, stream; he will show it):** suspects: an outline
   built by BadBuilding while its building:part pieces are still drawn by the classic mesher; balconies, cornices and
   steps reaching into a neighbour that is too far for a party wall; duplicate or overlapping OSM footprints.
-* **Wobbly, stitched service roads (Tom, 15 Nov, top-down screenshot round a block):** tight driveway loops look
+* **Done 17 Nov (D57):** minor roads give way where they overlap greater ones, tight-bend folds capped, car parks
+  paved, water stripes, pavements across driveways and ramped ends. Left from Tom's dumps: the grass island at
+  Bogatki (185011), paved areas raised on mounds (184838), junction surfaces under service roads that end inside them.
+* **Wobbly, stitched service roads (Tom, 15 Nov; 17 Nov: "not that bad", the kerbs helped):** tight driveway loops look
   jagged at the edges and show seams where ribbon pieces meet or overlap. Suspects: roads meshed segment by segment
   (no shared vertices at joints, so tight bends fold or gap), coarse OSM polylines on curves, the noisy asphalt edge in
   map_road.gdshader, and overlapping service roads without a junction surface. Fixes to try: one continuous strip per

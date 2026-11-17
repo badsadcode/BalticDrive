@@ -144,7 +144,12 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 p = pattern_xz;
+	// The ripples, foam and chop work on world x/z wrapped at 4096 m (D57). Unwrapped, at tens of km, 32-bit floats
+	// can't hold the fine ripples' positions and they broke into stripes along the world axes (Tom's dump). Wrapped
+	// here per pixel from the local position (small, precise) and the origin (whole kilometres, exact), so nothing
+	// smears across a triangle; 65536 (the offset's own period) is a multiple, so the pattern stays fixed to the
+	// ground, with a seam every 4 km lost in the ripples. The long Gerstner waves keep pattern_xz.
+	vec2 p = mod(world_position.xz + mod(world_offset, 4096.0), 4096.0);
 	float sea = 1.0 - step(0.1667, body), river = step(0.1667, body) * (1.0 - step(0.5, body)), lake = 1.0 - sea - river;
 	float speed = mix(1.0, 3.0, river);
 	float e = 0.05;

@@ -147,8 +147,100 @@ public static class MapMesher
         }
     }
 
+    // ---- who gives way where roads overlap (D57) -----------------------------------------------------------------
+    // Driveways and car-park lanes are not joined to streets by junction surfaces (tools/osm_import/junctions.py), and
+    // roads that cross without a shared node aren't either: their ribbons just overlap, each at its own solved height.
+    // The higher one showed through the other, a service road's sloping dirt shoulder poked up through a street as a
+    // wedge, and two at almost the same height flickered (Tom's dumps, 17 Nov). Now the lesser road gives way: where
+    // its centre line lies on a greater road's carriageway it tucks 2.5 cm under that surface and drops its
+    // shoulders, so the greater road's asphalt is what you see.
+
+    [ThreadStatic] private static Dictionary<long, List<int>>? _grid;
+    [ThreadStatic] private static MapContext? _gridCtx;
+    [ThreadStatic] private static int _gridCount;
+    private const float GridCell = 16f;
+
+    private static long Cell(float x, float z) => ((long)MathF.Floor(x / GridCell) << 32) ^ (uint)(int)MathF.Floor(z / GridCell);
+
+    private static void BuildGrid(MapContext ctx)
+    {
+        _grid ??= new Dictionary<long, List<int>>();
+        foreach (var l in _grid.Values) l.Clear();
+        var segs = ctx.Segs;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            var s = segs[i];
+            float pad = s.Hw + 1f;
+            int x0 = (int)MathF.Floor((MathF.Min(s.Ax, s.Bx) - pad) / GridCell), x1 = (int)MathF.Floor((MathF.Max(s.Ax, s.Bx) + pad) / GridCell);
+            int z0 = (int)MathF.Floor((MathF.Min(s.Az, s.Bz) - pad) / GridCell), z1 = (int)MathF.Floor((MathF.Max(s.Az, s.Bz) + pad) / GridCell);
+            for (int x = x0; x <= x1; x++)
+                for (int z = z0; z <= z1; z++)
+                {
+                    long key = ((long)x << 32) ^ (uint)z;
+                    if (!_grid.TryGetValue(key, out var list)) _grid[key] = list = new List<int>();
+                    list.Add(i);
+                }
+        }
+        _gridCtx = ctx; _gridCount = segs.Count;
+    }
+
+    private static int Rank(byte cls) => cls switch
+    {
+        RoadClass.Link => 4,                       // between tertiary and unclassified
+        RoadClass.Unclassified => 5, RoadClass.Residential => 6, RoadClass.Living => 7,
+        RoadClass.Service => 8, RoadClass.Track => 9,
+        _ => cls,
+    };
+
+    /// <summary>Road <paramref name="a"/> (segment <paramref name="sa"/>) wins over <paramref name="b"/> (segment
+    /// <paramref name="sb"/>): a greater class, then wider, then a fixed order by where it starts (both sides of an
+    /// overlap must agree).</summary>
+    private static bool Outranks(in MapSeg sa, in MapSeg sb)
+    {
+        int ra = Rank(sa.Road.Cls), rb = Rank(sb.Road.Cls);
+        if (ra != rb) return ra < rb;
+        if (MathF.Abs(sa.Road.HalfWidth - sb.Road.HalfWidth) > 0.05f) return sa.Road.HalfWidth > sb.Road.HalfWidth;
+        float xa = sa.OffX + sa.Road.X[0], xb = sb.OffX + sb.Road.X[0];
+        if (MathF.Abs(xa - xb) > 0.01f) return xa > xb;
+        return sa.OffZ + sa.Road.Z[0] > sb.OffZ + sb.Road.Z[0];
+    }
+
+    /// <summary>The height a point of road <paramref name="s"/> must stay under because it lies on a greater road's
+    /// carriageway (NaN: on nothing greater). Pieces of the same road meeting end to end (a tile edge, a taper) are its
+    /// own continuation, not something to give way to.</summary>
+    private static float GiveWay(MapContext ctx, in MapSeg s, float px, float pz, Vector2 dir)
+    {
+        if (_gridCtx != ctx || _gridCount != ctx.Segs.Count || _grid == null) BuildGrid(ctx);
+        if (!_grid!.TryGetValue(Cell(px, pz), out var list)) return float.NaN;
+        var road = s.Road;
+        float under = float.NaN;
+        var segs = ctx.Segs;
+        foreach (int i in list)
+        {
+            var o = segs[i];
+            var or = o.Road;
+            if (or == road || or.IsRail || or.IsTram || or.Layer != road.Layer || or.IsBridge != road.IsBridge) continue;
+            float d = o.Distance(px, pz, out float u);
+            if (d > o.Hw - 0.1f) continue;
+            if (!Outranks(o, s)) continue;
+            // end to end and lined up: the same road carrying on
+            bool atA = MathF.Abs(o.Ax - px) < 0.05f && MathF.Abs(o.Az - pz) < 0.05f, atB = MathF.Abs(o.Bx - px) < 0.05f && MathF.Abs(o.Bz - pz) < 0.05f;
+            if (atA || atB)
+            {
+                var od = new Vector2(o.Bx - o.Ax, o.Bz - o.Az);
+                if (od.LengthSquared() > 1e-4f && MathF.Abs(od.Normalized().Dot(dir)) > 0.7f) continue;
+            }
+            float oy = o.Ya + (o.Yb - o.Ya) * u + ClassBias(or.Cls) - 0.025f;
+            under = float.IsNaN(under) ? oy : MathF.Min(under, oy);
+        }
+        return under;
+    }
+
     public static void Build(MapContext ctx, float size, int lod, MapChunkGeometry geo, bool collide)
     {
+        _gridCtx = null;   // a new context (or the same one refilled): rebuild the grid on first use
+        _walk ??= new Dictionary<(MapRoad, int, int), Walk>();
+        _walk.Clear();
         if (collide)
         {
             geo.PavedFaces = new List<Vector3>();
@@ -287,27 +379,80 @@ public static class MapMesher
                 }
                 var drop = new Vector3(outv.X * ShoulderWidth, -ShoulderDrop, outv.Y * ShoulderWidth);
                 var nrm = new Vector3(outv.X * 0.28f, 1f, outv.Y * 0.28f).Normalized();
-                // shoulder: UV.x from the carriageway edge (16 m) outwards, as on the road ribbons
-                int v0 = mesh.Add(a, Vector3.Up, new Vector2(16f, 0), uv2, col);
-                int v1 = mesh.Add(b, Vector3.Up, new Vector2(16f, len), uv2, col);
-                int v2 = mesh.Add(b + drop, nrm, new Vector2(16f + ShoulderWidth, len), uv2, col);
-                int v3 = mesh.Add(a + drop, nrm, new Vector2(16f + ShoulderWidth, 0), uv2, col);
+                // shoulder: UV.x from the carriageway edge (16 m) outwards, as on the road ribbons; on paved ground it
+                // stays asphalt (D57)
+                float u0 = ctx.Land((a.X + b.X) * 0.5f, (a.Z + b.Z) * 0.5f) == MapLand.Paved ? 14f : 16f, u1 = u0 == 16f ? 16f + ShoulderWidth : 15.9f;
+                int v0 = mesh.Add(a, Vector3.Up, new Vector2(u0, 0), uv2, col);
+                int v1 = mesh.Add(b, Vector3.Up, new Vector2(u0, len), uv2, col);
+                int v2 = mesh.Add(b + drop, nrm, new Vector2(u1, len), uv2, col);
+                int v3 = mesh.Add(a + drop, nrm, new Vector2(u1, 0), uv2, col);
                 mesh.Quad(v0, v1, v2, v3, Vector3.Up, geo.PavedFaces);
             }
             start = end;
         }
     }
 
-    /// <summary>
-    /// An outline edge of a junction surface that is a street corner, not an arm's mouth, with a pavement beside it
-    /// (a road with a pavement on that side reaches within its walk width of the edge's outer side).
-    /// </summary>
-    /// <summary>
-    /// A side road, driveway, junction surface or paved area crosses this segment's pavement on side <paramref name="sgn"/>
-    /// (−1 left, +1 right of the point order): leave the pavement out there (Tom's dumps: slabs across a side road).
-    /// </summary>
-    internal static bool WalkBlocked(MapContext ctx, in MapSeg s, int sgn)
+    /// <summary>A pavement piece: none, clear, carrying on over a driveway (a lowered kerb), or blocked.</summary>
+    private enum Walk : byte { None, Clear, Driveway, Blocked }
+    [ThreadStatic] private static Dictionary<(MapRoad, int, int), Walk>? _walk;
+
+    /// <summary>The pavement state of piece <paramref name="k"/> of the segment's road on one side, worked out once.</summary>
+    private static Walk WalkAt(MapContext ctx, in MapSeg s, int k, int sgn)
     {
+        var road = s.Road;
+        if (k < 0 || k > road.X.Length - 2) return Walk.None;
+        if (sgn < 0 ? !road.WalkLeft : !road.WalkRight) return Walk.None;
+        var key = (road, k, sgn);
+        if (_walk != null && _walk.TryGetValue(key, out var w)) return w;
+        var seg = k == s.Index ? s : new MapSeg
+        {
+            Ax = s.OffX + road.X[k], Az = s.OffZ + road.Z[k], Bx = s.OffX + road.X[k + 1], Bz = s.OffZ + road.Z[k + 1],
+            Hw = road.HalfWidthAt(k), Road = road, Index = k, OffX = s.OffX, OffZ = s.OffZ,
+        };
+        w = WalkState(ctx, seg, sgn);
+        if (_walk != null) _walk[key] = w;
+        return w;
+    }
+
+    /// <summary>Kerb heights at the piece's two ends (D57): full where the pavement carries on, low over a driveway,
+    /// and sloping down to the road where the pavement really stops (the next piece is blocked or the road ends
+    /// without a junction), so it doesn't end like a block. Over a driveway the kerb is lowered for cars.</summary>
+    private static (float Start, float End) Kerbs(MapContext ctx, in MapSeg s, int k, int sgn, Walk here)
+    {
+        if (here == Walk.Driveway) return (DroppedKerb, DroppedKerb);
+        var road = s.Road;
+        bool startJ = k == 0 && (road.Flags2 & RoadFlag.JunctionStart) != 0, endJ = k == road.X.Length - 2 && (road.Flags2 & RoadFlag.JunctionEnd) != 0;
+        var before = WalkAt(ctx, s, k - 1, sgn);
+        var after = WalkAt(ctx, s, k + 1, sgn);
+        bool openStart = !startJ && before is Walk.None or Walk.Blocked && !(k == 0 && TileEdge(road, 0));
+        bool openEnd = !endJ && after is Walk.None or Walk.Blocked && !(k == road.X.Length - 2 && TileEdge(road, road.X.Length - 1));
+        if (openStart && openEnd) return (DroppedKerb, DroppedKerb);
+        return (openStart ? DroppedKerb : Kerb, openEnd ? DroppedKerb : Kerb);
+    }
+
+    /// <summary>A road point on the tile's edge: the road carries on in the next tile (its pavement too).</summary>
+    private static bool TileEdge(MapRoad r, int i)
+    {
+        float x = r.X[i], z = r.Z[i];
+        return x < 0.05f || z < 0.05f || x > MapTile.Size - 0.05f || z > MapTile.Size - 0.05f;
+    }
+
+    /// <summary>Lowered kerb (a driveway, the end of a pavement): 3 cm.</summary>
+    public const float DroppedKerb = 0.03f;
+
+    private static Walk WalkState(MapContext ctx, in MapSeg s, int sgn) =>
+        WalkBlocked(ctx, s, sgn, out bool driveway) ? Walk.Blocked : driveway ? Walk.Driveway : Walk.Clear;
+
+    internal static bool WalkBlocked(MapContext ctx, in MapSeg s, int sgn) => WalkBlocked(ctx, s, sgn, out _);
+
+    /// <summary>
+    /// A side road, junction surface or paved area crosses this segment's pavement on side <paramref name="sgn"/>
+    /// (−1 left, +1 right of the point order): leave the pavement out there (Tom's dumps: slabs across a side road).
+    /// A driveway crossing it doesn't (<paramref name="driveway"/>, D57).
+    /// </summary>
+    internal static bool WalkBlocked(MapContext ctx, in MapSeg s, int sgn, out bool driveway)
+    {
+        driveway = false;
         var road = s.Road;
         float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
         if (len < 1e-3f) return false;
@@ -319,7 +464,15 @@ public static class MapMesher
             foreach (var o in ctx.Segs)
             {
                 if (o.Road == road || o.Road.IsRail || o.Road.IsBridge) continue;
-                if (o.Distance(px, pz, out _) < o.Hw + .3f) return true;
+                if (o.Distance(px, pz, out _) >= o.Hw + .3f) continue;
+                // a driveway or track crossing the pavement (D57): the pavement carries on over it with a lowered
+                // kerb, as it does in town; one running along the street (a car-park aisle) still takes its place
+                if (o.Road.Cls is RoadClass.Service or RoadClass.Track && o.Road.HalfWidth <= 3f)
+                {
+                    float ox = o.Bx - o.Ax, oz = o.Bz - o.Az, ol = MathF.Sqrt(ox * ox + oz * oz);
+                    if (ol > 1e-3f && MathF.Abs((ox * dx + oz * dz) / (ol * len)) < 0.8f) { driveway = true; continue; }
+                }
+                return true;
             }
             foreach (var jr in ctx.Junctions)
                 if (!jr.J.Elevated && jr.J.Contains(px - jr.OffX, pz - jr.OffZ)) return true;
@@ -354,6 +507,10 @@ public static class MapMesher
         return arms > 0;
     }
 
+    /// <summary>
+    /// An outline edge of a junction surface that is a street corner, not an arm's mouth, with a pavement beside it
+    /// (a road with a pavement on that side reaches within its walk width of the edge's outer side).
+    /// </summary>
     private static bool CornerPavement(MapContext ctx, Vector3 a, Vector3 b, Vector2 outv, out float width)
     {
         width = 2f;
@@ -432,7 +589,11 @@ public static class MapMesher
         return new Vector2(0, 1);
     }
 
-    /// <summary>Sideways (right of travel) offset direction at a road point, lengthened on bends so the edges stay parallel.</summary>
+    /// <summary>Sideways (right of travel) offset direction at a road point, lengthened on bends so the edges stay
+    /// parallel. On a bend tighter than the road is wide, the inner edge would run past the end of the shorter piece
+    /// beside it and fold back over the carriageway as a thin fin (Tom's dumps; 290 such bends within 3 km of the
+    /// centre, mostly driveways): the lengthening is capped so the outer edge of the shoulder (half width + shoulder)
+    /// moves along each piece by at most 90 % of the shorter one (D57).</summary>
     private static Vector2 Miter(MapRoad r, int point)
     {
         int last = r.X.Length - 2;
@@ -444,7 +605,19 @@ public static class MapMesher
         float len = m.Length();
         if (len < 1e-4f) return sb;
         m /= len;
-        return m / MathF.Max(0.45f, m.Dot(sb));
+        float stretch = 1f / MathF.Max(0.45f, m.Dot(sb));
+        // how far along the pieces the stretched corner reaches: offset * tan(half the turn) = offset * sqrt(stretch² - 1)
+        float la = Piece(r, point - 1), lb = Piece(r, point), offset = r.HalfWidth + ShoulderWidth;
+        float room = 0.9f * MathF.Min(la, lb) / offset;
+        float cap = MathF.Sqrt(1f + room * room);
+        return m * MathF.Min(stretch, cap);
+    }
+
+    private static float Piece(MapRoad r, int k)
+    {
+        float dx = r.X[k + 1] - r.X[k], dz = r.Z[k + 1] - r.Z[k];
+        float l = MathF.Sqrt(dx * dx + dz * dz);
+        return l > 0.01f ? l : 10f;   // a zero-length piece (a cut at a junction) doesn't limit the corner
     }
 
     private static void AddRoadSegment(MapChunkGeometry geo, in MapSeg s, int lod, MapContext ctx)
@@ -460,6 +633,10 @@ public static class MapMesher
         bool loose = road.Unpaved || road.IsRail;
         float surf = road.IsRail ? SurfRail : road.Unpaved ? SurfLoose : SurfAsphalt;
         var col = new Color(surf, Marking(road), road.HalfWidth / 16f, LaneCode(road.Lanes, road.LanesForward));
+        // in a car park or a yard (paved ground, D57) an unmarked road's shoulder is asphalt like the ground round it,
+        // not a gravel band outlining every aisle
+        if (!loose && Marking(road) == 0f && ctx.Land((s.Ax + s.Bx) * 0.5f, (s.Az + s.Bz) * 0.5f) == MapLand.Paved)
+            col.B = MathF.Min(1f, (road.HalfWidth + ShoulderWidth + 0.1f) / 16f);
         // A hair of extra height that differs from road to road: where two roads of the same class
         // overlap at a junction their surfaces would otherwise be exactly coplanar and flicker.
         float jitter = (Hash.Of((int)(road.Along[0] * 7f), (int)(road.X[0] * 10f), (int)(road.Z[0] * 10f)) & 7) * 0.0012f;
@@ -474,10 +651,27 @@ public static class MapMesher
         var m0 = Miter(road, k); var m1 = Miter(road, k + 1);
         float y0 = s.Ya + bias, y1 = s.Yb + bias;
         var d = Dir(road, k);
+        // on a greater road's carriageway: tucked under it, no shoulders there (D57)
+        bool under0 = false, under1 = false;
+        if (!road.IsRail)
+        {
+            float g0 = GiveWay(ctx, s, p0.X, p0.Y, d), g1 = GiveWay(ctx, s, p1.X, p1.Y, d);
+            if (!float.IsNaN(g0) && g0 < y0 + 0.3f) { under0 = true; y0 = MathF.Min(y0, g0); }
+            if (!float.IsNaN(g1) && g1 < y1 + 0.3f) { under1 = true; y1 = MathF.Min(y1, g1); }
+            // crossing it with both ends outside (no shared node): the middle decides, by a few centimetres at most
+            if (!under0 && !under1)
+            {
+                var mid = (p0 + p1) * 0.5f;
+                float gm = GiveWay(ctx, s, mid.X, mid.Y, d), ym = (y0 + y1) * 0.5f;
+                if (!float.IsNaN(gm) && gm < ym) { float sink = MathF.Min(ym - gm, 0.04f); y0 -= sink; y1 -= sink; }
+            }
+        }
         float grade = (y1 - y0) / MathF.Max(0.01f, (p1 - p0).Length());
         var up = new Vector3(-grade * d.X, 1f, -grade * d.Y).Normalized();
 
-        bool walkL = road.WalkLeft && lod <= 1 && !onPaved && !WalkBlocked(ctx, s, -1), walkR = road.WalkRight && lod <= 1 && !onPaved && !WalkBlocked(ctx, s, 1);
+        var wl = road.WalkLeft && lod <= 1 && !onPaved ? WalkAt(ctx, s, k, -1) : Walk.None;
+        var wr = road.WalkRight && lod <= 1 && !onPaved ? WalkAt(ctx, s, k, 1) : Walk.None;
+        bool walkL = wl is Walk.Clear or Walk.Driveway, walkR = wr is Walk.Clear or Walk.Driveway;
         Span<float> off = stackalloc float[] { -outer, -hw, hw, outer };
         Span<float> dy = stackalloc float[] { -drop, 0f, 0f, -drop };
         int first = mesh.V.Count;
@@ -493,9 +687,11 @@ public static class MapMesher
                 off[0] = -(outer - hw + h); off[1] = -h; off[2] = h; off[3] = outer - hw + h;
                 uo = road.UOff![k + e];
             }
-            // a side with a pavement has no shoulder: the kerb stands at the carriageway edge (D27)
-            if (walkL) { off[0] = off[1]; dy[0] = 0f; }
-            if (walkR) { off[3] = off[2]; dy[3] = 0f; }
+            // a side with a pavement has no shoulder: the kerb stands at the carriageway edge (D27); nor does an end
+            // lying on a greater road (D57)
+            bool under = e == 0 ? under0 : under1;
+            if (walkL || under) { off[0] = off[1]; dy[0] = 0f; }
+            if (walkR || under) { off[3] = off[2]; dy[3] = 0f; }
             for (int i = 0; i < 4; i++)
             {
                 var n = i == 0 ? (up - new Vector3(m.X, 0, m.Y) * 0.28f).Normalized()
@@ -511,12 +707,12 @@ public static class MapMesher
 
         if (!road.IsRail)
         {
-            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, road.HalfWidthAt(k), road.Along[0], col, collision, !bridge && !onPaved);
-            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, road.HalfWidthAt(k + 1), road.Along[k + 1], col, collision, !bridge && !onPaved);
+            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, road.HalfWidthAt(k), road.Along[0], col, collision, !bridge && !onPaved && !under0);
+            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, road.HalfWidthAt(k + 1), road.Along[k + 1], col, collision, !bridge && !onPaved && !under1);
         }
         if (bridge) AddBridgeSides(mesh, geo.PavedFaces, p0, p1, m0, m1, y0, y1, MathF.Max(road.HalfWidthAt(k), road.HalfWidthAt(k + 1)));
-        if (walkL) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, -1);
-        if (walkR) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, 1);
+        if (walkL) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, -1, Kerbs(ctx, s, k, -1, wl));
+        if (walkR) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, 1, Kerbs(ctx, s, k, 1, wr));
     }
 
     /// <summary>
@@ -524,7 +720,7 @@ public static class MapMesher
     /// slabs (<see cref="MapRoad.WalkWidth"/>), and a short slope down to the ground behind it.
     /// </summary>
     private static void AddPavement(MeshData mesh, List<Vector3>? collision, MapRoad road, int k, Vector2 p0, Vector2 p1,
-        Vector2 m0, Vector2 m1, float y0, float y1, int sgn)
+        Vector2 m0, Vector2 m1, float y0, float y1, int sgn, (float Start, float End) kerb)
     {
         float w = road.WalkWidth;
         var kerbCol = new Color(SurfConcrete, 0f, 1f, LaneCode(1, 0));
@@ -533,10 +729,12 @@ public static class MapMesher
         var uv2 = new Vector2(1000f, 0f);
         // profile across the pavement, outward from the carriageway edge: (offset beyond the edge, height above the road)
         Span<float> o = stackalloc float[] { 0f, 0f, 0f, w, w, w + 0.7f };
-        Span<float> h = stackalloc float[] { -0.02f, Kerb, Kerb, Kerb + 0.03f, Kerb + 0.03f, -0.45f };
+        Span<float> h = stackalloc float[6];
         int first = mesh.V.Count;
         for (int e = 0; e < 2; e++)
         {
+            float kb = e == 0 ? kerb.Start : kerb.End;
+            h[0] = -0.02f; h[1] = kb; h[2] = kb; h[3] = kb + 0.03f; h[4] = kb + 0.03f; h[5] = -0.45f;
             var p = e == 0 ? p0 : p1; var m = (e == 0 ? m0 : m1) * sgn;
             float y = e == 0 ? y0 : y1, along = road.Along[k + e], hw = road.HalfWidthAt(k + e);
             var outward = new Vector3(m.X, 0, m.Y);

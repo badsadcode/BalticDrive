@@ -318,7 +318,10 @@ public sealed class MapWorld
     public static readonly float[] ForestLut = Lut((MapLand.Forest, 1f), (MapLand.Residential, 0.13f), (MapLand.Park, 0.32f),
         (MapLand.Orchard, 0.36f), (MapLand.Scrub, 0.24f), (MapLand.Cemetery, 0.3f), (MapLand.Wetland, 0.1f), (MapLand.Open, 0.05f));
     public static readonly float[] FieldLut = Lut((MapLand.Field, 1f));
-    public static readonly float[] DirtLut = Lut((MapLand.Paved, 0.85f), (MapLand.Farmyard, 0.8f), (MapLand.Sand, 1f));
+    public static readonly float[] DirtLut = Lut((MapLand.Farmyard, 0.8f), (MapLand.Sand, 1f));
+    /// <summary>Paved ground (car parks, yards, industrial ground): worn asphalt, not bare earth (D57: car parks were
+    /// brown dirt with asphalt islands in them).</summary>
+    public static readonly float[] PavedLut = Lut((MapLand.Paved, 1f));
     public static readonly float[] WaterLut = Lut((MapLand.Water, 1f));
 
     private static float[] Lut(params (byte cls, float v)[] entries)

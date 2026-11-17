@@ -21,6 +21,8 @@ public sealed class TerrainTileData
     public required Vector3[] Vertices { get; init; }
     public required Vector3[] Normals { get; init; }
     public required Color[] Colors { get; init; }
+    /// <summary>UV2.x: paved ground 0..1 (D57).</summary>
+    public required Vector2[] Uv2 { get; init; }
     public required int[] Indices { get; init; }
     public Vector3[]? WaterVertices { get; init; }
     /// <summary>Per water vertex: R = depth / 20 m, G = kind (0.5 lake: Thornwake's water shader), B = plume.</summary>
@@ -57,6 +59,7 @@ public static class TerrainBuilder
         const int S = Side + 2;
         var h = new float[S * S];
         var color = new Color[Side * Side];
+        var paved = new float[Side * Side];
         var water = new float[Side * Side];
         bool anyWater = false;
 
@@ -93,6 +96,8 @@ public static class TerrainBuilder
                     float field = tile.Empty ? 0f : tile.LandBlend(tlx, tlz, MapWorld.FieldLut);
                     float wet = tile.Empty ? 0f : tile.LandBlend(tlx, tlz, MapWorld.WaterLut);
                     color[v] = new Color(forest, field, dirt, wet);
+                    paved[v] = tile.Empty ? 0f : tile.LandBlend(tlx, tlz, MapWorld.PavedLut);
+                    color[v].B *= 1f - paved[v];   // no gravel verges beside roads in a car park (D57)
                     float wl = tile.WaterAt(tlx, tlz);
                     water[v] = wl;
                     if (!float.IsNaN(wl)) anyWater = true;
@@ -104,6 +109,7 @@ public static class TerrainBuilder
         var vertices = new Vector3[Side * Side + skirt];
         var normals = new Vector3[Side * Side + skirt];
         var colors = new Color[Side * Side + skirt];
+        var uv2 = new Vector2[Side * Side + skirt];
         for (int j = 0; j < Side; j++)
             for (int i = 0; i < Side; i++)
             {
@@ -112,6 +118,7 @@ public static class TerrainBuilder
                 float dx = h[s + 1] - h[s - 1], dz = h[s + S] - h[s - S];
                 normals[v] = new Vector3(-dx, 2f * spacing, -dz).Normalized();
                 colors[v] = color[v];
+                uv2[v] = new Vector2(paved[v], 0f);
             }
         var edge = new int[skirt];
         for (int k = 0; k < Side; k++)
@@ -128,6 +135,7 @@ public static class TerrainBuilder
             vertices[Side * Side + e] = vertices[src] - new Vector3(0, drop, 0);
             normals[Side * Side + e] = normals[src];
             colors[Side * Side + e] = colors[src];
+            uv2[Side * Side + e] = uv2[src];
         }
 
         var indices = new List<int>(Cells * Cells * 6 + skirt * 12);
@@ -161,7 +169,7 @@ public static class TerrainBuilder
 
         return new TerrainTileData
         {
-            Key = key, Vertices = vertices, Normals = normals, Colors = colors, Indices = indices.ToArray(),
+            Key = key, Vertices = vertices, Normals = normals, Colors = colors, Uv2 = uv2, Indices = indices.ToArray(),
             WaterVertices = wv, WaterIndices = wi, WaterColors = wc, CollisionFaces = faces, BuildMs = watch.Elapsed.TotalMilliseconds,
         };
     }

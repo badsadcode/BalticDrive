@@ -12,6 +12,7 @@ global uniform float wetness;
 
 varying vec3 wpos;
 varying vec3 wnrm;
+varying float paved_m;   // UV2.x: paved ground (car parks, yards), D57
 
 float hash(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -36,6 +37,7 @@ void vertex() {
 	wpos.xz += world_offset; // patterns stay fixed to the ground when the origin moves
 	vec3 wn = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
 	wnrm = dot(wn, wn) > 1e-12 ? normalize(wn) : vec3(0.0, 1.0, 0.0);
+	paved_m = UV2.x;
 }
 
 void fragment() {
@@ -75,6 +77,14 @@ void fragment() {
 	float dirt_m = clamp(COLOR.b + (n_fine - 0.5) * 0.5 * step(0.02, COLOR.b), 0.0, 1.0);
 	col = mix(col, dirt, smoothstep(0.25, 0.75, dirt_m));
 
+	// paved ground (D57): old, patched asphalt a shade lighter and greyer than the roads, so car parks and yards read
+	// as one surface with their aisles instead of brown earth with asphalt islands in it
+	vec3 paving = mix(vec3(0.040, 0.041, 0.043), vec3(0.075, 0.073, 0.070), n_mid);
+	paving *= 0.82 + 0.22 * n_fine + 0.12 * (n_grain - 0.5);
+	paving = mix(paving, paving * 1.25, smoothstep(0.62, 0.8, n_big) * 0.6);   // big repaired patches
+	float pave_m = smoothstep(0.3, 0.7, paved_m + (n_fine - 0.5) * 0.15);
+	col = mix(col, paving, pave_m);
+
 	// steep ground turns to earth and rock
 	float slope = 1.0 - wnrm.y;
 	vec3 rock = mix(vec3(0.10, 0.095, 0.085), vec3(0.17, 0.16, 0.145), n_mid) * (0.75 + 0.5 * n_fine);
@@ -89,6 +99,6 @@ void fragment() {
 	// (clamped: on distant tiles a few pixels came out invalid — NaN or out of range — and the tone mapper and colour
 	// grade turned them into magenta, green and blue specks on the horizon, D24)
 	ALBEDO = clamp(col * mix(1.0, 0.62, wet) * cloud_shade(wpos.xz, TIME), vec3(0.0), vec3(1.0));
-	ROUGHNESS = mix(0.96, 0.5, wet * (0.4 + 0.6 * dirt_m));
+	ROUGHNESS = mix(mix(0.96, 0.88, pave_m), 0.4, wet * (0.4 + 0.6 * max(dirt_m, pave_m)));
 	SPECULAR = 0.25;
 }

@@ -828,3 +828,39 @@ waking 0.0 m from its door). Next, Tom's idea: ragdolls instead of the tipping f
 Test: `--autotest=ragdoll`. A bandit is shot and photographed from the side at 0.15, 0.4, 1 and 4 s, and checked for
 lying on the ground (hips 0.16 m above it). The origin jumps away and back. Then the walker is shot, the fall seen
 through its eyes, and the body left behind is checked lying (hips 0.15 m, head 0.18 m).
+
+## D57 — Road joins, car parks, water stripes, pavements over driveways (Tom's 16 dumps, 17 Nov)
+
+Tom found the wobbly service roads "not that bad" (the kerbs helped) and dumped what does bother him: roads joining
+badly (flicker, stray patches, wedges), stripes on the water, gaps in pavements and pavements ending abruptly.
+
+* **Minor roads give way.** Driveways and car-park lanes are deliberately left out of junction surfaces (importer),
+  and roads crossing without a shared node aren't joined either. Their ribbons just overlapped, each at its own
+  solved height: the higher one showed through, a service road's sloping dirt shoulder stood up through a street as
+  a wedge, and near-equal heights flickered. Now, in the mesher (no map rebuild), a road point that lies on a greater
+  road's carriageway is tucked 2.5 cm under that surface and drops its shoulders and cap skirt there. "Greater" means
+  class rank first, then width, then a fixed order by start point (both sides must agree). A piece crossing with both
+  ends outside sinks by at most 4 cm, decided at its middle. Pieces of the same road meeting end to end and lined up
+  (tile edges, tapers) are its continuation and are skipped. The context's segments are bucketed in a 16 m grid once
+  per chunk, so it stays cheap (fly test: median 16.7 ms as before, no frames without ground).
+* **Tight bends.** A bend tighter than the road is wide (290 within 3 km of the centre, mostly driveways; found by the
+  new `--autotest=roadscan`) folded its inner shoulder edge back over the road as a thin fin. The corner stretch is
+  capped so the edge of the shoulder moves along each piece by at most 90 % of the shorter one.
+* **Paved ground** (land cover "paved": car parks, yards, industrial ground) was painted with the bare-earth mask,
+  so every car park was brown dirt with asphalt islands. It now has its own mask (terrain UV2.x) and is old, patched
+  asphalt a shade lighter than the roads. Road verges there aren't gravel: unmarked roads' and paved areas'
+  shoulders render as asphalt, and the terrain paints no gravel verge.
+* **Water stripes.** The ripples, foam and chop worked on world x/z up to ~65 km. At that size a 32-bit float can't
+  hold fine ripple positions, and the steps lined up into stripes along the world axes. They now work on x/z wrapped
+  at 4096 m, per pixel, from the precise local position plus the origin modulo 4096 (exact), so nothing smears across
+  a triangle and the pattern stays fixed to the ground. There's a seam every 4 km, lost in the ripples. The long
+  Gerstner waves keep the old coordinates.
+* **Pavements over driveways.** A driveway or track (≤ 6 m wide) crossing a pavement used to remove that pavement
+  piece, leaving a gap with two blunt ends. Now the pavement carries on across it with a lowered 3 cm kerb, as in
+  town. One running along the street (a car-park aisle) still takes the pavement's place.
+* **Pavement ends.** Where a pavement really stops (the next piece is blocked, or the road ends without a junction
+  and not at a tile edge), its kerb slopes down to 3 cm over the last piece instead of ending like a block. A piece
+  with nothing on either side lies flat. Piece states are worked out once per chunk and cached.
+
+Checked against all 16 of Tom's dump views, re-shot with the new build (the before and after pairs), a fly test and a
+drive test (3.5 km in 200 s, 3.5 s off the road).
