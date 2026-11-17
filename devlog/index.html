@@ -1089,6 +1089,51 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>1.2–4 km per lead</li><li>3–5 guards</li><li>1 Mosin watching</li><li>70 % lead on</li><li>1 House of Lords</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>30</strong></div>
+    <div>
+      <h2>Where you fall</h2>
+      <div class="date">17 November 2026</div>
+      <p>Tom's first wish after playing the leads was simple: being able to look round a corner without stepping into
+        gunfire. So now Q and E lean. The view slides a third of a metre to the side and tilts a little, your spine
+        bends so the bandits can see you do it, and a wall stops the lean before your eye goes into the brickwork.
+        Leaning shows a little of you, not nothing: a bandit who spots your head can still hit it. Opening crates and
+        getting into the car moved to F.</p>
+      <p>His second wish was a proper death, in the spirit of Project Zomboid. You used to black out and wake up next to
+        your car. Now you fall where you're shot, and you stay there. Clicking wakes you up somewhere else: outside a
+        real house or block of flats, chosen at random 1.5 to 3 kilometres away, with its address in the note. Your
+        food, water, medkits and spare ammunition stay with your body, marked on the map. Your guns stay with you, so
+        the walk back is tense but not hopeless.</p>
+      <p>To stop waking up somewhere random, claim a safehouse: stand by the wall of any home and hold K for two
+        seconds. It goes on the map as a little green house, and from then on that's where you wake up. It's saved
+        as data rather than code, because Tom is already thinking about a world editor that places safehouses and
+        spawn points itself.</p>
+      <figure class="photo">
+        <img src="img/ragdoll-fall.webp" alt="Three frames of a bandit in a red jacket being shot on a Warsaw street: staggering, falling sideways, and lying face down on the asphalt" loading="lazy">
+        <figcaption>0.15 s, 0.4 s, 1 s: a bandit goes down the way bodies do.</figcaption>
+      </figure>
+      <p>Then Tom asked for ragdolls, and they changed the feel of the game more than anything else today. Before,
+        the dead tipped over stiffly like a plank. Now every character carries a set of physics bodies on its bones,
+        asleep until the moment it's needed. When a bullet lands, the body takes whatever pose it was in and falls:
+        knees buckle, arms flop, a head hits the kerb. When you're the one hit, the camera rides your own head all the
+        way down, and you end up looking at whatever your eyes happen to face: the sky between the towers, or the
+        pavement.</p>
+      <figure class="photo">
+        <img src="img/death-eyes.webp" alt="A tilted view from the ground looking up at a curved block of flats and a tower against the clouds, with the words: You were shot. Your things stay here with you. Click to wake up somewhere else." loading="lazy">
+        <figcaption>The last thing you see.</figcaption>
+      </figure>
+      <p>Building it turned up an old bug: every body in the game had been falling towards whoever shot it, not away.
+        It was one cross product the wrong way round, and it had been there since the first bandit died. When you walk
+        back for your things now, you find yourself lying there in exactly the pose you fell in.</p>
+      <figure class="photo">
+        <img src="img/left-behind.webp" alt="The player in a red hoodie standing on a wide street beside his own body lying on the asphalt, with the prompt F: take your things" loading="lazy">
+        <figcaption>Coming back for yourself.</figcaption>
+      </figure>
+      <div class="quote">"I have to say, ragdolls add a lot, and it looks good. It feels good."
+        <cite>Tom</cite></div>
+      <ul class="facts"><li>Q/E lean</li><li>1.5–3 km to wake</li><li>2 s to claim a home</li><li>14 bones of physics</li><li>1 cross product, fixed</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
