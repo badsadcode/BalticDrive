@@ -88,6 +88,8 @@ public partial class Main : Node3D
 			Args[eq < 0 ? s : s[..eq]] = eq < 0 ? "" : s[(eq + 1)..];
 		}
 		Map.BadBuildingAdapter.Enabled = Args.TryGetValue("buildings", out var bmode) && bmode == "bb";
+		// colour variety of the ground (D60): --hue=0 off, 1 the default
+		RenderingServer.GlobalShaderParameterSet("terrain_hue", float.Parse(Args.GetValueOrDefault("hue", "1"), System.Globalization.CultureInfo.InvariantCulture));
 
 		_terrain = new TerrainStreamer { Name = "Terrain" };
 		_content = new MapContentStreamer { Name = "MapContent" };

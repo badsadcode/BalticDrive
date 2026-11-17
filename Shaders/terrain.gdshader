@@ -72,6 +72,11 @@ void fragment() {
 	vec3 dirt = mix(vec3(0.095, 0.075, 0.055), vec3(0.150, 0.125, 0.095), n_mid);
 	dirt *= 0.7 + 0.35 * n_fine + 0.25 * n_grain;
 
+	// colour variety (D60): the same patches as the grass blades
+	vec3 hue = ground_hue(p);
+	grass *= hue;
+	floor_col *= mix(vec3(1.0), hue, 0.6);
+	crop *= mix(vec3(1.0), hue, 0.7);
 	vec3 col = mix(grass, floor_col, COLOR.r);
 	col = mix(col, crop, COLOR.g);
 	float dirt_m = clamp(COLOR.b + (n_fine - 0.5) * 0.5 * step(0.02, COLOR.b), 0.0, 1.0);

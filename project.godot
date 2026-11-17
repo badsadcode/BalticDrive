@@ -70,6 +70,10 @@ leaf_translucency={
 "type": "float",
 "value": 0.8
 }
+terrain_hue={
+"type": "float",
+"value": 1.0
+}
 rain_wetness={
 "type": "vec2",
 "value": Vector2(0, 0)

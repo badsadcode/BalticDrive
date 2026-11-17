@@ -923,3 +923,12 @@ looking right from far away.
   the same as without grass. Drive test unchanged.
 * G toggles it, and `--grass=0` starts without it.
 Not yet: grass bending around the walker or car, flowers, seasons and rain.
+
+## D60 — Colour variety of the ground (Tom: "hue variety")
+
+`ground_hue()` in common.gdshaderinc multiplies the living ground's colour by patches tens to hundreds of metres
+across: drier olive and straw (~110 m and ~45 m), lusher blue-green (~75 m and ~25 m), now and then browner and barer
+(~170 m), on a mottle a few metres across. The terrain applies it fully to grass, at 0.7 to crops and at 0.6 to forest
+floor. The grass blades use the same function at their root, so blades and ground agree. The first, timid version
+was hardly visible next to "off". Tom saw the stronger one side by side and kept it ("leave it as it is").
+Strength: the `terrain_hue` global (1 by default), `--hue=0` for off.

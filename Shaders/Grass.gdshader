@@ -39,6 +39,7 @@ void vertex() {
 	vec3 tip = base * vec3(1.55, 1.45, 1.1) + vec3(0.012, 0.010, 0.0);
 	vec3 dry = vec3(0.13, 0.12, 0.05);
 	tint = mix(mix(base * 0.7, tip, along), dry * mix(0.6, 1.0, along), INSTANCE_CUSTOM.x * 0.55);
+	tint *= ground_hue(fixed_xz);   // the ground's colour patches (D60), so blades and ground agree
 	// blades take the ground's light (mostly up), so they don't turn dark when seen edge-on
 	NORMAL = normalize(mix(NORMAL, vec3(0.0, 1.0, 0.0), 0.65));
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
