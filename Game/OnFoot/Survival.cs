@@ -317,16 +317,19 @@ public sealed partial class CacheField : Node3D
 
     /// <summary>Your things where you fell (D55): searchable like a body, kept however far you go until you take
     /// them, with your body lying there (a copy of the walker's, in the pose it fell in).</summary>
-    public Cache PlacePackage(Vector3 at, Loot loot, Transform3D corpse)
+    public Cache PlacePackage(Vector3 at, Loot loot, Transform3D corpse, Func<Skeleton3D, bool>? pose = null)
     {
         var c = new Cache { Key = $"death:{++_deaths}", Place = "your things", Kind = MapPoiKind.Camp, Loot = loot, Keep = true, CollisionLayer = 0, CollisionMask = 0 };
         AddChild(c);
         c.GlobalPosition = at;
         var body = new Node3D { Name = "Body" };
-        var (_, tree) = CharacterRig.Build(body, "Character_Male_Hoodie", out _);
+        var (copy, tree) = CharacterRig.Build(body, "Character_Male_Hoodie", out _);
         c.AddChild(body);
         body.GlobalTransform = corpse;
-        if (tree != null) CharacterRig.Animate(tree, Vector2.Zero, 1f, 0f);   // slumped, as a bandit lies (D47)
+        // as the ragdoll left it (D56): every bone frozen, no animation; without one, slumped as a bandit lay (D47)
+        if (tree != null) tree.Active = false;   // first: switching it off afterwards could put the rest pose back
+        if (copy != null && pose != null && pose(copy)) { }
+        else if (tree != null) { tree.Active = true; CharacterRig.Animate(tree, Vector2.Zero, 1f, 0f); }
         _live[c.Key] = c;
         return c;
     }

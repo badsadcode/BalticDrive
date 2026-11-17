@@ -65,6 +65,17 @@ public partial class Walker : CharacterBody3D, IHittable
     public Vector3 LastShot;
     private float _deadT;
     private Vector3 _fallAxis = Vector3.Right;
+    private Ragdoll? _ragdoll;
+    private Transform3D _eyeOnHead;
+    /// <summary>Where the body lies: the ragdoll's hips once it has fallen, else the feet.</summary>
+    public Vector3 BodyAt => _ragdoll?.Hips is { } h && _ragdoll.Running ? h.GlobalPosition with { Y = h.GlobalPosition.Y - 0.15f } : GlobalPosition;
+    /// <summary>Puts a skeleton of the same rig in the pose the body lies in (the body left behind, D56).</summary>
+    public bool CopyPose(Skeleton3D dst)
+    {
+        if (_ragdoll is not { Running: true }) return false;
+        _ragdoll.CopyPoseTo(dst);
+        return true;
+    }
     private static readonly Basis Faced = Basis.FromEuler(new Vector3(0, MathF.PI, 0));   // Synty faces +Z
 
     /// <summary>Where the body lies once fallen: for the one left behind (a copy, after waking elsewhere).</summary>
@@ -83,8 +94,19 @@ public partial class Walker : CharacterBody3D, IHittable
         var away = new Vector3(LastShot.X, 0, LastShot.Z);
         if (away.LengthSquared() < 1e-4f) away = new Vector3(-MathF.Sin(Yaw), 0, -MathF.Cos(Yaw));   // starved: forward
         _fallAxis = Vector3.Up.Cross(away.Normalized()).Normalized();   // turning about up x away tips the head away from the shot
-        _model.Visible = false;   // the view is the eyes'
         _fp.Current = true;
+        if (_ragdoll != null && _skel != null)
+        {
+            // a ragdoll (D56): the body you see falling is your own, the eye rides the head
+            if (_tpHold != null) _tpHold.Active = false;
+            if (_bend != null) _bend.Angle = 0;
+            if (_tpGun != null) _tpGun.Visible = false;
+            _model.Visible = true;
+            _ragdoll.Start(LastShot.LengthSquared() > 1e-4f ? LastShot.Normalized() * 45f : Vector3.Zero, _fp.GlobalPosition + Vector3.Down * 0.4f);
+            if (_ragdoll.Head is { } head) _eyeOnHead = head.GlobalTransform.AffineInverse() * _fp.GlobalTransform;
+            _fp.Near = 0.03f;
+        }
+        else _model.Visible = false;   // no ragdoll: the view is the eyes alone
     }
 
     /// <summary>Wakes up somewhere else (local coordinates), upright, with the controls back.</summary>
@@ -92,6 +114,8 @@ public partial class Walker : CharacterBody3D, IHittable
     {
         Dead = false;
         LastShot = Vector3.Zero;
+        _ragdoll?.Stop();
+        _fp.Near = 0.05f;
         _model.Basis = Faced;
         Guns.ProcessMode = ProcessModeEnum.Inherit;
         Activate(at, yaw);
@@ -103,6 +127,11 @@ public partial class Walker : CharacterBody3D, IHittable
     private void UpdateDeath(float dt)
     {
         _deadT = MathF.Min(1, _deadT + dt / 0.42f);
+        if (_ragdoll is { Running: true, Head: { } head })
+        {
+            _fp.GlobalTransform = head.GlobalTransform * _eyeOnHead;
+            return;
+        }
         float angle = _deadT * _deadT * 1.45f;
         var tip = new Basis(_fallAxis, angle);
         _model.Basis = new Basis(GlobalBasis.Orthonormalized().Inverse() * _fallAxis, angle) * Faced;
@@ -212,6 +241,7 @@ public partial class Walker : CharacterBody3D, IHittable
     {
         Position -= new Vector3((float)dx, 0, (float)dz);
         _pivot.GlobalPosition -= new Vector3((float)dx, 0, (float)dz);
+        _ragdoll?.Shift(new Vector3((float)dx, 0, (float)dz));
     }
 
     private void BuildModel()
@@ -230,6 +260,7 @@ public partial class Walker : CharacterBody3D, IHittable
             AddChild(_tpGun);
             _tpHold = new GunHold(skel, () => _tpDef != null && _tpGun.Visible ? GunHold.Goals(_tpGun, _tpDef) : null) { Active = false };
             skel.AddChild(_tpHold);
+            _ragdoll = Ragdoll.Build(skel);   // last: it overrides the lean and the hands once it runs (D56)
             return;
         }
         // no licensed pack: a plain capsule stands in

@@ -225,7 +225,7 @@ public sealed partial class Leads : Node
             else if (d < Arrive && lead.Stage == Stage.Guarded && lead.Guards > 0 && _bandits.GuardsOf(lead.Id) == 0)
             {
                 // the guards were cleared away without being shot (you went down and came round): they're back
-                _bandits.SpawnGuards(lead.Stash.GlobalPosition, lead.Guards, lead.Id);
+                _bandits.SpawnGuards(lead.Stash!.GlobalPosition, lead.Guards, lead.Id);
             }
             else if (d > Forget && lead.Stash != null && IsInstanceValid(lead.Stash))
             {

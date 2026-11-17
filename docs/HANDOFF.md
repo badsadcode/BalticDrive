@@ -109,7 +109,7 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   get out of town, scouting by place type).
   DONE (D55): Q/E lean (interact on F, free camera F8); dying where you fall with the view from the eyes, a click
   wakes you at your safehouse (hold K at a home's wall) or a random home 1.5–3 km away; your things stay where you
-  fell, marked on the map. Next from Tom: ragdolls on death; later, interiors and a world editor for safehouse
+  fell, marked on the map. Ragdolls: DONE (D56). Later, interiors and a world editor for safehouse
   areas and spawn points (data-driven). After this round Tom wants to go back to world generation, then the other
   Baltic countries.
   Parked cars (Tom, Project Zomboid style): fill mapped car parks and parking lanes (amenity=parking, parking:lane /

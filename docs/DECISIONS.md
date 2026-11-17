@@ -800,3 +800,31 @@ and your guns stay with you.
 Tests: `--autotest=lean` (first person upright, left and right; third person from front and back) and
 `--autotest=death` (the fall, waking 2–3 km away, the map, taking your things back, claiming Sienna 41, dying again,
 waking 0.0 m from its door). Next, Tom's idea: ragdolls instead of the tipping fall.
+
+## D56 — Ragdolls (Tom: "on death, ragdolls")
+
+* **The body.** Every character (the walker and each bandit) gets a ragdoll built with it, asleep (`Ragdoll.Build`).
+  It has 14 capsules on the main bones (hips, spine, chest, a sphere for the head, upper and lower arms, upper and
+  lower legs, feet) under a `PhysicalBoneSimulator3D`. That simulator is the skeleton's last modifier, so once it
+  runs it overrides the animation, the lean bend and the hands on the gun. The joints are cones with limits (spine 20°,
+  hips 45°, shoulders 70°, knees and elbows 60°). Neighbours and the trunk pieces don't collide with each other.
+  About 70 kg in all, a little damping so it doesn't wobble like jelly. Layer `Bodies.Ragdoll` (64), colliding with
+  ground, roads, buildings, props and vehicles.
+* **Dying.** The bodies take the pose the animation was in and fall. The bullet pushes harder than its real momentum
+  (45 N·s on the bone nearest the hit, half as much on the chest): 8 g at 800 m/s barely moves 70 kg, and a hit
+  should read. Without the licensed pack (no skeleton), the old tip-over stays.
+* **You.** Your own ragdoll falls and the first-person eye rides the head body: the view goes wherever the head
+  goes, ending on the sky or the pavement. The body left behind copies the ragdoll's pose bone by bone, taken from the
+  bodies (the skeleton's own pose is still the animation's), and is frozen with its animation off. The package sits
+  at the hips, not the feet.
+* **Floating origin.** Simulated bodies live in world space, and moving their parent doesn't move them. On an origin
+  shift, each body's transform is moved on the physics server. Tested: the origin jumped 3.5 km away and back,
+  and the body stayed within 0.00 m.
+* **Cost.** 54–60 fps with four ragdolls built and one lying there, the same as before. (The test's own screenshots
+  dragged the fps counter down at first.)
+* Not yet: knees and elbows are cones, not hinges, so they can bend a little sideways. The bandit's gun still drops
+  by the old animation, not as a physics object.
+
+Test: `--autotest=ragdoll`. A bandit is shot and photographed from the side at 0.15, 0.4, 1 and 4 s, and checked for
+lying on the ground (hips 0.16 m above it). The origin jumps away and back. Then the walker is shot, the fall seen
+through its eyes, and the body left behind is checked lying (hips 0.15 m, head 0.18 m).

@@ -295,10 +295,10 @@ public partial class Main : Node3D
 	public void Respawn()
 	{
 		if (_walker == null || _world == null || _caches == null || _downTime < 0) return;
-		var fell = _walker.GlobalPosition;
+		var fell = _walker.BodyAt;
 		var (fx, _, fz) = WorldOrigin.ToWorld(fell);
 		var loot = _walker.Body.PackUp();
-		var package = _caches.PlacePackage(fell, loot, _walker.CorpseTransform);
+		var package = _caches.PlacePackage(fell, loot, _walker.CorpseTransform, _walker.CopyPose);
 		if (loot.Food + loot.Water + loot.Medkits + loot.Ammo.Sum(a => a.Rounds) == 0) _caches.Open(package);   // nothing to go back for
 		foreach (var b in _bandits!.All) b.QueueFree();
 		_bandits.Clear();

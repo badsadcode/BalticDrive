@@ -45,6 +45,9 @@ namespace BalticDrive;
 /// 150 m from it: the stash is set down with its guards; the guards are shot, the stash opened (a note may lead on).</item>
 /// <item><c>--autotest=lean</c> — leaning (D55): first person upright, left, right; third person left and right
 /// with the AK out; logs how far the eye moved and the room a wall left.</item>
+/// <item><c>--autotest=ragdoll</c> — ragdolls (D56): a bandit shot from the side falls (photographed as it goes), the
+/// body checked for flying off or sinking, the world origin moved under it and back; then the walker is shot and the
+/// fall seen through its eyes.</item>
 /// <item><c>--autotest=respawn</c> — the "fly far, press F" check: from the car, switch to the free camera, fly
 /// <c>--distance=</c> m (default 3000) at <c>--speed=</c>, press F (drive here), wait, and repeat <c>--rounds=</c> times
 /// (default 6) in different directions.</item>
@@ -116,6 +119,7 @@ public sealed class Tests
         _soundTest = Main.Args.GetValueOrDefault("autotest", "").Contains("sound");
         _leadTest = Main.Args.GetValueOrDefault("autotest", "").Contains("leads");
         _leanTest = Main.Args.GetValueOrDefault("autotest", "").Contains("lean");
+        _ragdollTest = Main.Args.GetValueOrDefault("autotest", "").Contains("ragdoll");
         // muted: Tom works while tests run
         if (!Main.Args.ContainsKey("sound")) AudioServer.SetBusVolumeDb(0, -80);
         _rounds = int.Parse(Main.Args.GetValueOrDefault("rounds", "6"), CultureInfo.InvariantCulture);
@@ -227,6 +231,107 @@ public sealed class Tests
         if (At(2.3)) Log.Info("Test", $"range: {name}: {(g.TargetHits > _rangeHitsBefore ? "hit, " + g.LastTarget : "missed")} ({g.LastHit})");
     }
     private int _rangeHitsBefore;
+
+    private bool _ragdollTest;
+    private double _ragTime = -1;
+    private OnFoot.Bandit? _ragBandit;
+    private (double X, double Y, double Z) _ragWorld;
+
+    /// <summary>The ragdoll test (D56).</summary>
+    private void RagdollTest(double delta)
+    {
+        if (_ragTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "ragdoll: could not get out of the car"); _ragdollTest = false; return; }
+            _ragTime = 0;
+            return;
+        }
+        var w = _main.Walker!;
+        double before = _ragTime;
+        _ragTime += delta;
+        bool Now(double t) => before < t && _ragTime >= t;
+        string Pos(Vector3 v) { var (x, y, z) = WorldOrigin.ToWorld(v); return $"{x:0.0},{y:0.00},{z:0.0}"; }
+        if (Now(0.5))
+        {
+            int n = _main.Bandits!.SpawnAhead(w.GlobalPosition, w.Yaw, 9);
+            _ragBandit = _main.Bandits.All.LastOrDefault();
+            Log.Info("Test", $"ragdoll: {n} bandits 9 m ahead");
+        }
+        if (Now(1.5) && _ragBandit != null)
+        {
+            Log.Info("Test", $"ragdoll: {Engine.GetFramesPerSecond()} fps before the shot (4 ragdolls built, asleep)");
+            // the bullet comes from where you stood; you watch from 7 m to the side
+            var dir = (_ragBandit.GlobalPosition - w.GlobalPosition) with { Y = 0 };
+            var side = dir.Normalized().Cross(Vector3.Up);
+            w.GlobalPosition = _ragBandit.GlobalPosition + side * 7f + Vector3.Up * 0.3f;
+            w.SetView(true); w.Face(_ragBandit.GlobalPosition + Vector3.Up * 0.6f);
+            _ragBandit.Hit(new OnFoot.BulletHit(_ragBandit.GlobalPosition + Vector3.Up * 1.3f, -dir.Normalized(), dir.Normalized() * 800, 0.008f, 9, 500));
+            Log.Info("Test", $"ragdoll: shot; feet at {Pos(_ragBandit.GlobalPosition)}, body at {Pos(_ragBandit.BodyAt)}");
+        }
+        if (_ragBandit != null)
+        {
+            if (Now(1.65)) Shot("ragdoll_0_15s");
+            if (Now(1.9)) Shot("ragdoll_0_4s");
+            if (Now(2.5)) Shot("ragdoll_1s");
+            if (Now(5.0)) Log.Info("Test", $"ragdoll: {Engine.GetFramesPerSecond()} fps with a ragdoll lying there");
+            if (Now(5.5))
+            {
+                Shot("ragdoll_4s");
+                float ground = _main.World!.Height(WorldOrigin.ToWorld(_ragBandit.BodyAt).X, WorldOrigin.ToWorld(_ragBandit.BodyAt).Z);
+                Log.Info("Test", $"ragdoll: after 4 s the body is at {Pos(_ragBandit.BodyAt)}, {_ragBandit.BodyAt.DistanceTo(_ragBandit.GlobalPosition):0.00} m from the feet, {WorldOrigin.ToWorld(_ragBandit.BodyAt).Y - ground:0.00} m above the ground");
+                _ragWorld = WorldOrigin.ToWorld(_ragBandit.BodyAt);
+                // the floating origin jumps 3 km away (the walker's own position will pull it back next frame)
+                WorldOrigin.Follow(WorldOrigin.X + 3500, WorldOrigin.Z);
+                var (x, y, z) = WorldOrigin.ToWorld(_ragBandit.BodyAt);
+                Log.Info("Test", $"ragdoll: origin moved: body now at {x:0.0},{y:0.00},{z:0.0} (was {_ragWorld.X:0.0},{_ragWorld.Y:0.00},{_ragWorld.Z:0.0})");
+            }
+            if (Now(6.5))
+            {
+                var (x, y, z) = WorldOrigin.ToWorld(_ragBandit.BodyAt);
+                Log.Info("Test", $"ragdoll: a second later, origin back: body at {x:0.0},{y:0.00},{z:0.0}, moved {Math.Sqrt((x - _ragWorld.X) * (x - _ragWorld.X) + (z - _ragWorld.Z) * (z - _ragWorld.Z)):0.00} m");
+                Shot("ragdoll_after_shift");
+            }
+        }
+        if (Now(7))
+        {
+            foreach (var b in _main.Bandits!.All) b.QueueFree();
+            _main.Bandits.Clear();
+            w.CameraOrbit = 0; w.SetView(true);
+            w.LastShot = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw)) * -800;   // from ahead: falls backwards
+            w.Body.Damage(500);
+        }
+        if (Now(7.2)) Shot("ragdoll_eyes_0_2s");
+        if (Now(7.6)) Shot("ragdoll_eyes_0_6s");
+        if (Now(8.9)) Log.Info("Test", $"ragdoll: {Engine.GetFramesPerSecond()} fps while you lie there");
+        if (Now(9.0)) { Shot("ragdoll_eyes_2s"); Log.Info("Test", $"ragdoll: you fell, body at {Pos(w.BodyAt)}, eye at {Pos(w.FirstPersonCamera.GlobalPosition)}"); }
+        if (Now(9.5)) _main.Respawn();
+        if (Now(14))
+        {
+            var pkg = _main.Caches!.Live.FirstOrDefault(c => c.Key.StartsWith("death:"));
+            if (pkg != null)
+            {
+                w.GlobalPosition = pkg.GlobalPosition + new Vector3(2.2f, 0.5f, 1.2f);
+                w.SetView(false);
+            }
+        }
+        if (Now(18))
+        {
+            var pkg = _main.Caches!.Live.FirstOrDefault(c => c.Key.StartsWith("death:"));
+            if (pkg != null) w.Face(pkg.GlobalPosition);
+        }
+        if (Now(18.4))
+        {
+            var pkg = _main.Caches!.Live.FirstOrDefault(c => c.Key.StartsWith("death:"));
+            var sk = pkg?.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+            if (sk != null)
+            {
+                float hips = (sk.GlobalTransform * sk.GetBoneGlobalPose(sk.FindBone("Hips")).Origin).Y, head = (sk.GlobalTransform * sk.GetBoneGlobalPose(sk.FindBone("Head")).Origin).Y;
+                Log.Info("Test", $"ragdoll: the body left behind: hips {hips - pkg!.GlobalPosition.Y:0.00} m, head {head - pkg.GlobalPosition.Y:0.00} m above the package; you {w.GlobalPosition.DistanceTo(pkg.GlobalPosition):0.0} m away, {w.DebugPose()[..60]}");
+            }
+        }
+        if (Now(18.5)) { Shot("ragdoll_left_behind"); Log.Info("Test", "ragdoll: done"); _ragdollTest = false; }
+    }
 
     private bool _leanTest;
     private double _leanTime = -1;
@@ -844,6 +949,7 @@ public sealed class Tests
         if (_soundTest && _main.Car != null) { SoundTest(delta); return; }
         if (_leadTest && _main.Car != null) { LeadTest(delta); return; }
         if (_leanTest && _main.Car != null) { LeanTest(delta); return; }
+        if (_ragdollTest && _main.Car != null) { RagdollTest(delta); return; }
         if (_respawn)
         {
             if (_main.Car == null)

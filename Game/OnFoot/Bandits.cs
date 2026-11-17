@@ -92,6 +92,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         {
             _hold = new GunHold(skel, () => GunHold.Goals(_holder, Gun));
             skel.AddChild(_hold);
+            _ragdoll = Ragdoll.Build(skel);   // last: it overrides the others once it runs (D56)
         }
         _yaw = (float)(_rng.NextDouble() * Math.Tau);
         _think = (float)_rng.NextDouble() * 0.25f;
@@ -130,9 +131,17 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         var away = new Vector3(h.Velocity.X, 0, h.Velocity.Z).Normalized();
         // up x away: the head goes away from the shot (D55: away x up had tipped every body toward the shooter)
         _fallAxis = Vector3.Up.Cross(away).Normalized();
+        // a ragdoll (D56): pushed by the bullet, harder than the bullet's own momentum (8 g at 800 m/s barely moves
+        // 70 kg) so the hit reads; the animation's last pose is where it starts
+        _ragdoll?.Start(h.Velocity.Normalized() * 45f, h.Point);
         _field.Died(this);
     }
     private Vector3 _fallAxis = Vector3.Right;
+    private Ragdoll? _ragdoll;
+    /// <summary>The floating origin moved: a running ragdoll is moved with it (D56).</summary>
+    public void ShiftRagdoll(Vector3 d) => _ragdoll?.Shift(d);
+    /// <summary>Self-tests: where the body lies (the hips), or the feet without a ragdoll.</summary>
+    public Vector3 BodyAt => _ragdoll?.Hips is { } h && _ragdoll.Running ? h.GlobalPosition : GlobalPosition;
 
     // ---- senses and decisions ---------------------------------------------------------------------------------------
 
@@ -398,8 +407,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         {
             _fall = MathF.Min(1, _fall + dt / 0.55f);
             float e = _fall * _fall;
-            // the body pivots about the feet onto its back (or front), the gun drops
-            _model.Basis = new Basis(Transform.Basis.Inverse() * _fallAxis, e * 1.45f) * Basis.FromEuler(new Vector3(0, MathF.PI, 0));
+            // the body pivots about the feet onto its back (or front), the gun drops (no ragdoll: the licensed pack missing)
+            if (_ragdoll == null) _model.Basis = new Basis(Transform.Basis.Inverse() * _fallAxis, e * 1.45f) * Basis.FromEuler(new Vector3(0, MathF.PI, 0));
             _holder.GlobalPosition = _holder.GlobalPosition.Lerp(GlobalPosition + Vector3.Up * 0.08f + _fallAxis.Cross(Vector3.Up) * 0.6f, dt * 6);
             _holder.Rotation = _holder.Rotation.Lerp(new Vector3(0, _holder.Rotation.Y, MathF.PI / 2), dt * 6);
         }
@@ -532,7 +541,7 @@ public sealed partial class BanditField : Node3D
     private void OnShifted(double dx, double dz)
     {
         var d = new Vector3((float)dx, 0, (float)dz);
-        foreach (var b in _all) { b.GlobalPosition -= d; b.Home -= d; }
+        foreach (var b in _all) { b.GlobalPosition -= d; b.Home -= d; b.ShiftRagdoll(d); }
     }
 
     private void OnPlayerShot(Vector3 at, WeaponDef gun) => ShotFired(at, null);
