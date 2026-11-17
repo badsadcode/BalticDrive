@@ -313,6 +313,7 @@ public static class MapMesher
         }
         AddGapFills(ctx, size, lod, geo);
         AddFurniture(ctx, size, lod, geo, collide);
+        if (lod <= 1) { AddStreetMarks(ctx, size, geo, collide); AddTramWires(ctx, size, geo); }
         BarrierMesher.AddBarriers(ctx, size, lod, geo.Barriers, collide ? geo.BuildingFaces ??= new List<Vector3>() : null);
         var list = ctx.Buildings;
         for (int i = 0; i < list.Count; i++)
@@ -610,6 +611,203 @@ public static class MapMesher
             return m;
         }
         static bool Near(List<Vector3> l, float x, float z) => MinDist(l, new Vector3(x, 0, z)) < 4f;
+    }
+
+    // ---- crossings, traffic lights, tram wires (D58) -----------------------------------------------------------------
+
+    private static readonly Color Paint = new(0.78f, 0.78f, 0.74f, 0f);
+
+    /// <summary>The drawn surface height of road segment <paramref name="s"/> at a point beside or on it, or of the
+    /// junction surface the point lies in.</summary>
+    private static float SurfaceY(MapContext ctx, in MapSeg s, float x, float z)
+    {
+        foreach (var jr in ctx.Junctions)
+        {
+            var j = jr.J;
+            if (j.Ghost || j.Elevated || j.Paved || j.Pedestrian) continue;
+            if (j.Contains(x - jr.OffX, z - jr.OffZ)) return j.HeightAt(x - jr.OffX, z - jr.OffZ) + JunctionBias;
+        }
+        s.Distance(x, z, out float u);
+        return s.Ya + (s.Yb - s.Ya) * u + ClassBias(s.Road.Cls) + 0.009f;
+    }
+
+    /// <summary>The drivable road segment nearest a point, within <paramref name="reach"/> of its edge.</summary>
+    private static int NearestRoad(MapContext ctx, float x, float z, float reach)
+    {
+        int best = -1; float bd = float.MaxValue;
+        var segs = ctx.Segs;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            var s = segs[i];
+            if (!s.Road.Drivable || s.Road.IsRail || s.Road.IsTram || s.Road.Layer < 0) continue;
+            float d = s.Distance(x, z, out _) - s.Hw;
+            if (d < reach && d < bd) { bd = d; best = i; }
+        }
+        return best;
+    }
+
+    /// <summary>A flat painted quad on the road: centre, half extents along <paramref name="d"/> and across.</summary>
+    private static void PaintQuad(MapChunkGeometry geo, MapContext ctx, in MapSeg s, Vector2 c, Vector2 d, float along, float across)
+    {
+        var n = new Vector2(-d.Y, d.X);
+        Span<Vector2> q = stackalloc Vector2[] { c - d * along - n * across, c + d * along - n * across, c + d * along + n * across, c - d * along + n * across };
+        int first = geo.Barriers.V.Count;
+        foreach (var p in q)
+            geo.Barriers.Add(new Vector3(p.X, SurfaceY(ctx, s, p.X, p.Y) + 0.012f, p.Y), Vector3.Up, new Vector2(0, 0), new Vector2(0.1f, 0), Paint);
+        geo.Barriers.Quad(first, first + 1, first + 2, first + 3, Vector3.Up);
+    }
+
+    /// <summary>
+    /// Zebra crossings and traffic lights from the map's points (D58, Tom's side-by-side comparisons).
+    /// A crossing is painted as Polish zebras are: white bars 0.5 m wide and 4 m long, lying along the road, 0.5 m
+    /// apart across the whole carriageway. With traffic signals within 25 m, a stop line 2 m before it on each
+    /// approach (the incoming half of a two-way road). Traffic signals stand on the right of each approach, 6 m short
+    /// of the signal node: a 3.4 m pole and a head of three lamps facing the traffic; the lamps cycle (green 12 s,
+    /// amber 3 s, red 15 s), the crossing direction out of step. Poles within 4 m of one already placed are skipped
+    /// (OSM often tags every approach of a junction).
+    /// </summary>
+    private static void AddStreetMarks(MapContext ctx, float size, MapChunkGeometry geo, bool collide)
+    {
+        var pts = ctx.Points;
+        var signals = new List<Vector2>();
+        foreach (var p in pts) if (p.Kind == MapPointKind.Signals) signals.Add(new Vector2(p.X, p.Z));
+        var poles = new List<Vector2>();
+        foreach (var p in pts)
+        {
+            if (p.X < 0 || p.X >= size || p.Z < 0 || p.Z >= size) continue;
+            if (p.Kind == MapPointKind.Zebra)
+            {
+                int si = NearestRoad(ctx, p.X, p.Z, 1f);
+                if (si < 0) continue;
+                var s = ctx.Segs[si];
+                s.Distance(p.X, p.Z, out float u);
+                var c = new Vector2(s.Ax + (s.Bx - s.Ax) * u, s.Az + (s.Bz - s.Az) * u);   // on the centre line
+                var d = new Vector2(s.Bx - s.Ax, s.Bz - s.Az);
+                if (d.LengthSquared() < 1e-4f) continue;
+                d = d.Normalized();
+                float width = 2f * s.Hw - 0.4f;
+                int bars = Math.Max(1, (int)((width + 0.5f) / 1.0f));
+                float start = -(bars - 1) * 0.5f;
+                var n = new Vector2(-d.Y, d.X);
+                for (int b = 0; b < bars; b++) PaintQuad(geo, ctx, s, c + n * (start + b), d, 2f, 0.25f);
+                bool signalled = false;
+                foreach (var sg in signals) if (sg.DistanceTo(c) < 25f) { signalled = true; break; }
+                if (signalled)
+                {
+                    bool oneway = s.Road.Oneway;
+                    // traffic along +d stops before the zebra on its right half; along -d, beyond it, on the other half
+                    // (n is the right of +d: we drive on the right)
+                    PaintQuad(geo, ctx, s, c - d * 4.2f + (oneway ? Vector2.Zero : n * s.Hw * 0.5f), d, 0.2f, oneway ? s.Hw - 0.2f : s.Hw * 0.5f - 0.1f);
+                    if (!oneway) PaintQuad(geo, ctx, s, c + d * 4.2f - n * s.Hw * 0.5f, d, 0.2f, s.Hw * 0.5f - 0.1f);
+                }
+            }
+            else if (p.Kind == MapPointKind.Signals)
+            {
+                var at = new Vector2(p.X, p.Z);
+                // every road near the node gets lights on its approaches
+                var done = new HashSet<MapRoad>();
+                var segs = ctx.Segs;
+                for (int i = 0; i < segs.Count; i++)
+                {
+                    var s = segs[i];
+                    if (!s.Road.Drivable || s.Road.IsRail || s.Road.IsTram || s.Road.Layer < 0 || done.Contains(s.Road)) continue;
+                    if (s.Distance(at.X, at.Y, out float u) > 20f) continue;
+                    done.Add(s.Road);
+                    var d = new Vector2(s.Bx - s.Ax, s.Bz - s.Az);
+                    if (d.LengthSquared() < 1e-4f) continue;
+                    d = d.Normalized();
+                    var c = new Vector2(s.Ax + (s.Bx - s.Ax) * u, s.Az + (s.Bz - s.Az) * u);
+                    int group = ((int)MathF.Round(MathF.Atan2(d.Y, d.X) / (MathF.PI / 2f)) & 1);
+                    for (int dir = 1; dir >= (s.Road.Oneway ? 1 : -1); dir -= 2)
+                    {
+                        var go = d * dir;                                   // the way traffic moves
+                        var right = new Vector2(-go.Y, go.X);               // (x, z): right of travel
+                        var pole = c - go * 6f + right * (s.Hw + 0.9f);
+                        if (pole.X < 0 || pole.X >= size || pole.Y < 0 || pole.Y >= size) continue;
+                        bool near = false;
+                        foreach (var q in poles) if (q.DistanceTo(pole) < 4f) { near = true; break; }
+                        if (near || ctx.InBuilding(pole.X, pole.Y, 0.2f)) continue;
+                        if (NearestRoad(ctx, pole.X, pole.Y, -0.3f) >= 0) continue;   // standing on another carriageway
+                        poles.Add(pole);
+                        AddSignal(geo, ctx, pole, -go, group, collide);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>A traffic light: a grey pole and a black head at 2.4–3.4 m facing <paramref name="face"/>, with three
+    /// lamps (style 0.9 in the barrier shader: UV2 = lamp 0 red, 1 amber, 2 green; and the cycle offset).</summary>
+    private static void AddSignal(MapChunkGeometry geo, MapContext ctx, Vector2 at, Vector2 face, int group, bool collide)
+    {
+        float y = ctx.Height(at.X, at.Y, 0f, out _);
+        var b = geo.Barriers;
+        var grey = new Color(0.32f, 0.33f, 0.34f, 0f);
+        b.Box(new Vector3(at.X - 0.06f, y - 0.2f, at.Y - 0.06f), new Vector3(at.X + 0.06f, y + 3.45f, at.Y + 0.06f), grey);
+        float yaw = MathF.Atan2(face.X, face.Y);               // the head's +Z toward the traffic
+        var basis = new Basis(Vector3.Up, yaw);
+        var headC = new Vector3(at.X, y + 2.9f, at.Y) + basis * new Vector3(0, 0, 0.12f);
+        b.Box(headC - new Vector3(0.15f, 0.48f, 0.11f), headC + new Vector3(0.15f, 0.48f, 0.11f), new Color(0.04f, 0.04f, 0.045f, 0f), null, yaw);
+        for (int k = 0; k < 3; k++)
+        {
+            var lc = headC + basis * new Vector3(0, 0.3f - k * 0.3f, 0.12f);
+            b.Box(lc - new Vector3(0.09f, 0.09f, 0.025f), lc + new Vector3(0.09f, 0.09f, 0.025f), new Color(1, 1, 1, 0.9f), null, yaw, new Vector2(k, group * 15f));
+        }
+        if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(at.X, y, at.Y, 0.1f));
+    }
+
+    /// <summary>
+    /// Overhead wires over tram tracks (D58): a contact wire 5.6 m up along every piece of track, and a steel pole
+    /// every 35 m along it (by distance along the track, so poles don't double up at chunk edges) 3.2 m to the side,
+    /// with a span wire out to the contact wire. The pole goes on the side away from a neighbouring track (double
+    /// tracks are two ways side by side), or the left if there's none.
+    /// </summary>
+    private static void AddTramWires(MapContext ctx, float size, MapChunkGeometry geo)
+    {
+        var b = geo.Barriers;
+        var wire = new Color(0.08f, 0.08f, 0.08f, 0f);
+        var steel = new Color(0.36f, 0.37f, 0.36f, 0f);
+        var segs = ctx.Segs;
+        foreach (var s in segs)
+        {
+            var r = s.Road;
+            if (!r.IsTram || r.Layer < 0) continue;
+            float mx = (s.Ax + s.Bx) * 0.5f, mz = (s.Az + s.Bz) * 0.5f;
+            if (mx < 0 || mx >= size || mz < 0 || mz >= size) continue;
+            float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
+            if (len < 0.05f) continue;
+            var d = new Vector2(dx, dz) / len;
+            float ya = s.Ya + 5.6f, yb = s.Yb + 5.6f;
+            if (r.IsBridge) { ya += 0.3f; yb += 0.3f; }
+            float yaw = MathF.Atan2(-dz, dx);
+            var mid = new Vector3(mx, (ya + yb) * 0.5f, mz);
+            b.Box(mid - new Vector3(len * 0.5f + 0.05f, 0.012f, 0.012f), mid + new Vector3(len * 0.5f + 0.05f, 0.012f, 0.012f), wire, null, yaw);
+            // poles at whole multiples of 35 m along the track that fall on this piece
+            float a0 = r.Along[s.Index], a1 = r.Along[s.Index + 1];
+            for (float a = MathF.Ceiling(a0 / 35f) * 35f; a < a1; a += 35f)
+            {
+                float t = (a - a0) / MathF.Max(0.01f, a1 - a0);
+                var c = new Vector2(s.Ax + dx * t, s.Az + dz * t);
+                // the left side, or the right if that's taken; clear of every other track, road and building, or none
+                var n = new Vector2(-d.Y, d.X);
+                Vector2? spot = null;
+                foreach (int side in new[] { 1, -1 })
+                {
+                    var q = c + n * side * 3.2f;
+                    bool clear = !ctx.InBuilding(q.X, q.Y, 0.1f) && NearestRoad(ctx, q.X, q.Y, -0.3f) < 0;
+                    if (clear)
+                        foreach (var o in segs)
+                            if (o.Road != r && o.Road.IsTram && o.Distance(q.X, q.Y, out _) < 2.2f) { clear = false; break; }
+                    if (clear) { spot = q; n *= side; break; }
+                }
+                if (spot is not { } pole) continue;
+                float gy = ctx.Height(pole.X, pole.Y, 0f, out _), wy = s.Ya + (s.Yb - s.Ya) * t + 5.6f;
+                b.Box(new Vector3(pole.X - 0.1f, gy - 0.2f, pole.Y - 0.1f), new Vector3(pole.X + 0.1f, wy + 0.9f, pole.Y + 0.1f), steel);
+                // the span wire from the pole to above the track
+                var spanMid = new Vector3((pole.X + c.X) * 0.5f, wy + 0.25f, (pole.Y + c.Y) * 0.5f);
+                b.Box(spanMid - new Vector3(1.65f, 0.012f, 0.012f), spanMid + new Vector3(1.65f, 0.012f, 0.012f), wire, null, MathF.Atan2(-n.Y, n.X));
+            }
+        }
     }
 
     /// <summary>Convex hull in x/z (monotone chain), counter-clockwise.</summary>
@@ -1006,6 +1204,7 @@ public static class MapMesher
             var p = pts[i];
             byte kind = p.Kind;
             if (kind == MapPointKind.Tree) continue;                       // trees go through the vegetation pass
+            if (kind is MapPointKind.Zebra or MapPointKind.Signals) continue; // painted and stood up by AddStreetMarks (D58)
             if (p.X < 0 || p.X >= size || p.Z < 0 || p.Z >= size) continue;
             if (lod >= 2 && kind != MapPointKind.Pylon) continue;          // small posts are not worth drawing far away
             if (ctx.InBuilding(p.X, p.Z, 0.2f)) continue;

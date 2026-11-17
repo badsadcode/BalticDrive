@@ -193,8 +193,10 @@ def poi_kind(tags):
     return None
 
 
-# small point features (must match MapPointKind in MapData.cs)
-PT_TREE, PT_LAMP, PT_POLE, PT_PYLON, PT_BOLLARD = range(5)
+# small point features (must match MapPointKind in MapData.cs); 5, 6 (D58): a marked pedestrian crossing on a road
+# (painted as a zebra), traffic signals at a junction or crossing
+PT_TREE, PT_LAMP, PT_POLE, PT_PYLON, PT_BOLLARD, PT_ZEBRA, PT_SIGNALS = range(7)
+ZEBRA_CROSSINGS = {'zebra', 'uncontrolled', 'marked', 'traffic_signals'}
 
 
 # Barriers (D25): kind byte in barriers.npz and the tile records; default height (m) per kind
@@ -224,6 +226,12 @@ def barrier_kind(tags):
 def point_kind(tags):
     if tags.get('natural') == 'tree':
         return PT_TREE
+    hw = tags.get('highway')
+    if hw == 'traffic_signals':
+        return PT_SIGNALS
+    if hw == 'crossing' and (tags.get('crossing') in ZEBRA_CROSSINGS or tags.get('crossing_ref') == 'zebra'
+                             or tags.get('crossing:markings') not in (None, 'no')):
+        return PT_ZEBRA
     if tags.get('barrier') in ('bollard', 'block'):
         return PT_BOLLARD
     if tags.get('highway') == 'street_lamp':

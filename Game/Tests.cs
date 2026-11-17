@@ -276,6 +276,26 @@ public sealed class Tests
                         found.Add((worstX, worstZ, folds, $"class {r.Cls} '{r.Name}' width {r.HalfWidth * 2:0.0} m, worst turn {worstTurn * 180 / MathF.PI:0} deg"));
                 }
             }
+        // --find=tram: a few tram tracks to look at (D58)
+        if (Main.Args.GetValueOrDefault("find", "") == "tram")
+        {
+            var trams = new List<string>();
+            for (int tx = tx0; tx <= tx1 && trams.Count < 4; tx++)
+                for (int tz = tz0; tz <= tz1 && trams.Count < 4; tz++)
+                {
+                    if (!w.Data.HasTile(tx, tz)) continue;
+                    var tile = w.Data.Tile(tx, tz);
+                    foreach (var r in tile.Roads)
+                        if (r.IsTram && r.Layer == 0 && r.X.Length > 3 && trams.Count < 4)
+                        {
+                            int m = r.X.Length / 2;
+                            double x = tile.OriginX + r.X[m], z = tile.OriginZ + r.Z[m];
+                            float yaw = MathF.Atan2(-(r.X[m + 1] - r.X[m]), -(r.Z[m + 1] - r.Z[m])) * 180 / MathF.PI;
+                            trams.Add($"{x + 6:0}:{z:0}:4:{yaw + 20:0}:-6");
+                        }
+                }
+            Log.Info("Test", "roadscan: trams --views=\"" + string.Join(";", trams) + "\"");
+        }
         Log.Info("Test", $"roadscan: {roads} roads, {bends} bends, {found.Count} roads with folding bends within {radius:0} m");
         foreach (var cls in found.GroupBy(f => f.What.Split(' ')[1]).OrderByDescending(g => g.Count()))
             Log.Info("Test", $"roadscan: class {cls.Key}: {cls.Count()} roads, {cls.Sum(f => f.Folds)} folding bends");

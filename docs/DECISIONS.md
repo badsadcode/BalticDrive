@@ -882,3 +882,23 @@ Addendum (17 Nov, the leftovers):
 * **Wyczółki** (the "raised patch") turned out to be the mapped shape: a 7.6 m two-lane entrance narrowing into a 4 m
   loop. The jagged overlap at its end is gone, but the narrowing still reads as a dark dome from above. Left as it is.
 Fly test after: median 16.7 ms, no frames without ground.
+
+## D58 — Street furniture: zebra crossings, traffic lights, tram wires (Tom's side-by-side comparisons)
+
+* **Import (map rebuild).** Two new point kinds: 5 is a marked pedestrian crossing (`highway=crossing` with
+  `crossing=zebra/marked/uncontrolled/traffic_signals`, `crossing_ref=zebra` or any `crossing:markings` but `no`), and
+  6 is traffic signals (`highway=traffic_signals`). Mazowsze has 55,139 crossings and 5,514 signals. No format change:
+  they ride in the existing point records, and older builds skip unknown kinds.
+* **Zebras.** Painted the Polish way: white bars 0.5 m wide and 4 m long, along the road, 0.5 m apart, across the
+  whole carriageway, at the crossing node on the nearest drivable road (on a junction surface they follow its height).
+  With signals within 25 m, a stop line 2 m before the zebra on each approach (the right-hand half of a two-way road).
+* **Traffic lights.** For every drivable road within 20 m of a signal node, a light on the right of each approach, 6 m
+  short of the node: a 3.4 m grey pole and a black head with three lamps facing the traffic. A light isn't placed
+  within 4 m of another, in a building or on another carriageway. The lamps cycle every 30 s (green 12, amber 3,
+  red 15), with the two crossing directions out of step (barrier shader style 0.9, emissive).
+* **Tram wires.** A contact wire 5.6 m above every tram track, and a steel pole every 35 m of track (by distance
+  along it, so chunks agree) 3.2 m to the left side, or the right where the left is a track, road or building, with
+  a span wire. These need no rebuild.
+* All near chunks only (LOD ≤ 1). Fly test: median 16.7 ms as before.
+Not yet: signs (OSM `traffic_sign` is sparse here), traffic lights that drivers or bandits obey, lights at night
+looking right from far away.

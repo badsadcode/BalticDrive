@@ -3,7 +3,8 @@ render_mode cull_disabled, diffuse_burley;
 
 // Fences, walls, hedges and guard rails (D25, Map/MapMesher.AddBarriers). One mesh per map chunk:
 //   COLOR.rgb = base colour, COLOR.a = style: 0 solid, 0.1 wire mesh, 0.2 vertical bars (railing),
-//   0.3 concrete panels, 0.4 brick, 0.5 plaster, 0.6 hedge, 0.7 steel band (guard rail), 0.8 noise barrier panels
+//   0.3 concrete panels, 0.4 brick, 0.5 plaster, 0.6 hedge, 0.7 steel band (guard rail), 0.8 noise barrier panels,
+//   0.9 traffic light lamp (D58: UV2.x = 0 red, 1 amber, 2 green; UV2.y = the cycle's offset in seconds)
 //   UV = (metres along the line, metres above the bottom); UV2.x = height of this barrier (m).
 // Wire mesh and bars are cut out (alpha scissor), so you see through a fence.
 
@@ -93,10 +94,22 @@ void fragment() {
 		float seam = smoothstep(0.04, 0.0, abs(fract(uv.x / 4.0) - 0.5) * 2.0 - 0.98);
 		col *= (0.9 + 0.1 * step(0.5, fract(uv.x / 0.15))) * (1.0 - 0.4 * seam);
 	}
+	vec3 glow = vec3(0.0);
+	if (s == 9.0) {
+		// traffic light: a 30 s cycle, green 12 s, amber 3 s, red 15 s; one lamp lit at a time
+		float t = mod(TIME + UV2.y, 30.0);
+		float lamp = t < 12.0 ? 2.0 : t < 15.0 ? 1.0 : 0.0;
+		vec3 lit = UV2.x < 0.5 ? vec3(1.0, 0.08, 0.04) : UV2.x < 1.5 ? vec3(1.0, 0.55, 0.05) : vec3(0.1, 1.0, 0.35);
+		bool on = abs(UV2.x - lamp) < 0.5;
+		col = on ? lit * 0.6 : lit * 0.05;
+		glow = on ? lit * 3.0 : vec3(0.0);
+		rough = 0.3;
+	}
 	if (alpha < 0.5) discard;
 	// panels are one sheet drawn from both sides: light the side we see
 	if (!FRONT_FACING) NORMAL = -NORMAL;
 	ALBEDO = col * cloud_shade(wpos.xz, TIME);
+	EMISSION = glow;
 	ROUGHNESS = rough;
 	METALLIC = metal;
 }
