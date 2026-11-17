@@ -902,3 +902,24 @@ Fly test after: median 16.7 ms, no frames without ground.
 * All near chunks only (LOD ≤ 1). Fly test: median 16.7 ms as before.
 Not yet: signs (OSM `traffic_sign` is sparse here), traffic lights that drivers or bandits obey, lights at night
 looking right from far away.
+
+## D59 — Grass blades (Tom: "a game changer"; his worry: performance)
+
+* **What.** Blades of grass near the camera (`Trees/GrassField.cs`, `Shaders/Grass.gdshader`, after Thornwake's
+  Grass.gdshader). One clump mesh (14 bent blades, 42 triangles) drawn as a MultiMesh per 24 m cell, built on worker
+  threads. Clumps are 0.42 m apart at full density, within 60 m of the camera, no shadows. There's no grass when the
+  camera is more than 25 m above the ground.
+* **Where.** By land cover: meadow and wetland full, park 0.85, open, scrub and orchard 0.8, cemetery 0.6,
+  residential (gardens) 0.5, forest 0.3, farmyard 0.25, sand a trace; none on fields (their crops and stubble are
+  the terrain's), paving or water, in buildings, or wherever the road shoulder mask is over 0.3 (roads, verges,
+  tracks). Heights from the same map context as the terrain mesh.
+* **Look.** The terrain's grass colours at the root, lighter and yellower at the tip, and drier clumps paler in thin
+  grass. Normals lean up so blades take the ground's light. Light through the blades against the sun, and the
+  wind's lean with travelling gust waves. The far third of the range thins out clump by clump (each clump's own
+  cut-off distance), so there's no edge.
+* **Cost** (`--autotest=grassbench`: the grassiest spot within 2 km, eye height, a full turn, measured GPU time):
+  80,708 clumps at a park in Młynów, 13.85 ms per frame with grass and 12.75 without, so about 1.1 ms on Tom's
+  RTX 3080. Fly test after limiting uploads to two cells a frame and skipping grass above 25 m: 7 frames over 33 ms,
+  the same as without grass. Drive test unchanged.
+* G toggles it, and `--grass=0` starts without it.
+Not yet: grass bending around the walker or car, flowers, seasons and rain.

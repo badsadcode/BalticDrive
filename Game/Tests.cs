@@ -304,6 +304,66 @@ public sealed class Tests
         Log.Info("Test", "roadscan: --views=\"" + string.Join(";", worst.Take(6).Select(f => $"{f.X:0}:{f.Z:0}:35:0:-80")) + "\"");
     }
 
+    private double _gbTime = -1;
+    private (double X, double Z) _gbAt;
+    private readonly List<double> _gpuOn = new(), _gpuOff = new();
+
+    /// <summary>--autotest=grassbench (D59): the grassiest spot within 2 km of the start (meadow or park all round), at
+    /// eye height; a slow full turn with grass on, then off, measuring the GPU's time per frame; screenshots.</summary>
+    private void GrassBench(double delta)
+    {
+        var rid = _main.GetViewport().GetViewportRid();
+        if (_gbTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            var w = _main.World!;
+            var (fx, fz) = _main.Focus;
+            int best = -1;
+            for (int i = -20; i <= 20; i++)
+                for (int j = -20; j <= 20; j++)
+                {
+                    double x = fx + i * 100, z = fz + j * 100;
+                    int score = 0;
+                    for (int a = -2; a <= 2; a++)
+                        for (int b = -2; b <= 2; b++)
+                        {
+                            byte l = w.LandAt(x + a * 15, z + b * 15);
+                            if (l == Map.MapLand.Meadow || l == Map.MapLand.Park) score++;
+                        }
+                    if (score > best) { best = score; _gbAt = (x, z); }
+                }
+            Log.Info("Test", $"grassbench: grassiest spot {_gbAt.X:0},{_gbAt.Z:0} ({best}/25 samples meadow or park)");
+            if (!_main.Flying) _main.ToggleFreeCamera();
+            _main.Teleport(_gbAt.X, _gbAt.Z, 1.7f, 0, -8);
+            RenderingServer.ViewportSetMeasureRenderTime(rid, true);
+            _gbTime = 0; _settledFor = 0;
+            return;
+        }
+        if (_settledFor < 2 && _gbTime == 0) return;
+        double before = _gbTime;
+        _gbTime += delta;
+        bool Now(double t) => before < t && _gbTime >= t;
+        var g = _main.Grass;
+        // 0-10 s grass on, 10-12 settle, 12-22 off
+        if (_gbTime < 10 || (_gbTime > 12 && _gbTime < 22))
+        {
+            double turn = (_gbTime % 12) / 10 * 360;
+            _main.Camera.Yaw = Mathf.DegToRad((float)turn);
+            (_gbTime < 10 ? _gpuOn : _gpuOff).Add(RenderingServer.ViewportGetMeasuredRenderTimeGpu(rid));
+        }
+        if (Now(1)) Shot("grass_on_a");
+        if (Now(4)) Shot("grass_on_b");
+        if (Now(10)) { Log.Info("Test", $"grassbench: {g.Instances} clumps in {g.Pending} pending"); g.On = false; }
+        if (Now(13)) Shot("grass_off_a");
+        if (Now(22))
+        {
+            double Med(List<double> l) { var c = l.Skip(10).OrderBy(x => x).ToList(); return c.Count == 0 ? 0 : c[c.Count / 2]; }
+            double P95(List<double> l) { var c = l.Skip(10).OrderBy(x => x).ToList(); return c.Count == 0 ? 0 : c[(int)(c.Count * 0.95)]; }
+            Log.Info("Test", $"grassbench: GPU ms per frame, grass on: median {Med(_gpuOn):F2}, p95 {P95(_gpuOn):F2}; off: median {Med(_gpuOff):F2}, p95 {P95(_gpuOff):F2}");
+            Log.Info("Test", "done"); _main.GetTree().Quit(0);
+        }
+    }
+
     private bool _ragdollTest;
     private double _ragTime = -1;
     private OnFoot.Bandit? _ragBandit;
@@ -913,6 +973,7 @@ public sealed class Tests
         if (_elapsed > 600) { Log.Error("Test", "timed out"); _main.GetTree().Quit(2); return; }
         _settledFor = Settled ? _settledFor + delta : 0;
 
+        if (Main.Args.GetValueOrDefault("autotest", "") == "grassbench") { GrassBench(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {

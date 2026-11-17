@@ -41,6 +41,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=leads` — a lead to a guarded stash (D54): map, arrival, guards, stash, the next lead.
 * `--autotest=lean` — leaning left and right, first and third person (D55).
 * `--autotest=death` — dying, waking elsewhere, going back for your things, a safehouse (D55).
+* `--autotest=grassbench` — grass on and off at the grassiest spot near the start: GPU time per frame (D59).
 * `--autotest=roadscan [--radius=3000]` — lists bends tighter than their road is wide, with a `--views=` line (D57).
 * `--autotest=ragdoll` — a bandit and the walker falling as ragdolls, an origin shift under a body (D56).
 

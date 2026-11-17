@@ -28,6 +28,8 @@ public partial class Main : Node3D
 	private TerrainStreamer _terrain = null!;
 	private MapContentStreamer _content = null!;
 	private Trees.TreeField _trees = null!;
+	private Trees.GrassField _grass = null!;
+	public Trees.GrassField Grass => _grass;
 	private FarRoads _farRoads = null!;
 	private Sky.Atmosphere _atmosphere = null!;
 	public Sky.Atmosphere Atmosphere => _atmosphere;
@@ -90,6 +92,9 @@ public partial class Main : Node3D
 		_terrain = new TerrainStreamer { Name = "Terrain" };
 		_content = new MapContentStreamer { Name = "MapContent" };
 		_trees = new Trees.TreeField();
+		// grass blades near the camera (D59); G toggles, --grass=0 starts without
+		_grass = new Trees.GrassField { On = Args.GetValueOrDefault("grass", "1") != "0" };
+		AddChild(_grass);
 		_farRoads = new FarRoads();
 		AddChild(_farRoads);
 		AddChild(_terrain);
@@ -124,6 +129,7 @@ public partial class Main : Node3D
 		_terrain.Configure(_world);
 		_content.Configure(_world);
 		_trees.Configure(_world);
+		_grass.Configure(_world);
 		_farRoads.Configure(_world);
 		_nav = new Navigation(_world.Data);
 		var gps = new GpsHud { Name = "Gps" };
@@ -476,6 +482,13 @@ public partial class Main : Node3D
 			GetViewport().SetInputAsHandled();
 			return;
 		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.G } && _world != null)
+		{
+			_grass.On = !_grass.On;
+			ShowNote(_grass.On ? "Grass on (G)" : "Grass off (G)");
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F7 } && _world != null)
 		{
 			// BadBuilding buildings on or off (D29): the streamer rebuilds every cell
@@ -599,6 +612,7 @@ public partial class Main : Node3D
 		_terrain.Configure(_world!);
 		_content.Configure(_world!);
 		_trees.Configure(_world!);
+		_grass.Configure(_world!);
 		_farRoads.Configure(_world!);
 		float ground = _world!.Height(x, z);
 		_camera.Position = WorldOrigin.ToLocal(x, ground + above, z);
@@ -638,6 +652,11 @@ public partial class Main : Node3D
 		_content.Update(fx, fz);
 		_farRoads.Update(fx, fz);
 		_trees.Update(fx, fz, GetViewport().GetCamera3D()?.GlobalPosition ?? _camera.GlobalPosition);
+		{
+			var cam = GetViewport().GetCamera3D()?.GlobalPosition ?? _camera.GlobalPosition;
+			var (gx, gy, gz) = WorldOrigin.ToWorld(cam);
+			_grass.Update(gx, gz, (float)gy - _world.Height(gx, gz));
+		}
 		_atmosphere.Update(delta, GetViewport().GetCamera3D());
 		_camera.GroundHeight = _world.Height(fx, fz);
 		RenderingServer.GlobalShaderParameterSet("ocean_time", (float)(Time.GetTicksMsec() / 1000.0));
