@@ -99,10 +99,11 @@ void fragment() {
 		// traffic light: a 30 s cycle, green 12 s, amber 3 s, red 15 s; one lamp lit at a time
 		float t = mod(TIME + UV2.y, 30.0);
 		float lamp = t < 12.0 ? 2.0 : t < 15.0 ? 1.0 : 0.0;
-		vec3 lit = UV2.x < 0.5 ? vec3(1.0, 0.08, 0.04) : UV2.x < 1.5 ? vec3(1.0, 0.55, 0.05) : vec3(0.1, 1.0, 0.35);
+		// saturated and not too bright: at 3x the lit lamp blew out to white in daylight (Tom's Abbey Road shot)
+		vec3 lit = UV2.x < 0.5 ? vec3(1.0, 0.06, 0.03) : UV2.x < 1.5 ? vec3(1.0, 0.5, 0.0) : vec3(0.02, 1.0, 0.3);
 		bool on = abs(UV2.x - lamp) < 0.5;
-		col = on ? lit * 0.6 : lit * 0.05;
-		glow = on ? lit * 3.0 : vec3(0.0);
+		col = on ? lit * 0.5 : lit * 0.04;
+		glow = on ? lit * (UV2.x > 1.5 ? 0.8 : 1.4) : vec3(0.0);   // green is the brightest to the eye: less of it
 		rough = 0.3;
 	}
 	if (alpha < 0.5) discard;
