@@ -850,11 +850,14 @@ badly (flicker, stray patches, wedges), stripes on the water, gaps in pavements 
   so every car park was brown dirt with asphalt islands. It now has its own mask (terrain UV2.x) and is old, patched
   asphalt a shade lighter than the roads. Road verges there aren't gravel: unmarked roads' and paved areas'
   shoulders render as asphalt, and the terrain paints no gravel verge.
-* **Water stripes.** The ripples, foam and chop worked on world x/z up to ~65 km. At that size a 32-bit float can't
-  hold fine ripple positions, and the steps lined up into stripes along the world axes. They now work on x/z wrapped
-  at 4096 m, per pixel, from the precise local position plus the origin modulo 4096 (exact), so nothing smears across
-  a triangle and the pattern stays fixed to the ground. There's a seam every 4 km, lost in the ripples. The long
-  Gerstner waves keep the old coordinates.
+* **Water stripes.** These were not the float precision suspected first. A flat-coloured water sheet has no lines,
+  so the mesh is fine; it's the shading. The ripple normals were built from value noise, whose slope is exactly zero
+  along every lattice line, so the normals went flat on a ~1.1 m world-aligned grid and the mirror-sharp sun
+  highlight drew each line as a thin bright stripe. Rotating the layers only turned the stripes (which proved the
+  cause). The ripples and chop now use gradient noise (a real slope everywhere), each layer on its own turned grid.
+  The precision change stays as well: the ripple coordinates are x/z wrapped at 4096 m per pixel, from the precise
+  local position plus the origin modulo 4096 (exact), so nothing smears across a triangle. That leaves a seam every
+  4 km, lost in the ripples, and the long Gerstner waves keep the old coordinates.
 * **Pavements over driveways.** A driveway or track (≤ 6 m wide) crossing a pavement used to remove that pavement
   piece, leaving a gap with two blunt ends. Now the pavement carries on across it with a lowered 3 cm kerb, as in
   town. One running along the street (a car-park aisle) still takes the pavement's place.

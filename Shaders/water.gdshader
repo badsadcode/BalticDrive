@@ -56,9 +56,24 @@ float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
+// Gradient noise for the ripples (D57). Value noise's slope is exactly zero along its lattice lines; ripple normals
+// built from it went flat there, and the mirror-sharp sun highlight drew every lattice line as a thin bright stripe
+// (Tom's dump: stripes on the water). Gradient noise has a real slope everywhere. Each layer also on its own turned
+// grid, so no direction is favoured.
+float gnoise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+	float a0 = hash(i) * 6.2831853, a1 = hash(i + vec2(1.0, 0.0)) * 6.2831853;
+	float a2 = hash(i + vec2(0.0, 1.0)) * 6.2831853, a3 = hash(i + vec2(1.0, 1.0)) * 6.2831853;
+	float v0 = dot(vec2(cos(a0), sin(a0)), f), v1 = dot(vec2(cos(a1), sin(a1)), f - vec2(1.0, 0.0));
+	float v2 = dot(vec2(cos(a2), sin(a2)), f - vec2(0.0, 1.0)), v3 = dot(vec2(cos(a3), sin(a3)), f - vec2(1.0, 1.0));
+	return 0.5 + 0.7 * mix(mix(v0, v1, u.x), mix(v2, v3, u.x), u.y);
+}
+const mat2 TURN_A = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));      // 37°
+const mat2 TURN_B = mat2(vec2(0.31, 0.95), vec2(-0.95, 0.31));  // 72°
+const mat2 TURN_C = mat2(vec2(-0.39, 0.92), vec2(-0.92, -0.39)); // 113°
 float ripples(vec2 p, float t, float speed) {
 	vec2 flow = vec2(0.12, 0.05) * speed;
-	return noise(p * 0.9 + t * flow * 6.0) * 0.55 + noise(p * 2.1 - t * flow.yx * 9.0) * 0.3 + noise(p * 5.0 + t * vec2(0.3, -0.5)) * 0.15;
+	return gnoise(TURN_A * p * 0.9 + t * flow * 6.0) * 0.55 + gnoise(TURN_B * p * 2.1 - t * flow.yx * 9.0) * 0.3 + gnoise(TURN_C * p * 5.0 + t * vec2(0.3, -0.5)) * 0.15;
 }
 float caustic_layer(vec2 p, float t) {
 	vec2 i = floor(p); vec2 f = fract(p);
@@ -166,10 +181,10 @@ void fragment() {
 	if (sea + lake - pond > 0.5) {
 		float chop_amp = (0.04 + 0.25 * sea_state) * (sea > 0.5 ? 1.0 : 0.4) / (1.0 + length(VERTEX) / 300.0);
 		vec2 wind = vec2(0.8, 0.6);
-		vec2 q1 = p * 0.11 + wind * TIME * 0.35, q2 = p * 0.23 - wind.yx * TIME * 0.5;
-		float c0 = noise(q1) + 0.5 * noise(q2);
-		float cx = noise(q1 + vec2(0.05, 0.0)) + 0.5 * noise(q2 + vec2(0.1, 0.0));
-		float cz = noise(q1 + vec2(0.0, 0.05)) + 0.5 * noise(q2 + vec2(0.0, 0.1));
+		vec2 q1 = TURN_A * p * 0.11 + wind * TIME * 0.35, q2 = TURN_B * p * 0.23 - wind.yx * TIME * 0.5;
+		float c0 = gnoise(q1) + 0.5 * gnoise(q2);
+		float cx = gnoise(q1 + vec2(0.05, 0.0)) + 0.5 * gnoise(q2 + vec2(0.1, 0.0));
+		float cz = gnoise(q1 + vec2(0.0, 0.05)) + 0.5 * gnoise(q2 + vec2(0.0, 0.1));
 		slope += vec2(cx - c0, cz - c0) / 0.45 * chop_amp;
 	}
 	vec3 n_world = normalize(vec3(wave_normal.x / max(wave_normal.y, 0.2) - slope.x, 1.0, wave_normal.z / max(wave_normal.y, 0.2) - slope.y));
