@@ -867,3 +867,18 @@ badly (flicker, stray patches, wedges), stripes on the water, gaps in pavements 
 
 Checked against all 16 of Tom's dump views, re-shot with the new build (the before and after pairs), a fly test and a
 drive test (3.5 km in 200 s, 3.5 s off the road).
+
+Addendum (17 Nov, the leftovers):
+* **Holes between split junctions** (Bogatki): a crossing whose nodes are too far apart to cluster becomes two
+  junction surfaces, and the small gap between them, framed by the short connector roads, showed grass with a gravel
+  ring in the middle of the carriageway. Where two junction surfaces come within 7 m and a connector cut back at both
+  ends runs between them, the convex hull of their facing outline parts (each within 14 m of the other) is paved at
+  their own heights, a hair under the junctions. Only a hull under 400 m² with no building in it
+  (`AddGapFills`).
+* **Service roads ending inside junction surfaces** go under them like under a greater road (paved areas and squares
+  already lie under every road).
+* **A road ending on another road** gives way to the one that carries on, whatever their classes and widths, and its
+  end gets no rounded cap and no shoulders there.
+* **Wyczółki** (the "raised patch") turned out to be the mapped shape: a 7.6 m two-lane entrance narrowing into a 4 m
+  loop. The jagged overlap at its end is gone, but the narrowing still reads as a dark dome from above. Left as it is.
+Fly test after: median 16.7 ms, no frames without ground.

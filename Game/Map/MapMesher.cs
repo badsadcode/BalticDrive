@@ -208,7 +208,10 @@ public static class MapMesher
     /// <summary>The height a point of road <paramref name="s"/> must stay under because it lies on a greater road's
     /// carriageway (NaN: on nothing greater). Pieces of the same road meeting end to end (a tile edge, a taper) are its
     /// own continuation, not something to give way to.</summary>
-    private static float GiveWay(MapContext ctx, in MapSeg s, float px, float pz, Vector2 dir)
+    /// <param name="end">The point is where this road ends: it gives way to any road carrying on through there,
+    /// whatever their classes and widths (a stub ending on a lane goes under the lane, not over it: Tom's dump at
+    /// Wyczółki, where a wide entrance lane lay over the bend it ends on like a dome).</param>
+    private static float GiveWay(MapContext ctx, in MapSeg s, float px, float pz, Vector2 dir, bool end = false)
     {
         if (_gridCtx != ctx || _gridCount != ctx.Segs.Count || _grid == null) BuildGrid(ctx);
         if (!_grid!.TryGetValue(Cell(px, pz), out var list)) return float.NaN;
@@ -222,9 +225,11 @@ public static class MapMesher
             if (or == road || or.IsRail || or.IsTram || or.Layer != road.Layer || or.IsBridge != road.IsBridge) continue;
             float d = o.Distance(px, pz, out float u);
             if (d > o.Hw - 0.1f) continue;
-            if (!Outranks(o, s)) continue;
-            // end to end and lined up: the same road carrying on
             bool atA = MathF.Abs(o.Ax - px) < 0.05f && MathF.Abs(o.Az - pz) < 0.05f, atB = MathF.Abs(o.Bx - px) < 0.05f && MathF.Abs(o.Bz - pz) < 0.05f;
+            // the other road carries on through here (this point isn't one of its own ends)
+            bool through = !(atA && o.Index == 0) && !(atB && o.Index == or.X.Length - 2);
+            if (!(end && through) && !Outranks(o, s)) continue;
+            // end to end and lined up: the same road carrying on
             if (atA || atB)
             {
                 var od = new Vector2(o.Bx - o.Ax, o.Bz - o.Az);
@@ -233,7 +238,46 @@ public static class MapMesher
             float oy = o.Ya + (o.Yb - o.Ya) * u + ClassBias(or.Cls) - 0.025f;
             under = float.IsNaN(under) ? oy : MathF.Min(under, oy);
         }
+        // a junction surface: everything that isn't cut back at its edge (driveways, car-park lanes) goes under it
+        // (paved areas and squares already lie under the roads, D32)
+        if (!road.IsBridge && road.Layer == 0)
+            foreach (var jr in ctx.Junctions)
+            {
+                var j = jr.J;
+                if (j.Ghost || j.Elevated || j.Paved || j.Pedestrian) continue;
+                float jx = px - jr.OffX, jz = pz - jr.OffZ;
+                if (!j.Contains(jx, jz)) continue;
+                float jy = j.HeightAt(jx, jz) + JunctionBias - 0.025f;
+                under = float.IsNaN(under) ? jy : MathF.Min(under, jy);
+            }
         return under;
+    }
+
+    /// <summary>A junction surface's lift over its solved heights (paved areas and squares lie lower, see AddJunction).</summary>
+    private const float JunctionBias = 0.105f;
+
+    /// <summary>The point lies on some other road's carriageway (any class; not the same road carrying on): an end
+    /// there gets no rounded cap and no shoulders, which would bulge out over the other road (Tom's dump at Wyczółki:
+    /// a wide lane's round end hanging over the bend it ends on).</summary>
+    private static bool OnOtherRoad(MapContext ctx, in MapSeg s, float px, float pz, Vector2 dir)
+    {
+        if (_gridCtx != ctx || _gridCount != ctx.Segs.Count || _grid == null) BuildGrid(ctx);
+        if (!_grid!.TryGetValue(Cell(px, pz), out var list)) return false;
+        var segs = ctx.Segs;
+        foreach (int i in list)
+        {
+            var o = segs[i];
+            if (o.Road == s.Road || o.Road.IsRail || o.Road.IsTram || o.Road.Layer != s.Road.Layer) continue;
+            if (o.Distance(px, pz, out _) > o.Hw - 0.2f) continue;
+            bool atA = MathF.Abs(o.Ax - px) < 0.05f && MathF.Abs(o.Az - pz) < 0.05f, atB = MathF.Abs(o.Bx - px) < 0.05f && MathF.Abs(o.Bz - pz) < 0.05f;
+            if (atA || atB)
+            {
+                var od = new Vector2(o.Bx - o.Ax, o.Bz - o.Az);
+                if (od.LengthSquared() > 1e-4f && MathF.Abs(od.Normalized().Dot(dir)) > 0.7f) continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     public static void Build(MapContext ctx, float size, int lod, MapChunkGeometry geo, bool collide)
@@ -267,6 +311,7 @@ public static class MapMesher
             if (j.Ghost || cx < 0 || cx >= size || cz < 0 || cz >= size) continue;
             AddJunction(geo, jr, lod, ctx);
         }
+        AddGapFills(ctx, size, lod, geo);
         AddFurniture(ctx, size, lod, geo, collide);
         BarrierMesher.AddBarriers(ctx, size, lod, geo.Barriers, collide ? geo.BuildingFaces ??= new List<Vector3>() : null);
         var list = ctx.Buildings;
@@ -342,7 +387,7 @@ public static class MapMesher
         // a junction of streets that are all laid on a square goes under the square with them (D52, Tom's dump on Plac
         // Grzybowski: a dark asphalt triangle on the light paving)
         bool onSquare = !j.Paved && !j.Pedestrian && ArmsAllOnPaved(ctx, jr);
-        float bias = (j.Paved || j.Pedestrian ? 0.045f : onSquare ? 0.02f : 0.105f) + (lod > 0 ? 0.06f * lod : 0f);
+        float bias = (j.Paved || j.Pedestrian ? 0.045f : onSquare ? 0.02f : JunctionBias) + (lod > 0 ? 0.06f * lod : 0f);
         // The road shader reads UV.x as the offset from the centre line and COLOR.b * 16 as the half width (beyond it:
         // gravel shoulder). A junction is all carriageway: half width 16 m, UV.x kept within ±10 m (wrapping every 40 m).
         var col = new Color(j.Pedestrian ? SurfConcrete : SurfAsphalt, 0f, 1f, LaneCode(2, 0));
@@ -489,6 +534,95 @@ public static class MapMesher
                 if ((jr.J.Paved || jr.J.Pedestrian) && !jr.J.Elevated && jr.J.Contains(px - jr.OffX, pz - jr.OffZ)) { paved++; break; }
         }
         return paved >= 2;
+    }
+
+    /// <summary>
+    /// A crossing split into two junction surfaces (its nodes too far apart to cluster) left a small hole between
+    /// them, framed by the two surfaces and the short connector roads: grass with a ring of gravel shoulder in the
+    /// middle of the carriageway (Tom's dump at Bogatki). Where two junction surfaces come within 7 m of each other and
+    /// a connector runs between them, the gap is covered: the convex hull of the two outlines' facing parts (each
+    /// within 14 m of the other), at their own heights, a hair under the junctions. Only a small hull (under 400 m²)
+    /// with no building in it; drawn by the chunk holding the midpoint of the two centres.
+    /// </summary>
+    private static void AddGapFills(MapContext ctx, float size, int lod, MapChunkGeometry geo)
+    {
+        var js = ctx.Junctions;
+        for (int a = 0; a < js.Count; a++)
+            for (int b = a + 1; b < js.Count; b++)
+            {
+                var ja = js[a]; var jb = js[b];
+                if (!Fillable(ja.J) || !Fillable(jb.J)) continue;
+                float mx = (ja.OffX + ja.J.Cx + jb.OffX + jb.J.Cx) * 0.5f, mz = (ja.OffZ + ja.J.Cz + jb.OffZ + jb.J.Cz) * 0.5f;
+                if (mx < 0 || mx >= size || mz < 0 || mz >= size) continue;
+                if (ja.OffX + ja.J.MaxX + 7 < jb.OffX + jb.J.MinX || jb.OffX + jb.J.MaxX + 7 < ja.OffX + ja.J.MinX
+                    || ja.OffZ + ja.J.MaxZ + 7 < jb.OffZ + jb.J.MinZ || jb.OffZ + jb.J.MaxZ + 7 < ja.OffZ + ja.J.MinZ) continue;
+                var pa = Outline(ja); var pb = Outline(jb);
+                float gap = float.MaxValue;
+                foreach (var p in pa) foreach (var q in pb) gap = MathF.Min(gap, new Vector2(p.X - q.X, p.Z - q.Z).Length());
+                if (gap > 7f) continue;
+                // a connector: a short road cut back at both ends, from one surface to the other
+                bool linked = false;
+                foreach (var s in ctx.Segs)
+                {
+                    var r = s.Road;
+                    if ((r.Flags2 & RoadFlag.JunctionStart) == 0 || (r.Flags2 & RoadFlag.JunctionEnd) == 0 || r.Along[^1] - r.Along[0] > 30f) continue;
+                    float x0 = s.OffX + r.X[0], z0 = s.OffZ + r.Z[0], x1 = s.OffX + r.X[^1], z1 = s.OffZ + r.Z[^1];
+                    bool fwd = Near(pa, x0, z0) && Near(pb, x1, z1), back = Near(pb, x0, z0) && Near(pa, x1, z1);
+                    if (fwd || back) { linked = true; break; }
+                }
+                if (!linked) continue;
+                var pts = new List<Vector3>();
+                foreach (var p in pa) if (MinDist(pb, p) < 14f) pts.Add(p);
+                foreach (var q in pb) if (MinDist(pa, q) < 14f) pts.Add(q);
+                var hull = Hull(pts);
+                if (hull.Count < 3) continue;
+                float area = 0; var c = Vector3.Zero;
+                for (int i = 0, k = hull.Count - 1; i < hull.Count; k = i++) { area += hull[k].X * hull[i].Z - hull[i].X * hull[k].Z; c += hull[i]; }
+                area = MathF.Abs(area) * 0.5f; c /= hull.Count;
+                if (area > 400f) continue;
+                bool building = false;
+                foreach (var br in ctx.Buildings) if (!br.B.Ghost && br.B.Contains(c.X - br.OffX, c.Z - br.OffZ)) { building = true; break; }
+                if (building) continue;
+                var mesh = geo.Roads;
+                var col = new Color(SurfAsphalt, 0f, 1f, LaneCode(2, 0));
+                var uv2 = new Vector2(1000f, 0f);
+                float bias = JunctionBias - 0.005f + (lod > 0 ? 0.06f * lod : 0f);
+                int first = mesh.V.Count;
+                foreach (var h in hull)
+                    mesh.Add(h + Vector3.Up * bias, Vector3.Up, new Vector2(((h.X * 0.5f + h.Z * 0.5f) % 20f + 30f) % 20f - 10f, h.Z - h.X), uv2, col);
+                // the hull is counter-clockwise in x/z seen from above; Godot fronts are clockwise from the front
+                for (int i = 1; i + 1 < hull.Count; i++) mesh.Tri(first, first + i + 1, first + i, Vector3.Up, geo.PavedFaces);
+            }
+
+        static bool Fillable(MapJunction j) => !j.Ghost && !j.Elevated && !j.Paved && !j.Pedestrian;
+        static List<Vector3> Outline(in MapJunctionRef jr)
+        {
+            var j = jr.J;
+            int end = j.RingEnds.Length > 0 ? j.RingEnds[0] : j.X.Length;
+            var l = new List<Vector3>(end);
+            for (int i = 0; i < end; i++) l.Add(new Vector3(jr.OffX + j.X[i], j.Y[i], jr.OffZ + j.Z[i]));
+            return l;
+        }
+        static float MinDist(List<Vector3> l, Vector3 p)
+        {
+            float m = float.MaxValue;
+            foreach (var q in l) m = MathF.Min(m, new Vector2(p.X - q.X, p.Z - q.Z).Length());
+            return m;
+        }
+        static bool Near(List<Vector3> l, float x, float z) => MinDist(l, new Vector3(x, 0, z)) < 4f;
+    }
+
+    /// <summary>Convex hull in x/z (monotone chain), counter-clockwise.</summary>
+    private static List<Vector3> Hull(List<Vector3> pts)
+    {
+        pts.Sort((p, q) => p.X != q.X ? p.X.CompareTo(q.X) : p.Z.CompareTo(q.Z));
+        static float Cross(Vector3 o, Vector3 a, Vector3 b) => (a.X - o.X) * (b.Z - o.Z) - (a.Z - o.Z) * (b.X - o.X);
+        var h = new List<Vector3>();
+        foreach (var p in pts) { while (h.Count >= 2 && Cross(h[^2], h[^1], p) <= 0) h.RemoveAt(h.Count - 1); h.Add(p); }
+        int lower = h.Count + 1;
+        for (int i = pts.Count - 2; i >= 0; i--) { var p = pts[i]; while (h.Count >= lower && Cross(h[^2], h[^1], p) <= 0) h.RemoveAt(h.Count - 1); h.Add(p); }
+        if (h.Count > 1) h.RemoveAt(h.Count - 1);
+        return h;
     }
 
     /// <summary>Every road that ends at this junction is laid on a paved area (and there is at least one).</summary>
@@ -653,11 +787,17 @@ public static class MapMesher
         var d = Dir(road, k);
         // on a greater road's carriageway: tucked under it, no shoulders there (D57)
         bool under0 = false, under1 = false;
+        bool startCap = k == 0 && (road.Flags & RoadFlag.StartCap) != 0, endCap = k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0;
         if (!road.IsRail)
         {
-            float g0 = GiveWay(ctx, s, p0.X, p0.Y, d), g1 = GiveWay(ctx, s, p1.X, p1.Y, d);
+            float g0 = GiveWay(ctx, s, p0.X, p0.Y, d, k == 0), g1 = GiveWay(ctx, s, p1.X, p1.Y, d, k == road.X.Length - 2);
             if (!float.IsNaN(g0) && g0 < y0 + 0.3f) { under0 = true; y0 = MathF.Min(y0, g0); }
             if (!float.IsNaN(g1) && g1 < y1 + 0.3f) { under1 = true; y1 = MathF.Min(y1, g1); }
+            // an end lying on another road, even a lesser one: no rounded cap, no shoulders (D57)
+            if (startCap && !under0 && OnOtherRoad(ctx, s, p0.X, p0.Y, d)) { under0 = true; startCap = false; }
+            if (endCap && !under1 && OnOtherRoad(ctx, s, p1.X, p1.Y, d)) { under1 = true; endCap = false; }
+            if (under0) startCap = false;
+            if (under1) endCap = false;
             // crossing it with both ends outside (no shared node): the middle decides, by a few centimetres at most
             if (!under0 && !under1)
             {
@@ -707,8 +847,8 @@ public static class MapMesher
 
         if (!road.IsRail)
         {
-            if (k == 0 && (road.Flags & RoadFlag.StartCap) != 0) AddCap(mesh, p0, -d, y0, road.HalfWidthAt(k), road.Along[0], col, collision, !bridge && !onPaved && !under0);
-            if (k == road.X.Length - 2 && (road.Flags & RoadFlag.EndCap) != 0) AddCap(mesh, p1, d, y1, road.HalfWidthAt(k + 1), road.Along[k + 1], col, collision, !bridge && !onPaved && !under1);
+            if (startCap) AddCap(mesh, p0, -d, y0, road.HalfWidthAt(k), road.Along[0], col, collision, !bridge && !onPaved);
+            if (endCap) AddCap(mesh, p1, d, y1, road.HalfWidthAt(k + 1), road.Along[k + 1], col, collision, !bridge && !onPaved);
         }
         if (bridge) AddBridgeSides(mesh, geo.PavedFaces, p0, p1, m0, m1, y0, y1, MathF.Max(road.HalfWidthAt(k), road.HalfWidthAt(k + 1)));
         if (walkL) AddPavement(mesh, geo.PavedFaces, road, k, p0, p1, m0, m1, y0, y1, -1, Kerbs(ctx, s, k, -1, wl));
