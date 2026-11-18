@@ -155,6 +155,9 @@ public partial class Walker : CharacterBody3D, IHittable
         _pitch = Mathf.Clamp(_pitch + pitch, -1.35f, 1.2f);
         Yaw += yaw;
     }
+    /// <summary>The sights' drift while aiming (D65, radians: yaw, pitch), set by the guns: the eye turns with it, so
+    /// the bullet goes where the drift points.</summary>
+    public Vector2 AimSway;
     /// <summary>Extra yaw for the third-person camera only (self-test side views); walking still follows <see cref="Yaw"/>.</summary>
     public float CameraOrbit;
 
@@ -399,7 +402,7 @@ public partial class Walker : CharacterBody3D, IHittable
             move = new Vector2(
                 (Input.IsKeyPressed(Key.D) ? 1 : 0) - (Input.IsKeyPressed(Key.A) ? 1 : 0),
                 (Input.IsKeyPressed(Key.W) ? 1 : 0) - (Input.IsKeyPressed(Key.S) ? 1 : 0));
-            sprint = Input.IsKeyPressed(Key.Shift) && Body.CanSprint;   // too thirsty or hurt: no sprinting (D46)
+            sprint = Input.IsKeyPressed(Key.Shift) && Body.CanSprint && !_aimOverride;   // too thirsty or hurt: no sprinting (D46); aiming: Shift holds the breath (D65)
             Crouching = Input.IsKeyPressed(Key.Ctrl);
             if (Input.IsKeyPressed(Key.Space) && IsOnFloor() && !Crouching) Velocity = Velocity with { Y = JumpSpeed };
         }
@@ -460,7 +463,7 @@ public partial class Walker : CharacterBody3D, IHittable
         float up = Crouching ? 1.12f : 1.66f;
         var fwd = new Vector3(-MathF.Sin(Yaw), 0, -MathF.Cos(Yaw));
         _fp.GlobalPosition = GlobalPosition + Vector3.Up * (up - MathF.Abs(LeanOffset) * 0.15f) + fwd * 0.12f + right * LeanOffset;
-        _fp.GlobalRotation = new Vector3(_pitch, Yaw, -LeanRoll * Lean * MathF.Min(1f, _leanRoom / LeanReach));
+        _fp.GlobalRotation = new Vector3(_pitch + AimSway.Y, Yaw + AimSway.X, -LeanRoll * Lean * MathF.Min(1f, _leanRoom / LeanReach));
     }
 }
 

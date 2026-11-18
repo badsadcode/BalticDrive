@@ -1002,3 +1002,20 @@ evening. So the look is no longer one fixed grade (Fantasy at 0.6, saturation 1.
 * The cloud-shadow texture is rebuilt in steps of 0.03 cover now that cover moves all the time.
 * `--mood=0` restores the old fixed look; `--grade`, `--sat` and `--haze` still override their part.
 Fly test: 4 frames over 33 ms, as before.
+
+## D65 — Bullet holes stay on the car; holding the breath (Tom's dump and idea)
+
+* **Bullet holes** were added to the scene root at the hit point: holes in the car stayed hanging in the air along the
+  road where it had been (Tom's dump: black squares floating over the street), and holes anywhere drifted when the
+  floating origin moved. Now each hole is a child of what it hit (the car, a building chunk), so it travels with it
+  and is freed with it. Test: a hole stays 0.00 m from its spot on the car when the car moves 10 m.
+* **Holding the breath** (Tom: "half breath… a little extra zoom for a short period, then the weapon sways for a
+  while, like catching my breath"). Aiming now has a gentle drift that really moves the aim: the eye turns with it.
+  It's a slow figure of eight, 1.6 mrad standing still (16 cm at 100 m), more on the move, about half crouched.
+  Shift while aiming holds the breath (Shift no longer sprints while aiming): the drift falls to a quarter, the view
+  zooms 18 % more, and the breath lasts 4 s. Letting go, or running out, starts catching breath for 0.8–3.4 s (longer
+  the more was used): the drift grows up to 6–7× and eases off, and no holding meanwhile. Breath refills over 4 s.
+  The HUD shows "Shift: hold breath", a breath bar while holding, and "catching breath...".
+* Test (`--autotest=breath`): sway 1.64 mrad aiming, 0.41 holding (field of view 55° → 45°), 10.8 catching breath;
+  the hold ends by itself after 4 s. The range test now holds its breath for the plates, as a player would: 11 of 11
+  hits (without holding, the 50 and 100 m plates were missed).

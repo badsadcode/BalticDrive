@@ -73,6 +73,42 @@ public partial class Weapons : Node3D
     private ulong _lastShotMs;
     /// <summary>Self-tests: hold the trigger / the aim from code.</summary>
     public bool TestTrigger, TestAim;
+    /// <summary>Self-tests: hold the breath from code (as Shift while aiming).</summary>
+    public bool TestBreath;
+
+    // ---- breathing (D65, Tom: "when I'm aiming and press Shift, half breath: a little extra zoom for a short time, then
+    // the weapon sways for a while, like catching my breath") ------------------------------------------------------
+    /// <summary>Breath left for holding: 1 full, drained in 4 s of holding, refilled over 4 s.</summary>
+    public float Breath { get; private set; } = 1f;
+    /// <summary>Holding the breath now (the sights still, a little zoom).</summary>
+    public bool Holding { get; private set; }
+    /// <summary>Seconds of catching breath left after letting go (the sway grows, no holding meanwhile).</summary>
+    public float Gasp { get; private set; }
+    private float _hold, _swayT;
+
+    /// <summary>The sights' drift this frame (radians), and the breath state: a slow figure-of-eight from breathing,
+    /// bigger on the move, smaller crouched, nearly gone while holding, three times as big while catching breath.</summary>
+    private Vector2 Breathe(float dt, bool aim)
+    {
+        bool want = aim && (TestBreath || Input.IsKeyPressed(Key.Shift)) && Gasp <= 0 && Breath > 0.05f;
+        if (want && !Holding) Holding = true;
+        if (Holding && (!want || Breath <= 0.05f))
+        {
+            Holding = false;
+            Gasp = 0.8f + 2.6f * (1f - Breath);   // the longer it was held, the longer the panting
+        }
+        if (Holding) Breath = MathF.Max(0, Breath - dt / 4f);
+        else if (Gasp <= 0) Breath = MathF.Min(1, Breath + dt / 4f);
+        Gasp = MathF.Max(0, Gasp - dt);
+        _hold = Mathf.MoveToward(_hold, Holding ? 1f : 0f, dt / 0.35f);
+        if (!aim) return Vector2.Zero;
+        // panting: faster and bigger, easing off as it ends
+        float pant = Mathf.Clamp(Gasp / 1.5f, 0, 1);
+        _swayT += dt * (1f + 1.6f * pant);
+        float amp = 0.0034f * (_w.Crouching ? 0.55f : 1f) * (1f + Mathf.Clamp(_w.Speed / 2f, 0, 2.5f)) * (1f + 2.2f * pant) * (1f - 0.88f * _hold);
+        var s = new Vector2(MathF.Sin(_swayT * 0.9f) + 0.35f * MathF.Sin(_swayT * 2.3f + 1f), MathF.Sin(_swayT * 1.8f + 0.5f) * 0.7f + 0.3f * MathF.Sin(_swayT * 0.55f));
+        return s * amp;
+    }
     /// <summary>Self-tests: shots fired, bullets that hit something, the last hit (where, what, how far, flight time).</summary>
     public int Fired, Hits, TargetHits;
     /// <summary>A shot was fired (where, which gun): bandits hear it (D47).</summary>
@@ -269,16 +305,18 @@ public partial class Weapons : Node3D
         _ui.Visible = true;
         bool show = _def != null && _w.Active;
         _hudAmmo.Visible = show;
-        _hudAmmo.Text = Status;
+        _hudAmmo.Text = Status + (_aim > 0.5f ? Holding ? $"\nholding breath {new string('|', (int)MathF.Ceiling(Breath * 10))}" : Gasp > 0 ? "\ncatching breath..." : "\nShift: hold breath" : "");
         if (!show) { _holder.Visible = false; _arms.Visible = false; _cross.Visible = false;   // no gun: no arms rig either (Tom's T-pose twin)
-            _w.AimOverride = false; return; }
+            _w.AimOverride = false; _w.AimSway = Vector2.Zero; return; }
         bool aim = (Aiming || TestAim) && _reload < 0;
         // aiming is always first person (the brief); the walker goes back to its own view on release
         _w.AimOverride = aim;
         _holder.Visible = _w.FirstPerson || aim;
         _aim = Mathf.MoveToward(_aim, aim ? 1f : 0f, dt / 0.16f);
         _cross.Visible = _aim < 0.5f;
-        _eye.Fov = Mathf.Lerp(75f, _def.AimFov, Smooth(_aim));
+        // holding the breath: a little more zoom (D65)
+        _w.AimSway = Breathe(dt, _aim > 0.5f) * Smooth(_aim);
+        _eye.Fov = Mathf.Lerp(75f, _def.AimFov * Mathf.Lerp(1f, 0.82f, Smooth(_hold)), Smooth(_aim));
 
         _cooldown -= dt;
         bool trigger = _triggerHeld || TestTrigger;

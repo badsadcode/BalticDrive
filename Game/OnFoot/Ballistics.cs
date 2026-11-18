@@ -81,7 +81,7 @@ public sealed partial class Ballistics : Node
                 var bh = new BulletHit(at, n, v, b.Mass, at.DistanceTo(b.From), b.Damage);
                 var said = Hits.Apply(collider, bh);
                 b.OnHit?.Invoke(said, bh, surface);
-                Impact(at, n, surface);
+                Impact(at, n, surface, collider as Node3D);
                 _bullets.RemoveAt(i);
                 continue;
             }
@@ -90,7 +90,9 @@ public sealed partial class Ballistics : Node
         }
     }
 
-    private void Impact(Vector3 at, Vector3 n, string surface)
+    /// <param name="on">What was hit: the hole is stuck to it (D65: holes in a car stayed hanging in the air where
+    /// it had been, and holes left in the scene root drifted when the floating origin moved).</param>
+    private void Impact(Vector3 at, Vector3 n, string surface, Node3D? on = null)
     {
         var dust = surface switch
         {
@@ -124,7 +126,7 @@ public sealed partial class Ballistics : Node
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.06f, 0.055f, 0.05f), Roughness = 1, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded },
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         };
-        GetTree().Root.AddChild(mark);
+        if (on != null && IsInstanceValid(on)) on.AddChild(mark); else GetTree().Root.AddChild(mark);
         mark.GlobalPosition = at + n * 0.01f;
         if (MathF.Abs(n.Dot(Vector3.Up)) > 0.98f) mark.LookAt(mark.GlobalPosition - n, Vector3.Forward); else mark.LookAt(mark.GlobalPosition - n, Vector3.Up);
         _marks.Enqueue(mark);

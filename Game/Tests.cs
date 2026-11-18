@@ -228,8 +228,10 @@ public sealed class Tests
         }
         // keep looking at the target (it may have moved)
         if (t < 1.3 && GodotObject.IsInstanceValid(node)) w.Face(node.GlobalPosition + aim + Vector3.Up * (name.StartsWith("plate 100") ? 0.06f : 0f));
+        // long shots: hold the breath first, as a player would (D65: the sights drift now)
+        if (At(0.3) && name.StartsWith("plate")) g.TestBreath = true;
         if (At(1.0)) { g.TestTrigger = true; _rangeHitsBefore = g.TargetHits; }
-        if (At(1.06)) g.TestTrigger = false;
+        if (At(1.06)) { g.TestTrigger = false; g.TestBreath = false; }
         if (At(1.25) && (name.StartsWith("bottle 2") || name.StartsWith("plate 25") || name.StartsWith("paper"))) Shot($"range_{name.Replace(' ', '_')}");
         if (At(2.3)) Log.Info("Test", $"range: {name}: {(g.TargetHits > _rangeHitsBefore ? "hit, " + g.LastTarget : "missed")} ({g.LastHit})");
     }
@@ -487,6 +489,64 @@ public sealed class Tests
             wk.Face(_bp.GlobalPosition + Vector3.Up);
             Shot("banditpath_end");
             Log.Info("Test", _bpReached > 0 ? $"banditpath: REACHED you in {_bpReached:0.0} s" : $"banditpath: did not reach you in 30 s (ended {d:0} m away)");
+            Log.Info("Test", "done"); _main.GetTree().Quit(0);
+        }
+    }
+
+    private double _brTime = -1;
+    private readonly List<float> _brSway = new();
+    private Vector3 _brMarkLocal;
+
+    /// <summary>--autotest=breath (D65): Mosin aimed; sway measured normally, holding the breath, then catching it
+    /// (largest drift of the eye from its mean over each 2 s); field of view held. Then bullets into the car, the car
+    /// moved 10 m: do the holes go with it?</summary>
+    private void BreathTest(double delta)
+    {
+        if (_brTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _main.GetTree().Quit(1); return; }
+            _main.Walker!.Guns.Equip("mosin");
+            _main.Walker.Guns.TestAim = true;
+            _brTime = 0;
+            return;
+        }
+        var w = _main.Walker!; var g = w.Guns;
+        double before = _brTime;
+        _brTime += delta;
+        bool Now(double t) => before < t && _brTime >= t;
+        float Spread() { if (_brSway.Count == 0) return 0; float m = _brSway.Average(); float r = _brSway.Max(x => MathF.Abs(x - m)); _brSway.Clear(); return r * 1000; }
+        _brSway.Add(w.AimSway.X + w.AimSway.Y * 0.7f);
+        if (Now(1)) _brSway.Clear();
+        if (Now(3)) { Log.Info("Test", $"breath: aiming: sway {Spread():0.00} mrad, fov {w.FirstPersonCamera.Fov:0.0}"); g.TestBreath = true; }
+        if (Now(3.6)) _brSway.Clear();
+        if (Now(5.6)) { Log.Info("Test", $"breath: holding: sway {Spread():0.00} mrad, fov {w.FirstPersonCamera.Fov:0.0}, breath {g.Breath:0.00}, holding {g.Holding}"); Shot("breath_holding"); }
+        if (Now(7.5)) Log.Info("Test", $"breath: after 4.5 s of holding: holding {g.Holding}, breath {g.Breath:0.00}, catching breath {g.Gasp:0.0} s");
+        if (Now(7.6)) { g.TestBreath = false; _brSway.Clear(); }
+        if (Now(9.6)) Log.Info("Test", $"breath: catching breath: sway {Spread():0.00} mrad, fov {w.FirstPersonCamera.Fov:0.0}, gasp left {g.Gasp:0.0} s");
+        if (Now(14)) { Log.Info("Test", $"breath: recovered: gasp {g.Gasp:0.0} s, breath {g.Breath:0.00}"); g.TestAim = false; }
+        // holes in the car
+        var car = _main.Car!;
+        if (Now(14.5))
+        {
+            var target = car.GlobalPosition + Vector3.Up * 0.8f;
+            w.GlobalPosition = car.GlobalPosition + car.GlobalBasis.X * 6f + Vector3.Up * 0.3f;
+            w.Face(target);
+        }
+        if (Now(15)) { g.TestAim = true; }
+        if (Now(15.6)) g.TestTrigger = true;
+        if (Now(15.7)) g.TestTrigger = false;
+        if (Now(17))
+        {
+            var marks = car.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().Where(m => m.Mesh is QuadMesh q && q.Size.X < 0.1f).ToList();
+            Log.Info("Test", $"breath: bullet holes on the car: {marks.Count}");
+            if (marks.Count > 0) _brMarkLocal = car.ToLocal(marks[0].GlobalPosition);
+            car.GlobalPosition += car.GlobalBasis.Z * -10f;
+        }
+        if (Now(18))
+        {
+            var marks = car.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().Where(m => m.Mesh is QuadMesh q && q.Size.X < 0.1f).ToList();
+            if (marks.Count > 0) Log.Info("Test", $"breath: after moving the car 10 m the hole is {car.ToLocal(marks[0].GlobalPosition).DistanceTo(_brMarkLocal):0.00} m from where it was on the car");
             Log.Info("Test", "done"); _main.GetTree().Quit(0);
         }
     }
@@ -1104,6 +1164,7 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "grassbench") { GrassBench(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "farbench") { FarBench(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "banditpath") { BanditPath(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "breath") { BreathTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
