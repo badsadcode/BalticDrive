@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
 namespace BalticDrive.Sky;
@@ -11,7 +12,7 @@ namespace BalticDrive.Sky;
 /// </summary>
 public static class ColorGrading
 {
-    public static readonly string[] Names = { "Natural", "Cinematic", "Fantasy", "Dreamy", "Rustic", "Dark fantasy", "Vintage", "Vibrant" };
+    public static readonly string[] Names = { "Natural", "Cinematic", "Fantasy", "Dreamy", "Rustic", "Dark fantasy", "Vintage", "Vibrant", "Baltic" };
 
     /// <summary>The grading controls of a preset.</summary>
     private readonly record struct Grade(
@@ -36,6 +37,9 @@ public static class ColorGrading
         5 => new(-.06f, .0f, .7f, 1.18f, -.02f, .96f, new Color(.12f, .18f, .28f), .18f, new Color(.85f, .82f, .75f), .05f, 0), // Dark fantasy: cold, muted, deep
         6 => new(.1f, .02f, .75f, .9f, .07f, .97f, new Color(.3f, .3f, .2f), .1f, new Color(1f, .9f, .7f), .12f, -.15f),     // Vintage: faded, yellowed
         7 => new(.02f, 0, 1.35f, 1.12f, 0, 1.03f, new Color(.2f, .3f, .5f), .05f, new Color(1f, .95f, .85f), .05f, 0),      // Vibrant: saturated, punchy
+        // Baltic (D64, a proposal for Tom): grounded and a little cool, honest saturation, olive greens, soft neutral
+        // highlights, slightly blue shadows; nothing glows
+        8 => new(-.03f, .0f, .9f, 1.06f, .015f, 1.0f, new Color(.18f, .24f, .32f), .1f, new Color(.95f, .93f, .88f), .05f, -.18f),
         _ => new(0, 0, 1, 1, 0, 1, Colors.Black, 0, Colors.White, 0, 0),
     };
 
@@ -50,6 +54,40 @@ public static class ColorGrading
         if (s == 0) return null;
         int key = preset * 11 + s;
         return Cache[key] ??= Build(For(preset), s / 10f);
+    }
+
+    /// <summary>A lookup table blending several presets by weight (D64: the mood follows the weather and the sun),
+    /// each at <paramref name="strength"/>. Built fresh (32³, a few milliseconds); callers rebuild only when the weights
+    /// move noticeably.</summary>
+    public static ImageTexture3D Blend(IReadOnlyList<(int Preset, float Weight)> parts, float strength)
+    {
+        float total = 0;
+        foreach (var (_, w) in parts) total += Math.Max(0, w);
+        var grades = new List<(Grade G, float W)>();
+        foreach (var (p, w) in parts)
+            if (w > 0 && total > 0) grades.Add((For(p), w / total));
+        var slices = new Godot.Collections.Array<Image>();
+        for (int b = 0; b < N; b++)
+        {
+            var bytes = new byte[N * N * 3];
+            for (int gr = 0; gr < N; gr++)
+                for (int r = 0; r < N; r++)
+                {
+                    var c = new Vector3(r, gr, b) / (N - 1);
+                    var o = Vector3.Zero;
+                    foreach (var (g, w) in grades) o += Apply(g, c) * w;
+                    if (grades.Count == 0) o = c;
+                    o = c.Lerp(o, strength);
+                    int i = (gr * N + r) * 3;
+                    bytes[i] = (byte)Math.Round(Math.Clamp(o.X, 0, 1) * 255);
+                    bytes[i + 1] = (byte)Math.Round(Math.Clamp(o.Y, 0, 1) * 255);
+                    bytes[i + 2] = (byte)Math.Round(Math.Clamp(o.Z, 0, 1) * 255);
+                }
+            slices.Add(Image.CreateFromData(N, N, false, Image.Format.Rgb8, bytes));
+        }
+        var tex = new ImageTexture3D();
+        tex.Create(Image.Format.Rgb8, N, N, N, false, slices);
+        return tex;
     }
 
     private static ImageTexture3D Build(Grade g, float k)

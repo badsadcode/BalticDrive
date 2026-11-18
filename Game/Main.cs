@@ -712,15 +712,16 @@ public partial class Main : Node3D
 		if (Args.TryGetValue("hour", out var h)) _atmosphere.Hour = double.Parse(h, System.Globalization.CultureInfo.InvariantCulture);
 		if (Args.TryGetValue("day", out var d)) _atmosphere.DayOfYear = double.Parse(d, System.Globalization.CultureInfo.InvariantCulture);
 		if (Args.TryGetValue("jump", out var jmp)) _atmosphere.AdvanceClock(double.Parse(jmp, System.Globalization.CultureInfo.InvariantCulture));
-		if (Args.TryGetValue("clouds", out var c)) _atmosphere.Coverage = float.Parse(c, System.Globalization.CultureInfo.InvariantCulture);
+		if (Args.TryGetValue("clouds", out var c)) { _atmosphere.Coverage = float.Parse(c, System.Globalization.CultureInfo.InvariantCulture); _atmosphere.WeatherDrift = false; }
+		if (Args.GetValueOrDefault("mood", "1") == "0") _atmosphere.Mood = false;
 		AddChild(_atmosphere);
 		// look experiments: --grade=N (0 none), --volfog=0, --haze=F, --sat=F
 		var env = _atmosphere.Environment;
 		var inv = System.Globalization.CultureInfo.InvariantCulture;
-		if (Args.TryGetValue("grade", out var g)) env.AdjustmentColorCorrection = g == "0" ? null : Sky.ColorGrading.Lut(int.Parse(g), .6f);
+		if (Args.TryGetValue("grade", out var g)) { env.AdjustmentColorCorrection = g == "0" ? null : Sky.ColorGrading.Lut(int.Parse(g), .6f); _atmosphere.GradeFixed = true; }
 		if (Args.TryGetValue("volfog", out var v)) env.VolumetricFogEnabled = v != "0";
-		if (Args.TryGetValue("haze", out var hz)) { env.FogDensity = .00007f * float.Parse(hz, inv); env.FogAerialPerspective = .26f * float.Parse(hz, inv); }
-		if (Args.TryGetValue("sat", out var st)) env.AdjustmentSaturation = float.Parse(st, inv);
+		if (Args.TryGetValue("haze", out var hz)) { _atmosphere.HazeFixed = true; env.FogDensity = .00007f * float.Parse(hz, inv); env.FogAerialPerspective = .26f * float.Parse(hz, inv); }
+		if (Args.TryGetValue("sat", out var st)) { env.AdjustmentSaturation = float.Parse(st, inv); _atmosphere.SaturationFixed = true; }
 		// diagnostics: --off=ssao,ssil,glow,fog,water,aa
 		if (Args.TryGetValue("off", out var off))
 			foreach (var f in off.Split(','))

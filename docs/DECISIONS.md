@@ -985,3 +985,20 @@ comes from size and seed (BadBuilding's fallback). Passing `start_date` through 
 change and a rebuild: a later step.
 `--autotest=roadscan --find=industrial` lists industrial buildings of three sizes to look at.
 Fly test with BadBuilding on: 3 frames over 33 ms, 3,685 BadBuilding buildings at 6.7 ms and 2,587 triangles each.
+
+## D64 — Weather drives the mood (Tom: grey November and golden evening, "both")
+
+Tom saw no real difference between colour grades side by side (60 % strength, small nudges); four full moods (time,
+clouds, haze, saturation and grade together) were clearly different, and he wanted both grey November and golden
+evening. So the look is no longer one fixed grade (Fantasy at 0.6, saturation 1.08):
+* **Weather drifts:** cloud cover follows two slow waves (31 and 47 minutes of play, carried by clock jumps and a
+  running clock), 0.08–0.98, so a session passes through clear spells and grey fronts. `--clouds=` still fixes it.
+* **Overcast** (cover 0.62 → 0.92) dims the sun to 28 %, lifts the shade by 35 % and greys it, and **golden** (sun
+  under 22°, above the horizon, not overcast) marks the low warm light.
+* **Grade:** a lookup table blended from three presets by those weights: the new Baltic (cool, honest, olive greens)
+  under cloud, Rustic in a golden light, Cinematic in clear daylight; at 0.7 strength, rebuilt only when the blend
+  moves by 0.08. **Saturation** 1.05 clear, 1.08 golden, 0.82 overcast. **Haze** up to 2.3× under cloud and up to
+  3.2× in the early morning (mist, 4:30–10:30).
+* The cloud-shadow texture is rebuilt in steps of 0.03 cover now that cover moves all the time.
+* `--mood=0` restores the old fixed look; `--grade`, `--sat` and `--haze` still override their part.
+Fly test: 4 frames over 33 ms, as before.

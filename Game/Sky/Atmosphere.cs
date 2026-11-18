@@ -26,6 +26,18 @@ public partial class Atmosphere : Node3D
     /// <summary>Cloud cover 0..1 (Tom's Thornwake "Clouds" 0.4) and afternoon towers 0..1.</summary>
     public float Coverage = 0.4f, Cumulus = 0.35f;
 
+    // ---- weather and mood (D64, Tom: grey November and golden evening, "both") -------------------------------------
+    /// <summary>Cloud cover drifts by itself between clear and overcast (a front every ~25–40 minutes of play); off when
+    /// <c>--clouds</c> fixes it.</summary>
+    public bool WeatherDrift = true;
+    /// <summary>The mood follows the weather and the sun: grade, saturation, haze and light (off: the old fixed look).</summary>
+    public bool Mood = true;
+    /// <summary>0 clear … 1 overcast, and how golden the light is (a low sun under a broken sky), for the HUD and tests.</summary>
+    public float Overcast { get; private set; }
+    public float Golden { get; private set; }
+    private double _weatherClock;
+    private float _gradeOvercast = -1, _gradeGolden = -1;
+
     private const double CloudPeriod = 6000, CloudHeight = 1600;
     private const float CloudBaseAboveSea = 1500;
     private const int Tile = 256;
@@ -163,6 +175,26 @@ public partial class Atmosphere : Node3D
         float el = (float)elevation;
 
         var light = Light(el);
+        // weather: cover drifts on play time (and with any jump of the clock), slowly: two noise waves, 31 and 47 min
+        if (WeatherDrift)
+        {
+            _weatherClock += delta + _cloudJump + delta * TimeScale * 3600;
+            double t = _weatherClock / 60.0;   // minutes
+            double w = 0.5 + 0.32 * Math.Sin(t / 31.0 * Math.Tau + 1.3) + 0.22 * Math.Sin(t / 47.0 * Math.Tau + 4.1);
+            Coverage = (float)Math.Clamp(w, 0.08, 0.98);
+        }
+        Overcast = Mathf.SmoothStep(0.62f, 0.92f, Coverage);
+        Golden = (1 - Mathf.SmoothStep(5f, 22f, el)) * Mathf.SmoothStep(-1.5f, 3f, el) * (1 - Overcast);
+        // under a closed sky the sun is a glow, the shade brighter and greyer
+        if (Mood)
+        {
+            light = light with
+            {
+                SunEnergy = light.SunEnergy * Mathf.Lerp(1f, 0.28f, Overcast),
+                AmbientEnergy = light.AmbientEnergy * Mathf.Lerp(1f, 1.35f, Overcast),
+                ShadeTint = light.ShadeTint.Lerp(new Color(0.62f, 0.66f, 0.7f), Overcast * 0.6f),
+            };
+        }
         Sun.LightEnergy = light.SunEnergy;
         Sun.LightColor = light.SunColor;
         Environment.AmbientLightEnergy = light.AmbientEnergy;
@@ -175,6 +207,7 @@ public partial class Atmosphere : Node3D
         var (fog, scatter, nightFog) = Fog(el);
         Environment.FogLightColor = (fog * Mathf.Clamp(daylight * 1.1f, 0, 1)).Lerp(nightFog, night * .85f);
         Environment.FogSunScatter = scatter;
+        if (Mood) UpdateMood(el);
 
         var toSun = Sun.GlobalTransform.Basis.Z.Normalized();
         var trueSun = Direction(elevation, azimuth);
@@ -236,7 +269,8 @@ public partial class Atmosphere : Node3D
         _cloudsNear.SetShaderParameter("fog_depth", Environment.VolumetricFogLength * 1.02f + 1);
 
         // cloud shadows: ground point g is shaded by the cloud at g + toSun.xz · H / toSun.y (3×3 tiles of period P)
-        if (Math.Abs(_shadowCoverage - Coverage) > 1e-4) RebuildShadowTexture(Coverage);
+        // (in steps: the cover drifts all the time now, a rebuild every frame would cost)
+        if (Math.Abs(_shadowCoverage - Coverage) > 0.03f) RebuildShadowTexture(Coverage);
         double lift = Math.Max(toSun.Y, .25);
         double sx = toSun.X / lift * CloudHeight, sz = toSun.Z / lift * CloudHeight;
         double c0x = Wrap(CloudPeriod * .5 - (originX + sx + _windX), CloudPeriod), c0z = Wrap(CloudPeriod * .5 - (originZ + sz + _windZ), CloudPeriod);
@@ -245,6 +279,32 @@ public partial class Atmosphere : Node3D
         _shadow.Position = new Vector3((float)dx, cameraLocal.Y, (float)dz);
         _shadow.Modulate = new Color(1, 1, 1, .31f * Mathf.SmoothStep(3, 18, el));
     }
+
+    /// <summary>
+    /// The mood from the weather and the sun (D64): a grade blended from three presets (Baltic under cloud, Rustic in a
+    /// golden light, Cinematic in clear daylight), saturation from 1.05 down to 0.82 under cloud, and more haze under
+    /// cloud and in the early morning (mist). The lookup table is rebuilt only when the blend moves by 0.08.
+    /// </summary>
+    private void UpdateMood(float el)
+    {
+        float hour = (float)Hour;
+        float mist = Mathf.SmoothStep(4.5f, 6.5f, hour) * (1 - Mathf.SmoothStep(8f, 10.5f, hour)) * (0.4f + 0.6f * Overcast + 0.3f);
+        float haze = 1f + 1.3f * Overcast + 2.2f * mist;
+        if (!HazeFixed)
+        {
+            Environment.FogDensity = .00007f * haze;
+            Environment.FogAerialPerspective = Mathf.Min(1f, .26f * (1f + 0.6f * Overcast + 1.2f * mist));
+        }
+        if (!SaturationFixed) Environment.AdjustmentSaturation = Mathf.Lerp(Mathf.Lerp(1.05f, 1.08f, Golden), 0.82f, Overcast);
+        if (GradeFixed) return;
+        if (Math.Abs(Overcast - _gradeOvercast) < 0.08f && Math.Abs(Golden - _gradeGolden) < 0.08f) return;
+        _gradeOvercast = Overcast; _gradeGolden = Golden;
+        float clear = Math.Max(0, 1 - Overcast - Golden);
+        Environment.AdjustmentColorCorrection = ColorGrading.Blend(new[] { (8, Overcast), (4, Golden), (1, clear) }, 0.7f);
+    }
+
+    /// <summary>Set by the look switches on the command line (--grade, --sat, --haze): they win over the mood.</summary>
+    public bool GradeFixed, SaturationFixed, HazeFixed;
 
     // ---- the sun ---------------------------------------------------------------------------------------------------
 
