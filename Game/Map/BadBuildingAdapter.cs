@@ -29,6 +29,8 @@ public static class BadBuildingAdapter
     /// <summary>Surface patterns the building shader draws (D63, BadBuilding's industrial style): roller doors,
     /// ribbed metal cladding, brick.</summary>
     private const float KindRoller = 0.6f, KindRibbed = 0.72f, KindBrick = 0.78f;
+    /// <summary>A glass curtain wall (D70, BadBuilding's office style): panels, mullions and floor bands in the shader.</summary>
+    private const float KindCurtain = 0.635f;
     private const float Context = 40f;
 
     private static long _count, _ticks, _tris, _failed;
@@ -48,7 +50,9 @@ public static class BadBuildingAdapter
     /// <summary>What the library builds (D29; houses, barns and pitched roofs since its roofs, D37): not churches,
     /// towers, canopies, parts of multi-part buildings or domes, which keep the old meshes.</summary>
     public static bool Eligible(MapBuilding b) =>
-        !b.Ghost && !b.IsPart && !b.IsCanopy && b.Height >= 2.4f && b.Roof != RoofKind.Dome
+        !b.Ghost && !b.IsCanopy && b.Height >= 2.4f && b.Roof != RoofKind.Dome
+        // parts too (D70: skyscrapers are mapped as parts), but not the slivers that make up spires and antenna rings
+        && (!b.IsPart || (b.MaxX - b.MinX) * (b.MaxZ - b.MinZ) > 60f && b.Height - b.MinHeight > 2.4f)
         && b.Type is BuildingKind.Generic or BuildingKind.Apartments or BuildingKind.Commercial or BuildingKind.Civic
             or BuildingKind.House or BuildingKind.Farm or BuildingKind.Shed or BuildingKind.Industrial;
 
@@ -80,7 +84,10 @@ public static class BadBuildingAdapter
             if (ReferenceEquals(o.B, b) || o.B.Ghost) continue;
             if (o.OffX + o.B.MaxX < ox - Context + (b.MinX - b.Cx) || o.OffX + o.B.MinX > ox + Context + (b.MaxX - b.Cx)) continue;
             if (o.OffZ + o.B.MaxZ < oz - Context + (b.MinZ - b.Cz) || o.OffZ + o.B.MinZ > oz + Context + (b.MaxZ - b.Cz)) continue;
-            neighbours.Add(Ring(o.B.RX[0], o.B.RZ[0], o.OffX - ox, o.OffZ - oz));
+            var ring = Ring(o.B.RX[0], o.B.RZ[0], o.OffX - ox, o.OffZ - oz);
+            // another part of the same building: say how high it stands, so a low podium doesn't blind a tower (D70)
+            if (b.Group >= 0 && o.B.Group == b.Group) ring = ring with { PartMin = o.B.MinHeight, PartTop = o.B.Height };
+            neighbours.Add(ring);
         }
         var streets = new List<BB.Model.StreetLine>();
         float reach = Context + MathF.Max(b.MaxX - b.MinX, b.MaxZ - b.MinZ) * 0.5f;
@@ -112,6 +119,7 @@ public static class BadBuildingAdapter
             // the roof as the map (or the importer's guess for houses) has it
             Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
             RoofHeight = b.RoofHeight > 0.2f ? b.RoofHeight : null,
+            MinHeight = b.IsPart && b.MinHeight > 0.05f ? b.MinHeight : null,   // a part in the air (D70)
             Neighbours = neighbours,
             Streets = streets,
             Ground = ground,
@@ -145,8 +153,11 @@ public static class BadBuildingAdapter
                     if (map.TryGetValue(i, out int v)) return v;
                     var p = src.Positions[i];
                     var n = src.Normals[i];
+                    // UV.x: metres along the wall a vertex is on (its normal gives the wall's direction; the library
+                    // gives every quad its own vertices), so patterns line up on walls at any angle (D70)
+                    float along = MathF.Abs(n.Y) < 0.5f ? p.X * -n.Z + p.Z * n.X : p.X + p.Z;
                     v = mesh.Add(new Vector3(ox + p.X, p.Y, oz + p.Z), new Vector3(n.X, n.Y, n.Z),
-                        new Vector2(p.X + p.Z, p.Y - floor), new Vector2(0f, top), col);
+                        new Vector2(along, p.Y - floor), new Vector2(0f, top), col);
                     map[i] = v;
                     return v;
                 }
@@ -198,7 +209,8 @@ public static class BadBuildingAdapter
         {
             "glass" or "glass_block" => KindGlass,
             "roof" => KindFlatRoof,
-            "cladding" => KindRibbed,
+            "cladding" or "plant" => KindRibbed,
+            "curtain" => KindCurtain,
             "brick" or "chimney" => KindBrick,
             "roller" => KindRoller,
             _ => KindPlain,

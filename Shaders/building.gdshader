@@ -119,7 +119,29 @@ void fragment() {
 		float slat = smoothstep(0.0, 0.15, fract(UV.y / 0.1)) * smoothstep(1.0, 0.8, fract(UV.y / 0.1));
 		wall = mix(wall, tint * mix(0.7, 1.0, slat), is_roller);
 	}
-	float glassy = max(glass * window * (1.0 - boarded), is_glass);
+	// glass curtain wall (D70): panels 1.5 m wide, a floor band and slab edge every 3.6 m, thin mullions; the glass
+	// darker head-on and reflecting the sky at grazing angles, each panel a shade different
+	float is_curtain = 1.0 - step(0.012, abs(kind - 0.635));
+	if (is_curtain > 0.5) {
+		float pu = fract(UV.x / 1.5), pv = fract(UV.y / 3.6);
+		vec2 cell_id = vec2(floor(UV.x / 1.5), floor(UV.y / 3.6));
+		// lines 6 cm wide but never under a pixel (a thinner one vanished at 30 m), averaged out far away
+		vec2 px = max(fwidth(UV), vec2(1e-4));
+		float mull_fade = clamp(1.0 - dist / 600.0, 0.0, 1.0);
+		float du = min(pu, 1.0 - pu) * 1.5, dv = min(pv, 1.0 - pv) * 3.6;
+		float wu = max(0.06, px.x * 1.2), wv = max(0.08, px.y * 1.2);
+		float mull = max(smoothstep(wu, wu - px.x, du) * min(1.0, 0.06 / wu * 1.5),
+		                 smoothstep(wv, wv - px.y, dv) * min(1.0, 0.08 / wv * 1.5)) * mull_fade;
+		// the opaque spandrel at each floor: 0.9 m of lighter, frosted panel
+		float band = smoothstep(0.25 + px.y / 3.6, 0.25, pv) * mull_fade;
+		float fres = pow(1.0 - clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0), 3.0);
+		vec3 sky = vec3(0.55, 0.65, 0.75);
+		vec3 pane = tint * (0.7 + 0.45 * hash(cell_id + floor(wpos.xz * 0.01)));
+		pane = mix(pane, sky * 0.7, fres * 0.75);
+		pane = mix(pane, tint * 1.35 + vec3(0.06, 0.065, 0.07), band * 0.8);
+		wall = mix(pane, vec3(0.30, 0.31, 0.32), mull * 0.85);
+	}
+	float glassy = max(max(glass * window * (1.0 - boarded), is_glass), is_curtain * 0.85);
 	// real glass from BadBuilding: its tint, a faint sky reflection, no grime
 	wall = mix(wall, tint * 0.9 + vec3(0.012, 0.016, 0.02), is_glass);
 

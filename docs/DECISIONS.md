@@ -1097,3 +1097,24 @@ building (2.5 m clear) or water. Eight Synty models (sedan, small, medium, muscl
 Test (`--autotest=wrecks`): three wrecks round the start (two taxis, a sedan); the nearest found, a tyre (63 %)
 stripped in the workshop, then fitted on your own car's empty front-left corner.
 Not yet: driving a wreck once it's fixed; wrecks on the radar; tools.
+
+## D70 — Offices and towers from BadBuilding (Tom: "Yes, offices", 18 Nov 2026)
+
+BadBuilding has an office style now (its D18–D20): curtain glass, ribbon windows or concrete grids by era, glazed
+lobbies, plant on the roof, crowns and masts on towers, and parts that start in the air. In the game, with
+BadBuilding on (`--buildings=bb`, F7):
+* **Towers go to BadBuilding** up to 330 m (`MapMesher.TallTower`) when they are commercial or untyped; apartment
+  towers up to 62 m as before. Building parts are eligible too, when they have some size (over 60 m² and 2.4 m of
+  wall): Warsaw's towers are mapped as stacks of parts. A part's `min_height` goes into the request.
+* **Parts of one building tell each other their heights** (same group), so a low podium no longer turns the tower over
+  it into a blank party wall (it did: one 71 m office near Rondo ONZ was windowless on every side).
+* **Curtain wall in the shader** (kind 0.635, role `curtain`): 1.5 m panels, a 0.9 m opaque spandrel band every
+  3.6 m storey, mullions at least a pixel wide (thinner ones vanished at 30 m) and averaged away by 600 m; each panel a
+  shade different, the sky reflected at grazing angles, glossy like the windows.
+* **Wall UVs from the wall normal** (`BadBuildingAdapter`): UV.x is metres along the wall for walls at any angle, so
+  the patterns (panels, brick, ribs) line up on every side.
+* BadBuilding's `cladding` and `plant` surfaces draw as ribbed metal.
+Looked at: Rondo ONZ, Varso and the towers round it, from the street and from the air, against the classic look.
+Fly test (6 km at 40 m/s): median 16.7 ms both ways; worst 59 ms with BadBuilding (62 ms classic), 4 frames over
+33 ms (6 classic).
+Not yet: concrete towers and setbacks; the Palace of Culture and such landmarks stay classic.

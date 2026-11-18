@@ -104,8 +104,13 @@ public static class MapMesher
     /// <summary>A tall building the near cells draw (BadBuilding's PRL towers and slabs) while the skyline only keeps
     /// its far copy.</summary>
     public static bool NearHandled(MapBuilding b) =>
-        BadBuildingAdapter.Enabled && b.Height > TallBuilding && b.Height <= TallHousing && !b.Ghost && !b.IsPart
-        && b.Type is BuildingKind.Apartments or BuildingKind.Generic;
+        BadBuildingAdapter.Enabled && b.Height > TallBuilding && !b.Ghost && BadBuildingAdapter.Eligible(b)
+        && (b.Height <= TallHousing && b.Type is BuildingKind.Apartments or BuildingKind.Generic
+            // offices and towers (D70): BadBuilding's office style draws them near; the skyline keeps the far copy
+            || b.Height <= TallTower && b.Type is BuildingKind.Commercial or BuildingKind.Generic);
+
+    /// <summary>Towers up to this height are drawn by BadBuilding near the player (D70).</summary>
+    public const float TallTower = 330f;
 
     // Surface codes in vertex colour R, read by shaders/map_road.gdshader.
     private const float SurfAsphalt = 0f, SurfConcrete = 0.25f, SurfLoose = 0.5f, SurfSlab = 0.89f, SurfRail = 1f;

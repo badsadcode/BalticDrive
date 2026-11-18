@@ -146,6 +146,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   - A world authoring mode in game that saves to that override layer; the release ships map + edits.
   - BadBuilding (D29, 14 Nov): its buildings are in the game behind the switch (F7 / `--buildings=bb`), for
     flat-roofed town buildings within 600 m. Next: roofs, then making it the default once Tom has driven it.
+    Since then: industrial (D63) and offices and towers with parts in the air (D70). Next in BadBuilding: whole
+    buildings in parts, socialist realism, brutalism, garages, shacks, cottages.
   - Buildings with interiors (Tom, 14 Nov): mix BadShip (github.com/badsadcode/BadShip, C#: seed + recipe → modular
     exterior with sockets, LODs, collision, metadata) and BadLevel (github.com/badsadcode/BadLevel, Python: room
     graph → floor plans, stairs, doors, validation, gameplay markup) on the OSM footprint, levels and type. Clones
