@@ -1274,6 +1274,51 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>1 m squares</li><li>5 legs</li><li>7.6 s</li><li>0 walls hugged</li><li>1 doctor's appointment</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>35</strong></div>
+    <div>
+      <h2>Glass, at last</h2>
+      <div class="date">18 November 2026, late evening</div>
+      <p>Gameplay has a way of stealing the evenings. Tom noticed it too: "we still need to work on BadBuilding," and
+        then, when offered the next building type, "Yes, offices." Until now every skyscraper in Warsaw had the same
+        treatment as a block of flats: a grey box with small square windows, all the way up. Varso, the tallest
+        building in the European Union, looked like a very ambitious council estate.</p>
+      <figure class="photo">
+        <img src="img/varso-before-after.webp" alt="The same street-level view up a skyscraper twice: on the left a pale tower covered in small square windows like a block of flats; on the right a dark blue glass tower with a grid of panels and the sky reflected down one corner" loading="lazy">
+        <figcaption>Varso from the pavement. Left: the old look. Right: a curtain wall, with the sky sliding down its corner.</figcaption>
+      </figure>
+      <p>BadBuilding, the library that designs our buildings, now has an office style. It looks at when a building
+        went up. Before 1990 you get a concrete grid of deep windows or long ribbons of glass between bands of wall;
+        after 2002, glass from top to bottom; in between, a bit of both. Offices get a glazed lobby with doors facing
+        the street, plant rooms on the roof, and the tall ones a crown. Anything over 140 metres gets a mast.</p>
+      <p>The glass itself is painted by the graphics card, not modelled: panels a metre and a half wide, a solid band
+        at every floor, thin frames, each panel a slightly different shade, and the sky reflected when you look along
+        the wall. That keeps a 200-metre tower to a few hundred triangles. The first try had frames three centimetres
+        wide, which is realistic and also invisible from more than 30 metres away. Now no line is ever thinner than a
+        pixel.</p>
+      <p>Then a surprise from the map. OpenStreetMap draws Warsaw's towers as stacks of separate pieces. Varso alone is
+        eleven, and many of them start 70 or 190 metres up in the air. So BadBuilding learned to build a piece that
+        starts in mid-air, with its underside closed off.</p>
+      <figure class="photo">
+        <img src="img/office-party-wall.webp" alt="The same office tower twice, seen from a nearby rooftop: on the left its wall is a blank grey slab; on the right it is covered in rows of blue windows" loading="lazy">
+        <figcaption>A 71-metre office near Rondo ONZ: blind on every side, until its pieces learned how tall the others are.</figcaption>
+      </figure>
+      <p>One tower stayed stubbornly blank, with not a single window on any side. Its low podium and the piece stacked
+        on top of it counted as neighbours built against it, and a wall with a neighbour against it is left bare, like
+        the side wall of a tenement. Now the pieces of one building tell each other how tall they are, and a wall only
+        goes blank where the other piece really covers it. Separate buildings still leave the bare walls Warsaw is
+        famous for above a lower neighbour.</p>
+      <figure class="photo">
+        <img src="img/towers-wola.webp" alt="A high view across the city centre: dark glass towers on the left and right among blocks of flats, paler towers and the spire of the Palace of Culture further away" loading="lazy">
+        <figcaption>Over Twarda, 220 m up. The dark glass towers are the new offices; the pale ones further off are still the old look of the distant city.</figcaption>
+      </figure>
+      <p>And the frame rate? The six-kilometre flight test gives the same median as before, 16.7 milliseconds, with
+        slightly fewer hitches than the old buildings. The new look is in the game behind F7 for now, along with the
+        rest of BadBuilding. Next on its list: whole buildings in parts, socialist realism, brutalism, and Tom's garages,
+        sheds and cottages.</p>
+      <ul class="facts"><li>11 pieces of Varso</li><li>1.5 m panels</li><li>3.6 m floors</li><li>16.7 ms</li><li>1 tower with no windows</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
