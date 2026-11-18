@@ -319,8 +319,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         }
         _lookAt = aimAt;
 
-        // walking: straight at the spot, a sidestep when stuck
-        var to = _moveTo - GlobalPosition; to.Y = 0;
+        // walking: straight at the spot, or along a route round what's in the way (D62)
+        var to = Steer() - GlobalPosition; to.Y = 0;
         float speed = State == Mode.Patrol ? CharacterRig.WalkSpeed * 0.8f : _running ? CharacterRig.RunSpeed : CharacterRig.WalkSpeed;
         if (_crouch) speed = 0;
         var want = to.Length() > 0.6f ? to.Normalized() * speed : Vector3.Zero;
@@ -340,6 +340,60 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
 
         PlaceGun(shoulder, aimAt, dt);
         Animate(dt);
+    }
+
+    // ---- finding a way round (D62) --------------------------------------------------------------------------------
+    private List<(double X, double Z)>? _route;
+    private int _leg;
+    private System.Threading.Tasks.Task<List<(double X, double Z)>?>? _routing;
+    private (double X, double Z) _routeGoal;
+    private double _nextRoute;
+    /// <summary>Self-tests: has this bandit walked a route, and how many legs.</summary>
+    public int RouteLegs { get; private set; }
+
+    /// <summary>Where to walk toward now: <see cref="_moveTo"/> itself while the way is open; otherwise the next
+    /// corner of a route found round buildings and fences (asked for when the straight line is blocked or the bandit
+    /// is stuck; again if the goal moves more than 3 m).</summary>
+    private Vector3 Steer()
+    {
+        var (gx, _, gz) = WorldOrigin.ToWorld(_moveTo);
+        if (_routing is { IsCompleted: true } done)
+        {
+            _routing = null;
+            _route = done.IsCompletedSuccessfully ? done.Result : null;
+            _leg = 0;
+            if (_route != null) RouteLegs = _route.Count;
+        }
+        if (_route != null && (Math.Abs(_routeGoal.X - gx) > 3 || Math.Abs(_routeGoal.Z - gz) > 3)) _route = null;
+        if (_route != null && _stuck > 1.2f) { _route = null; _nextRoute = 0; }
+        double now = Time.GetTicksMsec() / 1000.0;
+        float far = new Vector2(_moveTo.X - GlobalPosition.X, _moveTo.Z - GlobalPosition.Z).Length();
+        if (BanditNav.Enabled && _route == null && _routing == null && now >= _nextRoute && far > 3f && _field.World != null
+            && (_stuck > 0.4f || !WalkClear(_moveTo)))
+        {
+            _nextRoute = now + 1.0 + _rng.NextDouble() * 0.5;
+            var (ax, _, az) = WorldOrigin.ToWorld(GlobalPosition);
+            _routeGoal = (gx, gz);
+            _routing = BanditNav.Find(_field.World, ax, az, gx, gz);
+        }
+        if (_route == null) return _moveTo;
+        while (_leg < _route.Count)
+        {
+            var p = WorldOrigin.ToLocal(_route[_leg].X, GlobalPosition.Y, _route[_leg].Z);
+            if (new Vector2(p.X - GlobalPosition.X, p.Z - GlobalPosition.Z).Length() > 1.2f || _leg == _route.Count - 1) return p;
+            _leg++;
+        }
+        _route = null;
+        return _moveTo;
+    }
+
+    /// <summary>No wall, fence or parked car on the straight walk to a point (a ray at knee height).</summary>
+    private bool WalkClear(Vector3 to)
+    {
+        var a = GlobalPosition + Vector3.Up * 0.6f;
+        var q = PhysicsRayQueryParameters3D.Create(a, new Vector3(to.X, a.Y + (to.Y - GlobalPosition.Y), to.Z), Bodies.Buildings | Bodies.Props | Bodies.Vehicles);
+        q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+        return GetWorld3D().DirectSpaceState.IntersectRay(q).Count == 0;
     }
 
     private int Burst() => Gun.Mode switch
@@ -525,6 +579,7 @@ public sealed partial class BanditField : Node3D
         }
     }
     public IReadOnlyList<Bandit> All => _all;
+    public MapWorld? World => _world;
     public void Clear() => _all.Clear();
     public void Remove(Bandit b) => _all.Remove(b);
     public int Killed;
@@ -618,6 +673,16 @@ public sealed partial class BanditField : Node3D
     /// <summary>A gang camped round a stash (D54): <paramref name="n"/> of them within ~10 m, mostly AKs, one Mosin
     /// watching the approach.</summary>
     public int SpawnGuards(Vector3 at, int n, int lead) => SpawnGroup(at, n, lead, spread: 18);
+
+    /// <summary>Self-tests: one bandit exactly there.</summary>
+    public Bandit SpawnOne(Vector3 at)
+    {
+        var b = new Bandit(this, WeaponDef.All.First(d => d.Id == "ak"), _rng.Next());
+        AddChild(b);
+        b.Place(at + Vector3.Up * 0.2f, at);
+        _all.Add(b);
+        return b;
+    }
 
     public int GuardsOf(int lead) => _all.Count(b => b.Guarding == lead && !b.Dead);
 

@@ -951,3 +951,20 @@ About 96,000–114,000 far buildings around Warsaw. Cost (`--autotest=farbench`,
 sharing the GPU.)
 The dump also lists courtyard rings and building parts now. Tom's hole in the Senatorska 29/31 church and monastery
 complex is its mapped courtyards; the complex is one flat 10 m block in the data, with no nave.
+
+## D62 — Bandits find a way round (Sage's pick while Tom was out)
+
+Bandits walked straight at their goal and piled up against walls; a stuck one picked another spot after 1.5 s.
+Now (`OnFoot/BanditNav.cs`), when the straight walk is blocked (a knee-height ray hits a wall, fence or car) or the
+bandit is stuck, a route is searched on a worker thread. It runs on a 1 m grid around the bandit and its goal (both
+with 30 m around, at most 220 m across; a farther goal is aimed at through the window's edge), built from the map,
+not the physics world: buildings with 0.5 m to spare, water, and fences, walls and hedges, with their gates left
+open. A* with diagonal steps (no squeezing past corners), at most 40,000 cells, then pulled taut into straight legs
+(a fat line-of-sight check, so it doesn't shave corners). The bandit walks leg by leg, and replans if the goal moves
+more than 3 m or it's stuck for 1.2 s; at most one request a second. Waypoints are world metres, so the floating
+origin can move. `--nav=0` turns it off.
+
+Test (`--autotest=banditpath`): a bandit on the far side of a 27 × 13 m building near the start, told where you are.
+Routes off: stuck at the wall, 21.7 m away for 30 s. Routes on: a five-leg way round, engaging you after 7.6 s. The
+bandit and leads tests pass as before.
+Not yet: bandits climbing over low walls, using doors (no interiors), or going round each other.

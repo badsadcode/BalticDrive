@@ -402,6 +402,69 @@ public sealed class Tests
         }
     }
 
+    private double _bpTime = -1;
+    private OnFoot.Bandit? _bp;
+    private double _bpReached = -1;
+
+    /// <summary>--autotest=banditpath [--nav=0] (D62): a bandit on the far side of a real building from you, told
+    /// where you are; does it come round? Logged every 2 s; success when it gets within 15 m with a clear view.</summary>
+    private void BanditPath(double delta)
+    {
+        if (_bpTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { Log.Error("Test", "banditpath: no walker"); _main.GetTree().Quit(1); return; }
+            var w = _main.Walker!;
+            var world = _main.World!;
+            var (wx, _, wz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            // a building 25-60 m long within 250 m, with open ground both sides
+            Map.MapBuilding? pick = null; double bx = 0, bz = 0;
+            var tile = world.Data.TileAt(wx, wz);
+            foreach (var b in tile.Buildings)
+            {
+                if (b.Ghost || b.IsPart) continue;
+                float sx = b.MaxX - b.MinX, sz = b.MaxZ - b.MinZ;
+                if (sx < 25 || sx > 60 || sz > 25) continue;
+                double cx = tile.OriginX + b.Cx, cz = tile.OriginZ + b.Cz;
+                if ((cx - wx) * (cx - wx) + (cz - wz) * (cz - wz) > 250 * 250) continue;
+                // across the building north-south: both spots open
+                double n = tile.OriginZ + b.MinZ - 6, s2 = tile.OriginZ + b.MaxZ + 6;
+                if (world.InBuilding(cx, n, 1f) || world.InBuilding(cx, s2, 1f)) continue;
+                pick = b; bx = cx; bz = cz; break;
+            }
+            if (pick == null) { Log.Error("Test", "banditpath: no suitable building"); _main.GetTree().Quit(1); return; }
+            double nZ = tile.OriginZ + pick.MinZ - 6, sZ = tile.OriginZ + pick.MaxZ + 6;
+            w.GlobalPosition = WorldOrigin.ToLocal(bx, world.Height(bx, sZ) + 0.5, sZ);
+            var bandit = WorldOrigin.ToLocal(bx, world.Height(bx, nZ) + 0.3, nZ);
+            _bp = _main.Bandits!.SpawnOne(bandit);
+            _bp.Heard(w.GlobalPosition, 30);
+            Log.Info("Test", $"banditpath: building {pick.MaxX - pick.MinX:0}x{pick.MaxZ - pick.MinZ:0} m at {bx:0},{bz:0}; you south, bandit north, {w.GlobalPosition.DistanceTo(bandit):0} m apart; routes {(OnFoot.BanditNav.Enabled ? "on" : "off")}");
+            w.SetView(false);
+            _bpTime = 0;
+            return;
+        }
+        double before = _bpTime;
+        _bpTime += delta;
+        var wk = _main.Walker!;
+        wk.Body.Health = 100;   // a test, not a fight
+        if (_bp == null || !GodotObject.IsInstanceValid(_bp)) return;
+        float d = _bp.GlobalPosition.DistanceTo(wk.GlobalPosition);
+        if (_bpReached < 0 && d < 15 && _bp.State == OnFoot.Bandit.Mode.Engage) _bpReached = _bpTime;
+        if ((int)(_bpTime / 2) != (int)(before / 2))
+        {
+            if (_bp.State != OnFoot.Bandit.Mode.Engage) _bp.Heard(wk.GlobalPosition, 30);   // keep it coming
+            Log.Info("Test", $"banditpath: {_bpTime:0} s: {d:0.0} m, {_bp.State}, route legs {_bp.RouteLegs}");
+        }
+        if ((int)(_bpTime) == 8 && (int)before == 7) { wk.Face(_bp.GlobalPosition + Vector3.Up); Shot("banditpath_8s"); }
+        if (_bpTime > 30 || (_bpReached > 0 && _bpTime > _bpReached + 2))
+        {
+            wk.Face(_bp.GlobalPosition + Vector3.Up);
+            Shot("banditpath_end");
+            Log.Info("Test", _bpReached > 0 ? $"banditpath: REACHED you in {_bpReached:0.0} s" : $"banditpath: did not reach you in 30 s (ended {d:0} m away)");
+            Log.Info("Test", "done"); _main.GetTree().Quit(0);
+        }
+    }
+
     private bool _ragdollTest;
     private double _ragTime = -1;
     private OnFoot.Bandit? _ragBandit;
@@ -1014,6 +1077,7 @@ public sealed class Tests
 
         if (Main.Args.GetValueOrDefault("autotest", "") == "grassbench") { GrassBench(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "farbench") { FarBench(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "banditpath") { BanditPath(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
