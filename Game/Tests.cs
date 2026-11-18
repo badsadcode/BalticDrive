@@ -557,6 +557,52 @@ public sealed class Tests
         }
     }
 
+    private double _wsTime = -1;
+
+    /// <summary>--autotest=workshop (D68): out of the car, the workshop opened; the front-left tyre taken off (its wheel
+    /// gone, a flat in the parts' eyes), then the spare fitted; screenshots of each.</summary>
+    private void WorkshopTest(double delta)
+    {
+        if (_wsTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _main.GetTree().Quit(1); return; }
+            _wsTime = 0;
+            return;
+        }
+        double before = _wsTime;
+        _wsTime += delta;
+        bool Now(double t) => before < t && _wsTime >= t;
+        var car = _main.Car!;
+        var ws = _main.Workshop;
+        var tyre = car.Parts.Tyre(0);
+        if (Now(1)) { _main.OpenWorkshop(); Log.Info("Test", $"workshop: open {_main.Workshop?.Open}, carrying {string.Join(", ", _main.Workshop!.Carried.Select(c => $"{c.Name} {c.Condition:0} %"))}"); }
+        if (Now(3)) Shot("workshop_open");
+        // ghosts (D68): one part per shot, each at a different condition
+        if (_wsTime > 18.5 && _wsTime < 30)
+        {
+            var list = new (string Id, float Cond)[] { ("hood", 92), ("door.0", 55), ("windshield", 20), ("tyre.0", 70), ("engine", 8), ("window.0", 100) };
+            int k = (int)((_wsTime - 18.5) / 1.8);
+            if (k < list.Length)
+            {
+                var part = car.Parts[list[k].Id];
+                if (part.Condition != list[k].Cond) { part.Condition = list[k].Cond; ws!.Pick(part); }
+                if (Now(18.5 + k * 1.8 + 1.4)) Shot($"ghost_{list[k].Id}");
+            }
+        }
+        if (Now(3.5)) { tyre.Condition = 62; Log.Info("Test", $"workshop: removing the front-left tyre: {ws!.StartJob(tyre)}"); }
+        if (Now(5.5)) Shot("workshop_removing");
+        if (Now(10)) Log.Info("Test", $"workshop: tyre missing {tyre.Missing}, flat in the parts {car.Parts.Flat(0)}, carrying {string.Join(", ", ws!.Carried.Select(c => $"{c.Name} {c.Condition:0} %"))}");
+        if (Now(10.5)) Shot("workshop_removed");
+        if (Now(11))
+        {
+            var spare = ws!.Carried.First(c => c.Name == "Spare tyre");
+            Log.Info("Test", $"workshop: fitting the spare: {ws.StartJob(tyre, spare)}");
+        }
+        if (Now(17)) { Log.Info("Test", $"workshop: tyre missing {tyre.Missing}, condition {tyre.Condition:0} %, carrying {string.Join(", ", ws!.Carried.Select(c => $"{c.Name} {c.Condition:0} %"))}"); Shot("workshop_fitted"); }
+        if (Now(31)) { ws!.End(); Log.Info("Test", $"workshop: closed, open {ws.Open}"); Log.Info("Test", "done"); _main.GetTree().Quit(0); }
+    }
+
     private double _cpTime = -1;
     private int _cpStage;
     private double _cpT0, _cpX0, _cpZ0;
@@ -1248,6 +1294,7 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "banditpath") { BanditPath(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "breath") { BreathTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "carparts") { CarPartsTest(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "workshop") { WorkshopTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {

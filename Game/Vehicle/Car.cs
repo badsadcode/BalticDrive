@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Collections.Generic;
 using BalticDrive.Core;
 using BalticDrive.Map;
 using BalticDrive.World;
@@ -93,6 +95,121 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         if (along < -0.5f) return Parts["hood"];
         if (along > 0.6f) return Parts["trunk"];
         return Parts[$"door.{side}"];
+    }
+
+    /// <summary>Where a part sits on the car, in body space (the workshop's dots, D68).</summary>
+    public Vector3 PartAnchor(CarPart p)
+    {
+        float hx = _bodyHalf.X, hz = _bodyHalf.Z, cx = _bodyCentre.X, cz = _bodyCentre.Z;
+        float sx = p.Slot == 0 ? cx - hx : cx + hx;   // left or right side
+        Vector3 Wheel(int i) => _wheels[i] != null ? _wheels[i].Position : new Vector3(i % 2 == 0 ? cx - hx : cx + hx, 0.4f, i < 2 ? cz - hz * 0.7f : cz + hz * 0.7f);
+        return p.Kind switch
+        {
+            PartKind.Engine => new Vector3(cx, _waist - 0.15f, cz - hz * 0.72f),
+            PartKind.Battery => new Vector3(cx + hx * 0.55f, _waist - 0.2f, cz - hz * 0.62f),
+            PartKind.Tyre => Wheel(p.Slot) + new Vector3(p.Slot % 2 == 0 ? -0.15f : 0.15f, 0, 0),
+            PartKind.Brakes => (p.Slot == 0 ? (Wheel(0) + Wheel(1)) : (Wheel(2) + Wheel(3))) * 0.5f + new Vector3(0, -0.05f, 0),
+            PartKind.Suspension => (p.Slot == 0 ? (Wheel(0) + Wheel(1)) : (Wheel(2) + Wheel(3))) * 0.5f + new Vector3(0, 0.3f, 0.35f),
+            PartKind.Windshield => new Vector3(cx, _waist + 0.35f, cz - hz * 0.3f),
+            PartKind.Window => new Vector3(sx, _waist + 0.3f, cz),
+            PartKind.Door => new Vector3(sx, _waist - 0.35f, cz - hz * 0.05f),
+            PartKind.Hood => new Vector3(cx, _waist + 0.05f, cz - hz * 0.8f),
+            PartKind.Trunk => new Vector3(cx, _waist + 0.05f, cz + hz * 0.85f),
+            PartKind.Seat => _cockpit != null ? _cockpit.Position + new Vector3(0, -0.6f, 0.15f) : new Vector3(cx - 0.4f, _waist, cz),
+            _ => _bodyCentre,
+        };
+    }
+
+    /// <summary>A part was taken off or fitted (the workshop): wheels show or hide, lights follow the battery.</summary>
+    public void PartsChanged()
+    {
+        for (int i = 0; i < 4; i++)
+            if (_wheels[i] != null)
+                foreach (var c in _wheels[i].GetChildren()) if (c is Node3D n && !n.HasMeta("ghost")) n.Visible = !Parts.Tyre(i).Missing;
+        SetLights(_headlights[0].Visible);
+    }
+
+    // ---- the workshop's ghost highlight (D68) ----------------------------------------------------------------------
+    private readonly List<(MeshInstance3D Ghost, string Kind, int Wheel)> _ghosts = new();
+    private readonly Dictionary<string, MeshInstance3D> _ghostBoxes = new();
+    private Shader? _ghostShader;
+
+    /// <summary>Shows one part as a ghost in its colour (null: none). Body and glass parts are the real surface cut to
+    /// the part's region; tyres the wheel's own shape; parts inside (engine, battery, brakes, suspension, seat) a box.</summary>
+    public void ShowGhost(CarPart? part)
+    {
+        if (_ghosts.Count == 0 && part != null) BuildGhosts();
+        foreach (var (g, _, _) in _ghosts) g.Visible = false;
+        foreach (var b in _ghostBoxes.Values) b.Visible = false;
+        if (part == null) return;
+        var col = part.Missing ? new Color(0.65f, 0.65f, 0.65f) : new Color(1f - part.Health, 0.25f + 0.7f * part.Health, 0.2f);
+        if (!part.Missing && part.Condition <= 0) col = new Color(1f, 0.12f, 0.08f);
+        var toCar = GlobalTransform.AffineInverse();
+        var proj = new Godot.Projection(toCar);
+        void Show(MeshInstance3D g, bool box, Vector3 min, Vector3 max)
+        {
+            var m = (ShaderMaterial)g.MaterialOverride;
+            m.SetShaderParameter("tint", col);
+            m.SetShaderParameter("use_box", box);
+            m.SetShaderParameter("box_min", min);
+            m.SetShaderParameter("box_max", max);
+            m.SetShaderParameter("to_car", proj);
+            g.Visible = true;
+        }
+        float hx = _bodyHalf.X, hz = _bodyHalf.Z, cx = _bodyCentre.X, cz = _bodyCentre.Z, w = _waist;
+        (Vector3, Vector3) Side(int s, float z0, float z1, float y0, float y1) =>
+            s == 0 ? (new Vector3(cx - hx - 0.4f, y0, z0), new Vector3(cx - hx * 0.35f, y1, z1)) : (new Vector3(cx + hx * 0.35f, y0, z0), new Vector3(cx + hx + 0.4f, y1, z1));
+        switch (part.Kind)
+        {
+            case PartKind.Tyre:
+                foreach (var (g, k, wi) in _ghosts) if (k == "wheel" && wi == part.Slot) Show(g, false, default, default);
+                return;
+            case PartKind.Hood: Body(new Vector3(cx - hx - 0.4f, -2, cz - hz - 0.5f), new Vector3(cx + hx + 0.4f, w + 0.3f, cz - hz * 0.5f)); return;
+            case PartKind.Trunk: Body(new Vector3(cx - hx - 0.4f, -2, cz + hz * 0.6f), new Vector3(cx + hx + 0.4f, w + 0.35f, cz + hz + 0.5f)); return;
+            case PartKind.Door: { var (a, b) = Side(part.Slot, cz - hz * 0.45f, cz + hz * 0.5f, -2, w + 0.05f); Body(a, b); return; }
+            case PartKind.Windshield: Glass(new Vector3(cx - hx - 1, w - 0.3f, cz - hz - 1), new Vector3(cx + hx + 1, 9, cz - hz * 0.15f)); return;
+            case PartKind.Window: { var (a, b) = Side(part.Slot, cz - hz * 0.15f, cz + hz * 0.55f, w - 0.3f, 9); Glass(a, b); return; }
+        }
+        // inside the car: a box at the part
+        var size = part.Kind switch
+        {
+            PartKind.Engine => new Vector3(1.0f, 0.55f, 0.8f), PartKind.Battery => new Vector3(0.32f, 0.24f, 0.26f),
+            PartKind.Brakes => new Vector3(hx * 2 - 0.2f, 0.3f, 0.3f), PartKind.Suspension => new Vector3(hx * 2 - 0.1f, 0.25f, 0.5f),
+            PartKind.Seat => new Vector3(0.55f, 0.9f, 0.6f), _ => new Vector3(0.5f, 0.5f, 0.5f),
+        };
+        if (!_ghostBoxes.TryGetValue(part.Id, out var box))
+        {
+            // seen through the body (an x-ray of what's inside)
+            box = new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/part_ghost_xray.gdshader") }, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+            box.SetMeta("ghost", true);
+            AddChild(box);
+            box.Position = PartAnchor(part);
+            _ghostBoxes[part.Id] = box;
+        }
+        Show(box, false, default, default);
+
+        void Body(Vector3 a, Vector3 b) { foreach (var (g, k, _) in _ghosts) if (k == "body") Show(g, true, a, b); }
+        void Glass(Vector3 a, Vector3 b) { foreach (var (g, k, _) in _ghosts) if (k == "glass") Show(g, true, a, b); }
+    }
+
+    /// <summary>Ghost copies of the car's meshes (sharing them, with the ghost material), hidden until asked for.</summary>
+    private void BuildGhosts()
+    {
+        _ghostShader ??= GD.Load<Shader>("res://Shaders/part_ghost.gdshader");
+        foreach (var mi in FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().ToList())
+        {
+            if (mi.HasMeta("ghost") || mi.Mesh == null || mi.GetParent() is CpuParticles3D) continue;
+            string name = mi.Name.ToString().ToLowerInvariant();
+            if (name.Contains("plate") || name.Contains("steer")) continue;
+            int wheel = Array.FindIndex(_wheels, w => w != null && mi.GetParent() == w);
+            string kind = wheel >= 0 ? "wheel" : name.Contains("glass") ? "glass" : "body";
+            var g = new MeshInstance3D { Mesh = mi.Mesh, Skeleton = mi.Skeleton, MaterialOverride = new ShaderMaterial { Shader = _ghostShader },
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Visible = false };
+            g.SetMeta("ghost", true);
+            mi.GetParent().AddChild(g);
+            g.Transform = mi.Transform;
+            _ghosts.Add((g, kind, wheel));
+        }
     }
 
     private Vector3 _bodyCentre, _bodyHalf = new(0.9f, 0.7f, 2.2f);

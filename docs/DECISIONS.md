@@ -1058,3 +1058,23 @@ Test (`--autotest=carparts`, always from the same start): 0–60 km/h in 3.4 s w
 braking from 60 in 11.9 m and 32.5 m with brakes at 10 %; 6 s straight with no steering: dead straight, or 7.8 m to
 the left with a flat front-left tyre (which then runs into the roadside, a real crash); bullets land on the hood,
 windshield and tyre. The drive test (3.75 km of city) wears nothing.
+
+## D68 — The workshop view and ghost highlights (step 2 of the workshop; Tom: "hold F at the car")
+
+* **Hold F** by the car (on foot, within 4.5 m) for 0.45 s opens the workshop; a tap still gets in; crates in reach
+  still come first. While it's open the game's HUD, radar and bars are hidden, the walker stands still, and the
+  workshop takes all input. A/D or dragging: round the car; W/S: up and down; the wheel: closer; Esc or F: back (Esc
+  first stops a job). The view starts at the front left, the driver's side.
+* **Parts** show as dots at their places (`Car.PartAnchor`), green → red by condition, grey when missing; hover for
+  name and condition, click to pick, then **Remove** (into the parts you carry) or **Fit** one you carry of the same
+  kind. Jobs take time: battery 4 s, tyre 5, window, hood, trunk, seat 6, brakes and door 8, windshield 10, suspension
+  12, engine 30. A removed tyre hides its wheel and the car runs on the rim. You start with a spare tyre.
+* **Ghost highlight** (Tom: "a ghost highlight of the shape of the car part, green in good condition, the more worn
+  the more red"): the model has only body, glass, wheels and a steering wheel as meshes, so body and glass parts are a
+  ghost copy of the body or glass cut to the part's region in the car's own space (hood, trunk, doors, windshield,
+  side windows: the real surface), tyres the wheel's own mesh, and parts inside (engine, battery, brakes, suspension,
+  seat) a box seen through the body (an x-ray shader variant). Soft fill, brighter rim, a gentle pulse; only in the
+  workshop. `Shaders/part_ghost.gdshader`, `part_ghost_xray.gdshader`.
+Test (`--autotest=workshop`): opened, front-left tyre removed in 5 s (wheel gone, flat), the spare fitted, closed;
+ghosts photographed for hood 92 %, left door 55 %, windshield 20 %, tyre 70 %, engine 8 %.
+Next (step 3): wrecks to strip for parts.

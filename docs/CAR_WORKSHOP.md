@@ -15,7 +15,7 @@ suspension, windshield, two side windows, two doors, hood, trunk, driver's seat 
   25–100 %; worn suspension is soft, low and bouncy; broken windows and doors let more of a bullet reach the driver.
 - **HUD:** parts under 70 % listed while driving; a note when something breaks.
 
-## Step 2 — the workshop view (next)
+## Step 2 — the workshop view (done, D68: hold F at the car; ghost highlights)
 - Stand by your car (or a wreck), press **G**... (key to choose with Tom): the camera orbits the car, the mouse
   turns it; the car's parts glow by condition (green → red) and show their name and percentage on hover.
 - **Open** the hood, the trunk, the doors; **jack up** a corner to take a wheel off.
@@ -32,6 +32,5 @@ suspension, windshield, two side windows, two doors, hood, trunk, driver's seat 
 - The boot as storage for parts and loot.
 
 ## Open questions for Tom
-- Which key opens the workshop view.
 - Repairing a part in place (welding, patching a tyre) or only swapping parts?
 - Should your car be lost/stolen if you leave it, or stay where you parked?

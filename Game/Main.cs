@@ -530,11 +530,17 @@ public partial class Main : Node3D
 			return;
 		}
 		if (PlayerDown) return;
-		// F: crates, the car (D55: E leans right now, Tom's pick); the free camera moved to F8
-		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F } && _world != null && !Flying)
+		// F: crates, the car (D55: E leans right now, Tom's pick); the free camera moved to F8. On foot by the car a tap
+		// gets in and a hold opens the workshop (D68)
+		if (e is InputEventKey { Keycode: Key.F, Echo: false } fk && _world != null && !Flying)
 		{
-			if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
-			ToggleOnFoot();
+			if (fk.Pressed)
+			{
+				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _car != null && _walker!.GlobalPosition.DistanceTo(_car.GlobalPosition) < 4.5f) _fHeld = 0;
+				else ToggleOnFoot();
+			}
+			else if (_fHeld >= 0) { _fHeld = -1; ToggleOnFoot(); }   // a tap: get in
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -646,8 +652,33 @@ public partial class Main : Node3D
 		}
 	}
 
+	private double _fHeld = -1;
+	private Vehicle.Workshop? _workshop;
+	public Vehicle.Workshop? Workshop => _workshop;
+
+	/// <summary>Opens the workshop on the car (D68): the walker stands still meanwhile.</summary>
+	public void OpenWorkshop()
+	{
+		if (_car == null || _walker == null) return;
+		if (_workshop == null)
+		{
+			_workshop = new Vehicle.Workshop { Name = "Workshop" };
+			_ui.AddChild(_workshop);
+			_workshop.Said += s => ShowNote(s);
+		}
+		_walker.Autopilot = _ => (Vector2.Zero, false);
+		_workshop.Begin(_car);
+	}
+
 	public override void _Process(double delta)
 	{
+		// holding F by the car: the workshop (D68)
+		if (_fHeld >= 0)
+		{
+			_fHeld += delta;
+			if (_fHeld > 0.45) { _fHeld = -1; OpenWorkshop(); }
+		}
+		if (_workshop != null && !_workshop.Open && _walker != null && _walker.Autopilot != null && _tests == null) _walker.Autopilot = null;
 		if (_world == null) return;
 		var (fx, fz) = Focus;
 		WorldOrigin.Follow(fx, fz);
@@ -676,13 +707,17 @@ public partial class Main : Node3D
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
 					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F8: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
-						: OnFoot ? "F: get in (by the car)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim (Shift: hold breath), R reload, T targets, B bandits, H medkit, F crates"
+						: OnFoot ? "F: get in (hold F: workshop)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim (Shift: hold breath), R reload, T targets, B bandits, H medkit, F crates"
 						: "F: get out   F8: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		UpdateSurvival(Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);
 		if (_note != null && _note.Visible && Time.GetTicksMsec() / 1000.0 > _noteUntil) _note.Visible = false;
-		if (_minimap != null) _minimap.Visible = _minimapOn && !(_mapScreen?.Visible ?? false);
+		bool shop = _workshop?.Open ?? false;   // the workshop has the screen to itself (D68)
+		if (_minimap != null) _minimap.Visible = _minimapOn && !(_mapScreen?.Visible ?? false) && !shop;
+		_hud.Visible = !shop;
+		if (_bars != null && shop) _bars.Visible = false;
+		if (_prompt != null && shop) _prompt.Visible = false;
 	}
 
 	private Label? _note;
