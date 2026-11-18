@@ -276,6 +276,32 @@ public sealed class Tests
                         found.Add((worstX, worstZ, folds, $"class {r.Cls} '{r.Name}' width {r.HalfWidth * 2:0.0} m, worst turn {worstTurn * 180 / MathF.PI:0} deg"));
                 }
             }
+        // --find=industrial: industrial buildings of three sizes to look at (D63), seen from 45 m off at 25 m up
+        if (Main.Args.GetValueOrDefault("find", "") == "industrial")
+        {
+            var picks = new List<string>();
+            foreach (var (lo, hi) in new[] { (300f, 900f), (900f, 3000f), (3000f, 20000f), (300f, 900f), (900f, 3000f), (3000f, 20000f) })
+            {
+                bool done = false;
+                for (int tx = tx0; tx <= tx1 && !done; tx++)
+                    for (int tz = tz0; tz <= tz1 && !done; tz++)
+                    {
+                        if (!w.Data.HasTile(tx, tz)) continue;
+                        var tile = w.Data.Tile(tx, tz);
+                        foreach (var b in tile.Buildings)
+                        {
+                            if (b.Type != Map.BuildingKind.Industrial || b.Ghost || b.IsPart) continue;
+                            float area = (b.MaxX - b.MinX) * (b.MaxZ - b.MinZ);
+                            if (area < lo || area > hi) continue;
+                            string v = $"{tile.OriginX + b.Cx:0}:{tile.OriginZ + b.MaxZ + 45:0}:25:0:-22";
+                            if (picks.Contains(v) || picks.Count(p2 => p2.StartsWith($"{tile.OriginX + b.Cx:0}")) > 0) continue;
+                            if (Hash.Of((int)b.Cx, (int)b.Cz) % 7 != (uint)(picks.Count % 7)) continue;
+                            picks.Add(v); done = true; break;
+                        }
+                    }
+            }
+            Log.Info("Test", "roadscan: industrial --views=\"" + string.Join(";", picks) + "\"");
+        }
         // --find=tram: a few tram tracks to look at (D58)
         if (Main.Args.GetValueOrDefault("find", "") == "tram")
         {

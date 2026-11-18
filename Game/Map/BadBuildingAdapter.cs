@@ -26,6 +26,9 @@ public static class BadBuildingAdapter
 
     // vertex colour alpha selects the surface in Shaders/building.gdshader
     private const float KindPlain = 0.66f, KindGlass = 0.5f, KindTiles = 0.33f, KindFlatRoof = 0f;
+    /// <summary>Surface patterns the building shader draws (D63, BadBuilding's industrial style): roller doors,
+    /// ribbed metal cladding, brick.</summary>
+    private const float KindRoller = 0.6f, KindRibbed = 0.72f, KindBrick = 0.78f;
     private const float Context = 40f;
 
     private static long _count, _ticks, _tris, _failed;
@@ -195,6 +198,9 @@ public static class BadBuildingAdapter
         {
             "glass" or "glass_block" => KindGlass,
             "roof" => KindFlatRoof,
+            "cladding" => KindRibbed,
+            "brick" or "chimney" => KindBrick,
+            "roller" => KindRoller,
             _ => KindPlain,
         };
         // linear albedo, slightly lifted: the building shader darkens walls by its grime and noise terms

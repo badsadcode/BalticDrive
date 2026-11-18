@@ -3,7 +3,7 @@ render_mode cull_back, diffuse_burley;
 
 // Buildings raised from map footprints. One mesh per chunk; the vertex colour carries the tint
 // (RGB) and what the face is (A): 1 wall with windows, 0.66 blank wall, 0.5 real glass (BadBuilding windows, D29),
-// 0.33 pitched roof, 0 flat roof.
+// 0.33 pitched roof, 0 flat roof; and patterns on blank walls (D63): 0.6 roller door, 0.72 ribbed metal, 0.78 brick.
 // Walls: UV = (metres along the wall, metres above the floor), UV2 = (wall length, wall height),
 // which lets the windows be spaced to fit each wall exactly.
 
@@ -93,6 +93,30 @@ void fragment() {
 	wall = mix(wall, pane, glass * window);
 	wall = mix(wall, frame_col * 0.8, door_frame * door_bay);
 	wall = mix(wall, door_col, door_leaf * door_bay);
+	// patterns on blank walls (D63): ribbed metal cladding, brick courses, roller-door slats
+	float is_ribbed = 1.0 - step(0.02, abs(kind - 0.72));
+	float is_brick = 1.0 - step(0.02, abs(kind - 0.78));
+	float is_roller = 1.0 - step(0.02, abs(kind - 0.6));
+	{
+		// ribs every 0.25 m: a lit crest and a shaded trough, fading to an average far away
+		float rib = fract(UV.x / 0.25);
+		float profile = smoothstep(0.0, 0.12, rib) * smoothstep(0.5, 0.38, rib);
+		float rib_fade = clamp(1.0 - dist / 90.0, 0.0, 1.0);
+		vec3 ribbed = tint * mix(0.9, mix(0.72, 1.08, profile), rib_fade) * (0.92 + 0.12 * n_big);
+		ribbed *= mix(0.75, 1.0, smoothstep(-0.2, 1.2, UV.y));   // dirt splashed up from the ground
+		wall = mix(wall, ribbed, is_ribbed);
+		// brick: 25 x 6.5 cm courses, mortar lines, a little colour per brick
+		vec2 bc = vec2(UV.x / 0.25 + 0.5 * floor(UV.y / 0.075), UV.y / 0.075);
+		vec2 bf = fract(bc);
+		float mortar = max(smoothstep(0.08, 0.0, bf.x), smoothstep(0.14, 0.0, bf.y));
+		float brick_fade = clamp(1.0 - dist / 60.0, 0.0, 1.0);
+		vec3 brick = tint * (0.82 + 0.3 * hash(floor(bc) + floor(wpos.xz))) * (0.85 + 0.25 * n_big);
+		brick = mix(tint * 0.95, mix(brick, vec3(0.32, 0.30, 0.27), mortar * 0.8), brick_fade);
+		wall = mix(wall, brick, is_brick);
+		// roller door: horizontal slats 10 cm
+		float slat = smoothstep(0.0, 0.15, fract(UV.y / 0.1)) * smoothstep(1.0, 0.8, fract(UV.y / 0.1));
+		wall = mix(wall, tint * mix(0.7, 1.0, slat), is_roller);
+	}
 	float glassy = max(glass * window * (1.0 - boarded), is_glass);
 	// real glass from BadBuilding: its tint, a faint sky reflection, no grime
 	wall = mix(wall, tint * 0.9 + vec3(0.012, 0.016, 0.02), is_glass);

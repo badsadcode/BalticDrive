@@ -968,3 +968,19 @@ Test (`--autotest=banditpath`): a bandit on the far side of a 27 × 13 m buildin
 Routes off: stuck at the wall, 21.7 m away for 30 s. Routes on: a five-leg way round, engaging you after 7.6 s. The
 bandit and leads tests pass as before.
 Not yet: bandits climbing over low walls, using doors (no interiors), or going round each other.
+
+## D63 — Factories and warehouses (BadBuilding D17)
+
+BadBuilding's new industrial style (D17 there: brick, concrete and metal eras, loading docks, saw-tooth roofs,
+chimneys; Tom: "mixed by age") reaches the game through the existing adapter. The building shader gets three surface
+patterns on blank walls, read from the vertex colour's kind:
+* 0.72 ribbed metal: ribs every 25 cm, a lit crest and a shaded trough, fading to an even tone beyond 90 m, with dirt
+  splashed up from the ground;
+* 0.78 brick: 25 × 7.5 cm courses with mortar lines and a little colour per brick, even beyond 60 m;
+* 0.6 roller door: horizontal slats every 10 cm.
+The adapter maps the roles `cladding`, `brick`/`chimney` and `roller` to them. Brick was first a bright tomato red in
+the game's light; its palette is now darker brown-reds. The map doesn't carry start years yet, so in the game the era
+comes from size and seed (BadBuilding's fallback). Passing `start_date` through the importer would need a format
+change and a rebuild: a later step.
+`--autotest=roadscan --find=industrial` lists industrial buildings of three sizes to look at.
+Fly test with BadBuilding on: 3 frames over 33 ms, 3,685 BadBuilding buildings at 6.7 ms and 2,587 triangles each.
