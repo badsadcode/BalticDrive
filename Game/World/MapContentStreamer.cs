@@ -31,6 +31,10 @@ public partial class MapContentStreamer : Node3D
     private Material _road = null!, _building = null!, _furniture = null!, _barrier = null!;
     private ArrayMesh _lamp = null!, _pole = null!, _pylon = null!;
     private MapSkyline? _skyline;
+    private MapFarBuildings? _far;
+    public MapFarBuildings? Far => _far;
+    /// <summary>The far buildings layer (D61); --far=0 starts without it.</summary>
+    public bool FarOn = true;
     private Node3D _skyRoot = null!;
 
     public int Cells => _cells.Count;
@@ -57,6 +61,7 @@ public partial class MapContentStreamer : Node3D
         foreach (Node n in _skyRoot.GetChildren()) n.QueueFree();
         _world = world;
         _skyline = new MapSkyline(world, _skyRoot, _building);
+        _far = new MapFarBuildings(world, _skyRoot, _building);
     }
 
     private int LodFor(double d) => d < CollisionRadius ? 0 : d < 600 ? 1 : 2;
@@ -65,6 +70,7 @@ public partial class MapContentStreamer : Node3D
     {
         if (_world == null) return;
         _skyline?.Update(px, pz);
+        if (FarOn) _far?.Update(px, pz);
         // Wanted cells and their detail.
         _want.Clear();
         long cx0 = (long)Math.Floor((px - Radius) / CellSize), cx1 = (long)Math.Floor((px + Radius) / CellSize);

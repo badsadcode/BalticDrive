@@ -364,6 +364,44 @@ public sealed class Tests
         }
     }
 
+    private double _fbTime = -1;
+    private readonly List<double> _fbOn = new(), _fbOff = new();
+
+    /// <summary>--autotest=farbench (D61): 90 m over Służewiec, a full turn with the far buildings shown and then
+    /// hidden, GPU time per frame.</summary>
+    private void FarBench(double delta)
+    {
+        var rid = _main.GetViewport().GetViewportRid();
+        if (_fbTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.Flying) _main.ToggleFreeCamera();
+            var at = Main.Args.GetValueOrDefault("at", "68700,645500").Split(',');
+            _main.Teleport(Num(at[0]), Num(at[1]), 90, 0, -6);
+            RenderingServer.ViewportSetMeasureRenderTime(rid, true);
+            _fbTime = 0; _settledFor = 0;
+            return;
+        }
+        if (_fbTime == 0 && _settledFor < 3) return;
+        double before = _fbTime;
+        _fbTime += delta;
+        bool Now(double t) => before < t && _fbTime >= t;
+        var far = _main.Content.Far!;
+        if (_fbTime < 10 || (_fbTime > 12 && _fbTime < 22))
+        {
+            _main.Camera.Yaw = Mathf.DegToRad((float)((_fbTime % 12) / 10 * 360));
+            (_fbTime < 10 ? _fbOn : _fbOff).Add(RenderingServer.ViewportGetMeasuredRenderTimeGpu(rid));
+        }
+        if (Now(10)) { Log.Info("Test", $"farbench: {far.Buildings} far buildings"); far.SetVisible(false); }
+        if (Now(22))
+        {
+            double Med(List<double> l) { var c = l.Skip(10).OrderBy(x => x).ToList(); return c.Count == 0 ? 0 : c[c.Count / 2]; }
+            double P95(List<double> l) { var c = l.Skip(10).OrderBy(x => x).ToList(); return c.Count == 0 ? 0 : c[(int)(c.Count * 0.95)]; }
+            Log.Info("Test", $"farbench: GPU ms per frame, far buildings shown: median {Med(_fbOn):F2}, p95 {P95(_fbOn):F2}; hidden: median {Med(_fbOff):F2}, p95 {P95(_fbOff):F2}");
+            Log.Info("Test", "done"); _main.GetTree().Quit(0);
+        }
+    }
+
     private bool _ragdollTest;
     private double _ragTime = -1;
     private OnFoot.Bandit? _ragBandit;
@@ -964,7 +1002,8 @@ public sealed class Tests
         if (Now(32.5)) { Shot("bandits_searched"); Log.Info("Test", "bandits: done"); _banditTest = false; }
     }
 
-    private bool Settled => _main.Terrain.Settled && _main.Content.Pending == 0 && _main.Terrain.PendingCollision == 0;
+    private bool Settled => _main.Terrain.Settled && _main.Content.Pending == 0 && _main.Terrain.PendingCollision == 0
+        && (_main.Content.Far?.Pending ?? 0) == 0;
 
     public void Process(double delta)
     {
@@ -974,11 +1013,12 @@ public sealed class Tests
         _settledFor = Settled ? _settledFor + delta : 0;
 
         if (Main.Args.GetValueOrDefault("autotest", "") == "grassbench") { GrassBench(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "farbench") { FarBench(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
             if (_view >= 0 && _settledFor < 1.5) return;
-            if (_view >= 0) { Shot($"view{_view:00}"); if (Main.Args.ContainsKey("dump")) Log.Info("Test", "dump: " + DebugDump.Take(_main)); }
+            if (_view >= 0) { Log.Info("Test", $"view {_view}: far buildings {_main.Content.Far?.Buildings ?? 0}"); Shot($"view{_view:00}"); if (Main.Args.ContainsKey("dump")) Log.Info("Test", "dump: " + DebugDump.Take(_main)); }
             _view++;
             if (_view < _views.Count)
             {
@@ -1001,6 +1041,12 @@ public sealed class Tests
                 Log.Info("Test", $"fly: start, {_speed} m/s");
             }
             _frameMs.Add(delta * 1000);
+            if (Main.Args.ContainsKey("profile") && (int)(_flown / 200) != (int)((_flown - _speed * delta) / 200))
+            {
+                var vp = _main.GetViewport().GetViewportRid();
+                RenderingServer.ViewportSetMeasureRenderTime(vp, true);
+                Log.Info("Test", $"fly profile {_flown:0} m: frame {delta * 1000:F1} ms, process {Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000:F1} ms, GPU {RenderingServer.ViewportGetMeasuredRenderTimeGpu(vp):F1} ms, CPU render {RenderingServer.ViewportGetMeasuredRenderTimeCpu(vp):F1} ms, draws {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):0}, prims {Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1e6:F1} M, far {_main.Content.Far?.Buildings ?? 0} pending {_main.Content.Far?.Pending ?? 0}");
+            }
             var cam = _main.Camera;
             var step = -cam.Basis.Z with { Y = 0 };
             cam.Position += step.Normalized() * (float)(_speed * delta);

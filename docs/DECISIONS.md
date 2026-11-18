@@ -932,3 +932,22 @@ across: drier olive and straw (~110 m and ~45 m), lusher blue-green (~75 m and ~
 floor. The grass blades use the same function at their root, so blades and ground agree. The first, timid version
 was hardly visible next to "off". Tom saw the stronger one side by side and kept it ("leave it as it is").
 Strength: the `terrain_hue` global (1 by default), `--hue=0` for off.
+
+## D61 — Far buildings: the city to the horizon
+
+Ordinary buildings ended at 1 km (the content streamer's radius) and only towers over 42 m went further (the
+skyline, ~4 km), so past 1 km the city was fields with towers in them. `Map/MapFarBuildings.cs` draws every building
+for whole map tiles out to 4 tiles (~8–9 km):
+* beyond 905 m only (building shader `near_cut`; the near cells cover at least 909 m everywhere), drawn 1 % smaller
+  about each centre and 15 cm lower, so where both layers overlap (to ~1090 m) the near copy hides the far one;
+* outlines over 12 corners without courtyards simplified (Douglas–Peucker, 1.5 m); standing on the building's stored
+  base height (no ground queries), so a whole tile builds quickly on a worker; no collision, no shadows;
+* under 30 m² left out nearby and under 120 m² from the third tile out; towers included for tiles beyond the
+  skyline's radius;
+* each tile uploaded as 4 × 4 pieces, one per frame (a whole tile at once was a 50–60 ms hitch).
+About 96,000–114,000 far buildings around Warsaw. Cost (`--autotest=farbench`, 90 m up, a full turn): 11.9 vs
+11.6 ms GPU over the centre. Fly test: 19 frames over 33 ms (clean baseline 34). `--far=0` starts without it.
+(An earlier fly run at 66.7 ms and a 31 ms benchmark were taken while Tom was playing the game at the same time,
+sharing the GPU.)
+The dump also lists courtyard rings and building parts now. Tom's hole in the Senatorska 29/31 church and monastery
+complex is its mapped courtyards; the complex is one flat 10 m block in the data, with no nave.

@@ -82,7 +82,7 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
 
 * Barriers (D25): fences, walls, hedges, guard rails, bollards to ~600 m; generated looks (Synty pieces later), gates
   are openings only.
-* Far roads (D24): ribbons out to ~9 km. Far buildings beyond the 3 km skyline are still missing.
+* Far roads (D24): ribbons out to ~9 km. Far buildings (D61): every building out to ~8–9 km, simplified, beyond 905 m.
 * Tree colours are a fixed mix (some autumn maples and birches); Tom (13 Nov): leave it, seasons and weather will
   drive them in the final game.
 * **Testing aids (Tom, 15 Nov):**

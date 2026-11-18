@@ -92,7 +92,7 @@ public partial class Main : Node3D
 		RenderingServer.GlobalShaderParameterSet("terrain_hue", float.Parse(Args.GetValueOrDefault("hue", "1"), System.Globalization.CultureInfo.InvariantCulture));
 
 		_terrain = new TerrainStreamer { Name = "Terrain" };
-		_content = new MapContentStreamer { Name = "MapContent" };
+		_content = new MapContentStreamer { Name = "MapContent", FarOn = Args.GetValueOrDefault("far", "1") != "0" };
 		_trees = new Trees.TreeField();
 		// grass blades near the camera (D59); G toggles, --grass=0 starts without
 		_grass = new Trees.GrassField { On = Args.GetValueOrDefault("grass", "1") != "0" };

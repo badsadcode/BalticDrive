@@ -208,6 +208,14 @@ public sealed class MapBuilding
     public int Group = -1;
 
     public bool Ghost => (Flags & 1) != 0;
+    /// <summary>A copy with other rings (the far layer's simplified outline, D61); everything else shared.</summary>
+    public MapBuilding WithRings(float[][] rx, float[][] rz)
+    {
+        var b = (MapBuilding)MemberwiseClone();
+        b.RX = rx; b.RZ = rz;
+        if (rx.Length != RX.Length || rx[0].Length != RX[0].Length) b.Tris = null;
+        return b;
+    }
     public bool IsPart => (Flags & 4) != 0;
     /// <summary>A roof on posts (fuel station canopy, carport): open underneath.</summary>
     public bool IsCanopy => Type == BuildingKind.Canopy;
