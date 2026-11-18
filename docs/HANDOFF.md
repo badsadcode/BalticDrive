@@ -115,6 +115,10 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   fell, marked on the map. Ragdolls: DONE (D56). Later, interiors and a world editor for safehouse
   areas and spawn points (data-driven). After this round Tom wants to go back to world generation, then the other
   Baltic countries.
+  Before the friends release (Tom, 18 Nov): player bug reports. F9 already saves a screenshot and a text dump; add a
+  text box on F9 for the player's description (written into the dump's Notes), and an easy way to send them to Tom
+  (a zip of the dumps folder from a menu, later perhaps an upload to a place Tom chooses). "I really don't want to
+  visit all the Baltic countries myself."
   Ideas from Tom (18 Nov), queued:
   - Hitting bandits with the car: a knockdown (ragdoll for a moment, then they get up if alive), little damage so
     running people over isn't the easy way to win.

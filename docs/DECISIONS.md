@@ -1019,3 +1019,17 @@ Fly test: 4 frames over 33 ms, as before.
 * Test (`--autotest=breath`): sway 1.64 mrad aiming, 0.41 holding (field of view 55° → 45°), 10.8 catching breath;
   the hold ends by itself after 4 s. The range test now holds its breath for the plates, as a player would: 11 of 11
   hits (without holding, the 50 and 100 m plates were missed).
+
+## D66 — Muzzle light; undersides of raised building parts (Tom)
+
+* **Muzzle light** (Tom: "when shooting, there should be some light"). There was one, but it reached 6 m for 45 ms
+  (under three frames), and it hung on the first-person gun, which is hidden in third person, so there it never
+  showed. Now it's its own light in the world: 16 m reach, a burst of 14 fading over 80 ms (the Mosin 30 % brighter,
+  the pistol 30 % dimmer), at the muzzle in first person or just in front of the body in third. Bandits' flashes
+  reach 14 m (were 5) and fade the same way, so at night you see where they shoot from. The shoot test now photographs
+  the first frame after each shot (`shoot_<gun>_flash`): at 2 a.m. the arms, road and car are lit warm orange.
+* **Parts that start in the air** (`min_height`: overhangs, bridges between towers, Złota 44's upper wing from 44 m)
+  had walls and a roof but no underside, so you looked up into them (Tom's dump). They now get a closed soffit,
+  a little darker than the walls.
+* Player bug reports for the friends release are noted in the handoff (F9 with a description box, and an easy way to
+  send dumps).

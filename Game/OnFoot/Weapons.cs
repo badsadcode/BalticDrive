@@ -62,6 +62,7 @@ public partial class Weapons : Node3D
     private readonly Dictionary<string, AudioStreamWav> _sounds = new();
 
     // state
+    private const float FlashTime = 0.08f;
     private float _aim, _cooldown, _reload = -1, _boltCycle = -1, _flashTime, _swayX, _swayY, _bobPhase;
     private Vector3 _kickPos; private Vector3 _kickRot;
     private bool _triggerHeld, _needBolt;
@@ -137,8 +138,10 @@ public partial class Weapons : Node3D
         // the walker's own arms on the gun (D41)
         _arms = new FpArms();
         _eye.AddChild(_arms);
-        _flashLight = new OmniLight3D { LightColor = new Color(1f, 0.75f, 0.4f), LightEnergy = 0, OmniRange = 6, ShadowEnabled = false };
-        _holder.AddChild(_flashLight);
+        // the muzzle flash lights the surroundings (D66, Tom: "when shooting, there should be some light"): its own node
+        // in the world, so it shows in third person too (the first-person gun is hidden there)
+        _flashLight = new OmniLight3D { LightColor = new Color(1f, 0.72f, 0.38f), LightEnergy = 0, OmniRange = 16, OmniAttenuation = 1.6f, ShadowEnabled = false, TopLevel = true };
+        AddChild(_flashLight);
         _shot = new AudioStreamPlayer { Bus = "Master", VolumeDb = -4 };
         _mech = new AudioStreamPlayer { Bus = "Master", VolumeDb = -8 };
         AddChild(_shot); AddChild(_mech);
@@ -233,7 +236,6 @@ public partial class Weapons : Node3D
             gi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
         _holder.AddChild(model);
         _model = model;
-        _flashLight.Position = MuzzleLocal();
         Play(_mech, "equip");
     }
 
@@ -390,8 +392,13 @@ public partial class Weapons : Node3D
         _holder.Rotation = rot;
         PoseArms();
         _flashTime -= dt;
-        _flashLight.LightEnergy = _flashTime > 0 ? 6f : 0f;
-        if (_flash != null) _flash.Visible = _flashTime > 0;
+        // a bright burst fading over ~80 ms; at the muzzle (first person) or a little in front of the body (third)
+        float burst = Mathf.Clamp(_flashTime / FlashTime, 0, 1);
+        _flashLight.LightEnergy = 14f * burst * burst * (_def.Mode == FireMode.Bolt ? 1.3f : _def.Id == "pistol" ? 0.7f : 1f);
+        if (burst > 0)
+            _flashLight.GlobalPosition = _holder.IsVisibleInTree() ? _holder.ToGlobal(MuzzleLocal())
+                : _w.GlobalPosition + Vector3.Up * 1.4f + new Vector3(-MathF.Sin(_w.Yaw), 0, -MathF.Cos(_w.Yaw)) * 0.9f;
+        if (_flash != null) _flash.Visible = _flashTime > FlashTime - 0.045f;
     }
 
     private bool _dryClicked, _semiReady = true;
@@ -484,7 +491,7 @@ public partial class Weapons : Node3D
         _kickPos += new Vector3(0, 0.01f, d.Kick);
         _kickRot += new Vector3(d.RecoilPitch * 2.2f, 0, (float)GD.RandRange(-0.03, 0.03));
         _slideBack = d.Slide != null ? 0.035f : 0;
-        _flashTime = 0.045f;
+        _flashTime = FlashTime;
         if (_flash != null) _flash.Rotation = _flash.Rotation with { Z = (float)GD.RandRange(0, MathF.Tau) };
         Audio.GunSound.Play(this, _eye.GlobalPosition, d, own: true);   // crack, echoes off the walls round you, roll (D53)
         if (d.Mode != FireMode.Bolt) EjectCasing();

@@ -130,6 +130,9 @@ public sealed class Tests
         _speed = double.Parse(Main.Args.GetValueOrDefault("speed", "40"), CultureInfo.InvariantCulture);
     }
 
+    private int _shootFired;
+    private readonly HashSet<string> _shootFlashTaken = new();
+
     /// <summary>The shooting test (D40): 8 s per gun.</summary>
     private void Shoot(double delta)
     {
@@ -171,6 +174,9 @@ public sealed class Tests
         if (Now(2.0)) g.TestTrigger = true;
         if (Now(id == "ak" ? 2.5 : 2.05)) g.TestTrigger = false;
         if (Now(2.02)) Shot($"shoot_{id}_fire");
+        // the first frame after a shot really left (D66: the muzzle light)
+        if (g.Fired > _shootFired && !_shootFlashTaken.Contains(id)) { _shootFlashTaken.Add(id); Shot($"shoot_{id}_flash"); }
+        _shootFired = g.Fired;
         if (id == "mosin" && (Now(2.55) || Now(2.75) || Now(2.95))) { Shot($"shoot_mosin_bolt_{(Now(2.55) ? 1 : Now(2.75) ? 2 : 3)}"); Log.Info("Test", "arm bolt " + g.Arms.DebugRight); }   // the bolt cycle, three moments
         if (Now(1.8)) Log.Info("Test", $"arm {id} aim " + g.Arms.DebugRight);
         if (Now(3.2)) { Log.Info("Test", $"shoot: {id}: {g.Status}; fired {g.Fired}, hits {g.Hits}, last: {g.LastHit}"); g.TestAim = false; }

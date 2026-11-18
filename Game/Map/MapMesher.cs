@@ -1484,6 +1484,25 @@ public static class MapMesher
         }
 
         var ox = b.RX[0]; var oz = b.RZ[0];
+        // a part that starts in the air (min_height: an overhang, a bridge between towers, Złota 44's upper wing)
+        // gets an underside, or you look up into it (D66, Tom's dump)
+        if (b.IsPart && b.MinHeight > 0.05f)
+        {
+            var under = new Color(wallC.R * 0.8f, wallC.G * 0.8f, wallC.B * 0.8f, KindPlain);
+            int ub = mesh.V.Count;
+            for (int q = 0; q < b.RX.Length; q++)
+                for (int i = 0; i < b.RX[q].Length; i++)
+                    mesh.Add(new Vector3(offX + b.RX[q][i], bottom, offZ + b.RZ[q][i]), Vector3.Down, new Vector2(b.RX[q][i], b.RZ[q][i]), Vector2.Zero, under);
+            if (b.Tris != null)
+                for (int i = 0; i + 2 < b.Tris.Length; i += 3) mesh.Tri(ub + b.Tris[i], ub + b.Tris[i + 1], ub + b.Tris[i + 2], Vector3.Down, collision);
+            else
+            {
+                var ut = _earScratch ??= new List<int>();
+                ut.Clear();
+                Triangulate(ox, oz, ut);
+                for (int i = 0; i + 2 < ut.Count; i += 3) mesh.Tri(ub + ut[i], ub + ut[i + 1], ub + ut[i + 2], Vector3.Down, collision);
+            }
+        }
         if (pitched && (b.Roof == RoofKind.Pyramidal || b.Roof == RoofKind.Dome))
         {
             var apex = new Vector3(offX + b.Cx, top, offZ + b.Cz);

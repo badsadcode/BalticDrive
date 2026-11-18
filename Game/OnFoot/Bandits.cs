@@ -85,7 +85,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _holder = new Node3D { Name = "Gun" };
         AddChild(_holder);
         if (GunModel.Make(Gun) is { } model) _holder.AddChild(model);
-        _flash = new OmniLight3D { LightColor = new Color(1f, 0.75f, 0.4f), LightEnergy = 0, OmniRange = 5 };
+        _flash = new OmniLight3D { LightColor = new Color(1f, 0.72f, 0.38f), LightEnergy = 0, OmniRange = 14, OmniAttenuation = 1.6f, ShadowEnabled = false };
         _holder.AddChild(_flash);
         _flash.Position = new Vector3(-Gun.Muzzle.X, Gun.Muzzle.Y, -Gun.Muzzle.Z) * Gun.Scale;
         if (skel != null)
@@ -422,8 +422,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         // a bandit's bullet does 30 % of what the same gun does to them: a fight you can survive (an AK hit 10, the Mosin 28)
         Ballistics.Get(this).Fire(muzzle, dir * Gun.MuzzleVelocity, Gun.BulletGrams / 1000f, Gun.Damage * 0.3f, GetRid());
         Audio.GunSound.Play(this, muzzle, Gun, own: false);   // late by distance, a boom from afar, echoes (D53)
-        _flash.LightEnergy = 5;
-        _flashOff = 0.05f;
+        _flash.LightEnergy = 12;   // (D66: a flash you can see them by at night)
+        _flashOff = 0.07f;
         _field.ShotFired(muzzle, this);
     }
     private float _flashOff;
@@ -432,7 +432,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     private void PlaceGun(bool shoulder, Vector3 aimAt, float dt)
     {
         _flashOff -= dt;
-        if (_flashOff <= 0) _flash.LightEnergy = 0;
+        _flash.LightEnergy = _flashOff > 0 ? 12f * (_flashOff / 0.07f) : 0;
         var eye = Eye;
         var look = shoulder ? (aimAt - eye).Normalized() : new Vector3(-MathF.Sin(_yaw), -0.7f, -MathF.Cos(_yaw)).Normalized();
         var basis = Basis.LookingAt(look, Vector3.Up);
