@@ -112,6 +112,8 @@ void fragment() {
 		float brick_fade = clamp(1.0 - dist / 60.0, 0.0, 1.0);
 		vec3 brick = tint * (0.82 + 0.3 * hash(floor(bc) + floor(wpos.xz))) * (0.85 + 0.25 * n_big);
 		brick = mix(tint * 0.95, mix(brick, vec3(0.32, 0.30, 0.27), mortar * 0.8), brick_fade);
+		// weathered, sooty: some saturation out (pure reds glowed orange in the grade, Tom: "too orange")
+		brick = mix(brick, vec3(dot(brick, vec3(0.299, 0.587, 0.114))), 0.45) * 0.85;
 		wall = mix(wall, brick, is_brick);
 		// roller door: horizontal slats 10 cm
 		float slat = smoothstep(0.0, 0.15, fract(UV.y / 0.1)) * smoothstep(1.0, 0.8, fract(UV.y / 0.1));

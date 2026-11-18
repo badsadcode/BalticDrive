@@ -978,8 +978,9 @@ patterns on blank walls, read from the vertex colour's kind:
   splashed up from the ground;
 * 0.78 brick: 25 × 7.5 cm courses with mortar lines and a little colour per brick, even beyond 60 m;
 * 0.6 roller door: horizontal slats every 10 cm.
-The adapter maps the roles `cladding`, `brick`/`chimney` and `roller` to them. Brick was first a bright tomato red in
-the game's light; its palette is now darker brown-reds. The map doesn't carry start years yet, so in the game the era
+The adapter maps the roles `cladding`, `brick`/`chimney` and `roller` to them. Brick was a bright tomato red in the
+game's light, then still orange (Tom: "too orange"): the palette is now dark brown-reds, and the shader takes 45 % of
+the saturation out and darkens it 15 %, so it reads as weathered factory brick even in full sun. The map doesn't carry start years yet, so in the game the era
 comes from size and seed (BadBuilding's fallback). Passing `start_date` through the importer would need a format
 change and a rebuild: a later step.
 `--autotest=roadscan --find=industrial` lists industrial buildings of three sizes to look at.
