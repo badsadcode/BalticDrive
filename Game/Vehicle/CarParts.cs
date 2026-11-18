@@ -62,6 +62,12 @@ public sealed class CarParts
     private void Add(string id, string name, PartKind kind, int slot = 0) => All.Add(new CarPart { Id = id, Name = name, Kind = kind, Slot = slot });
 
     public CarPart this[string id] => All.First(p => p.Id == id);
+
+    /// <summary>Takes over another car's part states (a wreck put away and met again).</summary>
+    public void CopyFrom(CarParts o)
+    {
+        foreach (var p in All) { var q = o[p.Id]; p.Condition = q.Condition; p.Missing = q.Missing; }
+    }
     public CarPart Tyre(int corner) => this[$"tyre.{corner}"];
 
     /// <summary>Wears a part; returns true when this broke it.</summary>

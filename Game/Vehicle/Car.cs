@@ -26,6 +26,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     public bool OnRoad { get; private set; }
     public bool FirstPerson { get; private set; }
     public bool Driving = true;
+    /// <summary>A wreck (D69): frozen where it stands, no physics, no camera of its own.</summary>
+    public bool Parked;
     /// <summary>The throttle applied last physics step (0..1), for the engine's sound (D53).</summary>
     public float Throttle { get; private set; }
 
@@ -127,6 +129,19 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             if (_wheels[i] != null)
                 foreach (var c in _wheels[i].GetChildren()) if (c is Node3D n && !n.HasMeta("ghost")) n.Visible = !Parts.Tyre(i).Missing;
         SetLights(_headlights[0].Visible);
+    }
+
+    /// <summary>Dirt and rust over the body (a wreck, D69): an overlay on every mesh but the glass and the wheels.</summary>
+    public void Grime(float amount)
+    {
+        var m = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/wreck_grime.gdshader") };
+        m.SetShaderParameter("amount", amount);
+        foreach (var mi in _model.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>())
+        {
+            string n = mi.Name.ToString().ToLowerInvariant();
+            if (n.Contains("glass") || n.Contains("wheel") || n.Contains("plate")) continue;
+            mi.MaterialOverlay = m;
+        }
     }
 
     // ---- the workshop's ghost highlight (D68) ----------------------------------------------------------------------
@@ -308,7 +323,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         AddChild(_cockpit);
         _chase = new Camera3D { TopLevel = true, Near = 0.1f, Far = 30000f, Fov = 70f };
         AddChild(_chase);
-        _chase.Current = true;
+        if (!Parked) _chase.Current = true;
+        else Freeze = true;
         WorldOrigin.Shifted += OnShifted;
     }
 
@@ -540,6 +556,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;
+        if (Parked) { if (!Freeze) Freeze = true; return; }
         // Never simulate over ground that has no collision loaded.
         var (wx, _, wz) = WorldOrigin.ToWorld(GlobalPosition);
         bool solid = HasGround?.Invoke(wx, wz) ?? true;

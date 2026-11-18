@@ -25,7 +25,7 @@ suspension, windshield, two side windows, two doors, hood, trunk, driver's seat 
   part sizes.
 - Tools later if wanted (Tom ticked only wrecks): a jack for wheels, a wrench for the rest.
 
-## Step 3 — wrecks
+## Step 3 — wrecks (done, D69; driving a fixed wreck and the boot as storage still to come)
 - Abandoned cars along roads, in car parks and yards (OSM parking areas already in the map), generated around the
   player like the crates; each with random part conditions, some parts missing (stripped by someone before you).
 - Strip them in the workshop view; some are drivable once fixed.

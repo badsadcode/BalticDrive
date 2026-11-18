@@ -557,6 +557,65 @@ public sealed class Tests
         }
     }
 
+    private double _wrTime = -1;
+    private Vehicle.Car? _wreck;
+
+    /// <summary>--autotest=wrecks (D69): on foot, wait for wrecks round about, go to the nearest, strip a tyre from it
+    /// in the workshop, then fit it on your own car (whose front-left tyre is taken off first).</summary>
+    private void WrecksTest(double delta)
+    {
+        if (_wrTime < 0)
+        {
+            if (_settledFor < 1.5) return;
+            if (!_main.ToggleOnFoot()) { _main.GetTree().Quit(1); return; }
+            _wrTime = 0;
+            return;
+        }
+        double before = _wrTime;
+        _wrTime += delta;
+        bool Now(double t) => before < t && _wrTime >= t;
+        var w = _main.Walker!;
+        if (Now(6))
+        {
+            var all = _main.Wrecks!.Live.ToList();
+            Log.Info("Test", $"wrecks: {all.Count} near: " + string.Join("; ", all.Select(c => $"{c.Name} {c.GlobalPosition.DistanceTo(w.GlobalPosition):0} m, missing {c.Parts.All.Count(p => p.Missing)}")));
+            _wreck = all.Where(c => c.Parts.All.Any(p => p.Kind == Vehicle.PartKind.Tyre && !p.Missing)).OrderBy(c => c.GlobalPosition.DistanceTo(w.GlobalPosition)).FirstOrDefault();
+            if (_wreck == null) { Log.Error("Test", "wrecks: none with a tyre"); _main.GetTree().Quit(1); return; }
+            var side = _wreck.GlobalBasis.X;
+            w.GlobalPosition = _wreck.GlobalPosition - side * 2.6f + Vector3.Up * 0.5f;
+            w.SetView(false); w.CameraOrbit = 0.6f;
+        }
+        if (Now(7) && _wreck != null) w.Face(_wreck.GlobalPosition + Vector3.Up * 0.8f);
+        if (Now(9)) { Shot("wreck_seen"); Log.Info("Test", $"wrecks: the nearest car to the walker is {_main.NearestCar()?.Name}"); }
+        if (Now(9.5) && _wreck != null) _main.OpenWorkshop(_wreck);
+        var ws = _main.Workshop;
+        if (Now(11) && _wreck != null)
+        {
+            var tyre = _wreck.Parts.All.First(p => p.Kind == Vehicle.PartKind.Tyre && !p.Missing);
+            ws!.Pick(tyre);
+            Shot("wreck_workshop");
+            Log.Info("Test", $"wrecks: stripping {tyre.Name} ({tyre.Condition:0} %): {ws.StartJob(tyre)}");
+        }
+        if (Now(17))
+        {
+            Log.Info("Test", $"wrecks: carrying {string.Join(", ", ws!.Carried.Select(c => $"{c.Name} {c.Condition:0} %"))}");
+            ws.End();
+            var car = _main.Car!;
+            car.Parts.Tyre(0).Missing = true; car.PartsChanged();
+            ws.Carried.RemoveAll(c => c.Name == "Spare tyre");
+            w.GlobalPosition = car.GlobalPosition - car.GlobalBasis.X * 2.6f + Vector3.Up * 0.5f;
+        }
+        if (Now(18.5))
+        {
+            _main.OpenWorkshop(_main.Car);
+            var t0 = _main.Car!.Parts.Tyre(0);
+            var fit = ws!.Carried.FirstOrDefault(c => c.Kind == Vehicle.PartKind.Tyre);
+            Log.Info("Test", $"wrecks: fitting {fit?.Name} on your car: {(fit != null && ws.StartJob(t0, fit))}");
+        }
+        if (Now(25)) { var t0 = _main.Car!.Parts.Tyre(0); Log.Info("Test", $"wrecks: your front-left tyre: missing {t0.Missing}, {t0.Condition:0} %"); ws!.Pick(t0); Shot("wreck_fitted"); }
+        if (Now(26)) { ws!.End(); Log.Info("Test", "done"); _main.GetTree().Quit(0); }
+    }
+
     private double _wsTime = -1;
 
     /// <summary>--autotest=workshop (D68): out of the car, the workshop opened; the front-left tyre taken off (its wheel
@@ -1295,6 +1354,7 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "breath") { BreathTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "carparts") { CarPartsTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "workshop") { WorkshopTest(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "wrecks") { WrecksTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {

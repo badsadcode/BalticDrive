@@ -1078,3 +1078,22 @@ windshield and tyre. The drive test (3.75 km of city) wears nothing.
 Test (`--autotest=workshop`): opened, front-left tyre removed in 5 s (wheel gone, flat), the spare fitted, closed;
 ghosts photographed for hood 92 %, left door 55 %, windshield 20 %, tyre 70 %, engine 8 %.
 Next (step 3): wrecks to strip for parts.
+
+## D69 — Wrecks to strip for parts (step 3 of the workshop)
+
+`Vehicle/WreckField.cs`: abandoned cars generated around you, on foot or driving, like the crates. The ground is cut
+into 48 m squares; about one in eight has a wreck, always the same one (by the square), up to eight near you (put
+away beyond 260 m). A wreck stands in a car park (an OSM paved area), else 1.6 m off the edge of a residential,
+service, unclassified, living-street or track road, facing along it; never on a carriageway or junction, in a
+building (2.5 m clear) or water. Eight Synty models (sedan, small, medium, muscle, van, taxi, police, ambulance).
+* **Parts:** most worn to 5–85 %, glass smashed on three in ten, and some gone, what scavengers take first missing
+  most often (battery 45 %, tyre 25 %, engine 15 %, seat 10 %, others 8 %). Whatever you take stays taken for the
+  session (the part states are kept per square and restored when the wreck comes back).
+* **Looks:** sagging onto the corners with no wheel (nose or tail down, leaning, lower), and a grime overlay of dust
+  and dark brown rust, low down and in blotches, different on every wreck (`Shaders/wreck_grime.gdshader`).
+* **Parked:** a Car with `Parked` set: frozen, no physics step, no camera of its own; bullets still wear its parts.
+* **Hold F** works on the car you stand by, yours or a wreck (the nearest within 4.5 m); a tap at a wreck says "A
+  wreck: hold F to strip it for parts".
+Test (`--autotest=wrecks`): three wrecks round the start (two taxis, a sedan); the nearest found, a tyre (63 %)
+stripped in the workshop, then fitted on your own car's empty front-left corner.
+Not yet: driving a wreck once it's fixed; wrecks on the radar; tools.

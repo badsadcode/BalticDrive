@@ -373,6 +373,7 @@ public partial class Main : Node3D
 		{
 			_caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud();
 			_bandits = new OnFoot.BanditField(_world, _caches); AddChild(_bandits);
+			_wrecks = new Vehicle.WreckField(_world); AddChild(_wrecks);   // cars to strip (D69)
 			// a reason to roam (D54): notes and radios name stashes across the map
 			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);
 			_leads.Said += s => ShowNote(s, 12, keep: true);
@@ -419,6 +420,9 @@ public partial class Main : Node3D
 		_leads!.Update(on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : null);
 		_bars!.Visible = (on || (_car != null && _car.Driving && !Flying && _walker != null)) && !PlayerDown;   // health in the car too (D52)
 		if (!_safehouseLoaded) { _safehouseLoaded = true; _safehouse = BalticDrive.OnFoot.Safehouse.Get(MapName); }
+		// wrecks along the way, on foot or driving (D69)
+		if (on) _wrecks?.Update(_walker!.GlobalPosition, now);
+		else if (_car != null && _car.Driving && !Flying) _wrecks?.Update(_car.GlobalPosition, now);
 		if (!on || PlayerDown) { _prompt!.Visible = false; _claim = 0; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
@@ -537,10 +541,16 @@ public partial class Main : Node3D
 			if (fk.Pressed)
 			{
 				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
-				if (OnFoot && _car != null && _walker!.GlobalPosition.DistanceTo(_car.GlobalPosition) < 4.5f) _fHeld = 0;
+				_fTarget = OnFoot ? NearestCar() : null;
+				if (_fTarget != null) _fHeld = 0;
 				else ToggleOnFoot();
 			}
-			else if (_fHeld >= 0) { _fHeld = -1; ToggleOnFoot(); }   // a tap: get in
+			else if (_fHeld >= 0)
+			{
+				// a tap: get in (your car), or a word about a wreck
+				_fHeld = -1;
+				if (_fTarget == _car) ToggleOnFoot(); else ShowNote("A wreck: hold F to strip it for parts");
+			}
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -653,13 +663,32 @@ public partial class Main : Node3D
 	}
 
 	private double _fHeld = -1;
+	private Vehicle.Car? _fTarget;
+	private Vehicle.WreckField? _wrecks;
+	public Vehicle.WreckField? Wrecks => _wrecks;
+
+	/// <summary>The car (yours or a wreck, D69) the walker stands by, within 4.5 m.</summary>
+	public Vehicle.Car? NearestCar()
+	{
+		if (_walker == null) return null;
+		var at = _walker.GlobalPosition;
+		Vehicle.Car? best = null; float bd = 4.5f;
+		foreach (var c in (_car != null ? new[] { _car } : Array.Empty<Vehicle.Car>()).Concat(_wrecks?.Live ?? Enumerable.Empty<Vehicle.Car>()))
+		{
+			if (!IsInstanceValid(c)) continue;
+			float d = c.GlobalPosition.DistanceTo(at);
+			if (d < bd) { bd = d; best = c; }
+		}
+		return best;
+	}
 	private Vehicle.Workshop? _workshop;
 	public Vehicle.Workshop? Workshop => _workshop;
 
 	/// <summary>Opens the workshop on the car (D68): the walker stands still meanwhile.</summary>
-	public void OpenWorkshop()
+	public void OpenWorkshop(Vehicle.Car? on = null)
 	{
-		if (_car == null || _walker == null) return;
+		on ??= _car;
+		if (on == null || _walker == null) return;
 		if (_workshop == null)
 		{
 			_workshop = new Vehicle.Workshop { Name = "Workshop" };
@@ -667,7 +696,7 @@ public partial class Main : Node3D
 			_workshop.Said += s => ShowNote(s);
 		}
 		_walker.Autopilot = _ => (Vector2.Zero, false);
-		_workshop.Begin(_car);
+		_workshop.Begin(on);
 	}
 
 	public override void _Process(double delta)
@@ -676,7 +705,7 @@ public partial class Main : Node3D
 		if (_fHeld >= 0)
 		{
 			_fHeld += delta;
-			if (_fHeld > 0.45) { _fHeld = -1; OpenWorkshop(); }
+			if (_fHeld > 0.45) { _fHeld = -1; OpenWorkshop(_fTarget); }
 		}
 		if (_workshop != null && !_workshop.Open && _walker != null && _walker.Autopilot != null && _tests == null) _walker.Autopilot = null;
 		if (_world == null) return;
