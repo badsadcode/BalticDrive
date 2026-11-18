@@ -1033,3 +1033,28 @@ Fly test: 4 frames over 33 ms, as before.
   a little darker than the walls.
 * Player bug reports for the friends release are noted in the handoff (F9 with a description box, and an easy way to
   send dumps).
+
+## D67 — Car parts and damage, step 1 of the workshop (Tom: Zomboid depth, workshop-game feel)
+
+Tom's picks: a workshop view, parts from wrecks, clear and readable effects. The full plan is in
+`docs/CAR_WORKSHOP.md`; this is step 1, parts and damage.
+* **Parts** (`Vehicle/CarParts.cs`): engine, battery, 4 tyres, front and rear brakes and suspension, windshield, 2
+  windows, 2 doors, hood, trunk, driver's seat; condition 0–100, or missing (for the workshop).
+* **Bullets** wear the part at the hit point in body space: glass above the waistline (windshield in front, windows
+  at the sides, the trunk at the back), tyres near the wheels, hood at the nose, trunk at the tail, doors at the
+  sides. Glass takes 1.4× the bullet's damage, tyres 1.6×, panels 0.5×; through a broken hood into the engine or
+  battery. Parts take hits when parked too. What reaches the driver now depends on the part: 0.2 of the bullet
+  through intact glass and panels (D52), up to 0.45 through a broken window and door, 0.05 through a tyre, hood or
+  trunk.
+* **Crashes:** a change of velocity over 5 m/s in one physics step wears the end that hit; landings over 7 m/s wear
+  the suspension. Teleports (Recover, Warp, origin shifts) are recognised by a jump further than the car could have
+  moved, and skipped.
+* **Effects:** power 25–100 % (coughs below 35 %, dead at 0; a dead engine is silent); battery under 8 %: won't start,
+  dim lights; tyre grip 80–100 %, a flat: 45 % grip, on its rim (radius 82 %), pulling the car to its side; brakes
+  25–100 %; suspension stiffness, damping and ride height down to 45 %, 35 % and 70 %; smoke from under the hood below
+  35 % (black at 0).
+* **HUD:** parts under 70 % while driving; a note when one breaks or the engine won't start.
+Test (`--autotest=carparts`, always from the same start): 0–60 km/h in 3.4 s with a good engine and 7.2 s at 30 %;
+braking from 60 in 11.9 m and 32.5 m with brakes at 10 %; 6 s straight with no steering: dead straight, or 7.8 m to
+the left with a flat front-left tyre (which then runs into the roadside, a real crash); bullets land on the hood,
+windshield and tyre. The drive test (3.75 km of city) wears nothing.

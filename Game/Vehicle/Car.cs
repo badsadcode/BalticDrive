@@ -27,14 +27,123 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     /// <summary>The throttle applied last physics step (0..1), for the engine's sound (D53).</summary>
     public float Throttle { get; private set; }
 
-    /// <summary>A bullet hit the car while you drive (D52): the damage it would have done, for the driver.</summary>
+    /// <summary>A bullet hit the car while you drive (D52): the damage that reaches the driver (D67: through the part
+    /// it hit; 0.2 of the bullet through intact panels and glass, more through broken ones).</summary>
     public event Action<float>? Shot;
+    /// <summary>Things worth telling the driver (a part broke, the engine won't start).</summary>
+    public event Action<string>? Said;
+
+    /// <summary>The car's parts and their condition (D67).</summary>
+    public readonly CarParts Parts = new();
 
     public string? Hit(OnFoot.BulletHit h)
     {
-        if (!Driving) return null;
-        Shot?.Invoke(h.Damage);
-        return "car";
+        var part = PartAt(ToLocal(h.Point), out int side);
+        float wear = part.Kind switch
+        {
+            PartKind.Windshield or PartKind.Window => h.Damage * 1.4f,
+            PartKind.Tyre => h.Damage * 1.6f,
+            _ => h.Damage * 0.5f,
+        };
+        Break(part, wear);
+        // through a broken hood a bullet reaches the engine (and sometimes the battery)
+        if (part.Kind == PartKind.Hood && Parts["hood"].Health < 0.5f) Break(Parts[GD.Randf() < 0.75f ? "engine" : "battery"], h.Damage * 0.6f);
+        if (Driving)
+        {
+            float exposure = part.Kind switch
+            {
+                PartKind.Windshield => 0.2f + 0.25f * (1 - Parts["windshield"].Health),
+                PartKind.Window or PartKind.Door => Parts.Exposure(side),
+                PartKind.Tyre or PartKind.Hood or PartKind.Trunk => 0.05f,
+                _ => 0.2f,
+            };
+            Shot?.Invoke(h.Damage * exposure / 0.2f);   // Main takes a fifth of it (D52)
+        }
+        return $"car: {part.Name.ToLowerInvariant()}";
+    }
+
+    /// <summary>Wears a part; says so when it breaks.</summary>
+    private void Break(CarPart p, float amount)
+    {
+        if (Parts.Wear(p, amount)) Said?.Invoke(p.Kind switch
+        {
+            PartKind.Tyre => $"{p.Name}: flat",
+            PartKind.Windshield or PartKind.Window => $"{p.Name}: shattered",
+            PartKind.Engine => "The engine is wrecked",
+            PartKind.Battery => "The battery is dead",
+            _ => $"{p.Name}: broken",
+        });
+    }
+
+    /// <summary>The part at a point on the car (body space, nose -Z): glass above the waistline (windshield in front,
+    /// windows at the sides), tyres near the wheels, hood at the nose, trunk at the tail, doors at the sides.</summary>
+    private CarPart PartAt(Vector3 p, out int side)
+    {
+        side = p.X < _bodyCentre.X ? 0 : 1;
+        for (int i = 0; i < 4; i++)
+            if (_wheels[i] != null && new Vector2(p.X - _wheels[i].Position.X, p.Z - _wheels[i].Position.Z).Length() < _wheelRadius * 1.25f && p.Y < _waist)
+                return Parts.Tyre(i);
+        float along = (p.Z - _bodyCentre.Z) / MathF.Max(0.5f, _bodyHalf.Z);   // -1 nose … +1 tail
+        if (p.Y >= _waist)
+        {
+            if (along < -0.2f) return Parts["windshield"];
+            if (along > 0.55f) return Parts["trunk"];
+            return Parts[$"window.{side}"];
+        }
+        if (along < -0.5f) return Parts["hood"];
+        if (along > 0.6f) return Parts["trunk"];
+        return Parts[$"door.{side}"];
+    }
+
+    private Vector3 _bodyCentre, _bodyHalf = new(0.9f, 0.7f, 2.2f);
+    private float _waist = 1.1f, _wheelRadius = 0.44f;
+    private Vector3 _lastVelocity, _lastPosition;
+    private int _skipImpact = 4;
+    private double _saidAt;
+    private float _cough;
+    private CpuParticles3D? _smoke;
+
+    /// <summary>A crash: a sudden change of velocity over 5 m/s wears the parts at the end that hit (D67).</summary>
+    private void Impacts(float dt)
+    {
+        var v = LinearVelocity;
+        var pos = GlobalPosition;
+        // a teleport (Warp, Recover, an origin shift) isn't a crash: the body can report its old velocity for several
+        // steps afterwards; it's recognised by a jump further than the car could have moved
+        bool jumped = pos.DistanceTo(_lastPosition) > (v.Length() + _lastVelocity.Length()) * dt + 0.5f;
+        _lastPosition = pos;
+        if (jumped) _skipImpact = Math.Max(_skipImpact, 6);
+        if (_skipImpact > 0 || Freeze) { _skipImpact = Math.Max(0, _skipImpact - 1); _lastVelocity = v; return; }
+        var dv = v - _lastVelocity - Vector3.Down * 9.8f * dt;
+        _lastVelocity = v;
+        var local = GlobalBasis.Inverse() * dv;
+        float hard = new Vector2(local.X, local.Z).Length(), drop = -local.Y;
+        if (hard > 5f)
+        {
+            Log.Info("Car", $"crash: {hard:0.0} m/s change (local {local.X:0.0}, {local.Z:0.0}) at {Speed * 3.6f:0} km/h");
+            float a = (hard - 5f) * 6f;
+            if (MathF.Abs(local.Z) >= MathF.Abs(local.X))
+            {
+                if (local.Z > 0)   // the nose stopped: a hit in front
+                {
+                    Break(Parts["hood"], a); Break(Parts["engine"], a * 0.45f); Break(Parts["suspension.front"], a * 0.3f);
+                    Break(Parts["battery"], a * 0.15f);
+                    if (hard > 11f) Break(Parts["windshield"], a * 0.5f);
+                }
+                else { Break(Parts["trunk"], a); Break(Parts["suspension.rear"], a * 0.3f); }
+            }
+            else
+            {
+                int s = local.X > 0 ? 0 : 1;   // pushed right: hit on the left
+                Break(Parts[$"door.{s}"], a); Break(Parts[$"window.{s}"], a * 0.4f);
+                Break(Parts.Tyre(s == 0 ? 0 : 1), a * 0.2f);
+            }
+        }
+        if (drop > 7f)   // a hard landing
+        {
+            float a = (drop - 7f) * 5f;
+            Break(Parts["suspension.front"], a); Break(Parts["suspension.rear"], a);
+        }
     }
     /// <summary>Scripted inputs (tests): throttle 0..1, brake 0..1, steer -1..1 (left positive).</summary>
     public Func<Car, (float Throttle, float Brake, float Steer)>? Autopilot;
@@ -92,6 +201,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     {
         var t = GlobalTransform;
         t.Origin -= new Vector3((float)dx, 0, (float)dz);
+        _lastPosition -= new Vector3((float)dx, 0, (float)dz);   // the origin moved, the car didn't
         var v = LinearVelocity; var w = AngularVelocity;
         Warp(t, keepVelocity: true);
         LinearVelocity = v; AngularVelocity = w;
@@ -206,6 +316,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(body.Size.X * 0.85f, top - mid, body.Size.Z * 0.55f) }, Position = new Vector3(bc.X, (mid + top) * 0.5f, bc.Z) });
         CenterOfMass = new Vector3(bc.X, low - 0.05f, bc.Z); // low, near the axles: arcade-stable against roll-over
         _bodyLength = body.Size.Z;
+        _bodyCentre = bc; _bodyHalf = body.Size * 0.5f; _waist = mid; _wheelRadius = radius;   // for the parts (D67)
 
         const float rest = 0.25f;
         for (int i = 0; i < 4; i++)
@@ -242,7 +353,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
     public void SetLights(bool on)
     {
-        foreach (var l in _headlights) l.Visible = on;
+        // a flat battery: dim lights (D67)
+        foreach (var l in _headlights) { l.Visible = on; l.LightEnergy = Parts["battery"].Health > 0.08f ? 10f : 1.5f; }
     }
 
     public void SetView(bool firstPerson)
@@ -257,6 +369,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     /// <summary>Moves the car at once (the physics server's state too, or the next step undoes it).</summary>
     public void Warp(Transform3D to, bool keepVelocity = false)
     {
+        _skipImpact = 4;   // a teleport isn't a crash
         GlobalTransform = to;
         var rid = GetRid();
         PhysicsServer3D.BodySetState(rid, PhysicsServer3D.BodyState.Transform, to);
@@ -356,12 +469,25 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         }
         OnRoad = contacts > 0 && paved * 2 >= contacts;
 
+        Impacts(dt);
+        // parts (D67): an engine that won't start, coughs when it's bad
+        if (Driving && throttle > 0.02f && !Parts.EngineRuns && Time.GetTicksMsec() / 1000.0 > _saidAt)
+        {
+            _saidAt = Time.GetTicksMsec() / 1000.0 + 4;
+            Said?.Invoke(Parts["engine"].Health <= 0 ? "The engine is wrecked: it won't start" : "The battery is flat: the engine won't start");
+        }
+        _cough -= dt;
+        if (_cough <= 0) _cough = Parts["engine"].Health < 0.35f && GD.Randf() < (0.35f - Parts["engine"].Health) * 2.5f ? -0.25f : 0.3f;
+        UpdateSmoke();
+
         // steering: quick at parking speed, calm at speed
         float maxSteer = Mathf.Lerp(0.6f, 0.05f, MapContext.Smooth(0f, 28f, absSpeed));
         float target = steerIn * maxSteer;
         float rate = MathF.Abs(target) < MathF.Abs(_steer) ? 4.5f : 2.6f;
         _steer = Mathf.MoveToward(_steer, target, rate * dt * (0.25f + maxSteer));
-        Steering = _steer;
+        // a flat front tyre pulls to its side
+        float pull = (Parts.Flat(0) ? 0.035f : 0f) - (Parts.Flat(1) ? 0.035f : 0f);
+        Steering = _steer + pull * Mathf.Clamp(absSpeed / 8f, 0, 1);
 
         float top = TopSpeed * (OnRoad ? 1f : 0.55f);
         float force = 0f, brake = 0f;
@@ -382,6 +508,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             if (absSpeed < 1.2f) brake = 45f;  // a stopped car stays put on a slope
         }
         if (handbrake) { force = 0; brake = MathF.Max(brake, 4f); }
+        if (!Parts.EngineRuns || _cough < 0) force = 0;
+        else force *= Parts.Power;
 
         float grip = OnRoad ? 1f : 0.8f;
         for (int i = 0; i < 4; i++)
@@ -389,8 +517,15 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             var w = _wheels[i];
             bool rear = i >= 2;
             w.EngineForce = force * 0.25f * DriveSign;
-            w.Brake = handbrake && rear ? 70f : brake * (rear ? 0.75f : 1f);
-            w.WheelFrictionSlip = (rear ? 3.1f : 3.3f) * grip * (handbrake && rear ? 0.45f : 1f);
+            w.Brake = handbrake && rear ? 70f : brake * (rear ? 0.75f : 1f) * (brake > 2f ? Parts.Brakes(rear) : 1f);
+            w.WheelFrictionSlip = (rear ? 3.1f : 3.3f) * grip * (handbrake && rear ? 0.45f : 1f) * Parts.Grip(i);
+            // a flat runs on its rim; worn suspension is soft, low and bouncy
+            w.WheelRadius = Parts.Flat(i) ? _wheelRadius * 0.82f : _wheelRadius;
+            float s = Parts.Suspension(rear);
+            w.SuspensionStiffness = 32f * (0.45f + 0.55f * s);
+            w.DampingCompression = 2.8f * (0.35f + 0.65f * s);
+            w.DampingRelaxation = 3.8f * (0.35f + 0.65f * s);
+            w.WheelRestLength = 0.25f * (0.7f + 0.3f * s);
         }
 
         var v = LinearVelocity;
@@ -427,6 +562,30 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             _chase.GlobalPosition = pos;
             _chase.LookAt(GlobalPosition + Vector3.Up * 1.4f, Vector3.Up);
         }
+    }
+
+    /// <summary>Smoke from under the hood: grey below 35 %, black and thick when the engine is wrecked.</summary>
+    private void UpdateSmoke()
+    {
+        float e = Parts["engine"].Health;
+        bool want = e < 0.35f;
+        if (want && _smoke == null)
+        {
+            _smoke = new CpuParticles3D
+            {
+                Amount = 40, Lifetime = 2.2, Direction = Vector3.Up, Spread = 20, InitialVelocityMin = 0.6f, InitialVelocityMax = 1.4f,
+                Gravity = new Vector3(0, 0.6f, 0), ScaleAmountMin = 1.5f, ScaleAmountMax = 3.5f,
+                Mesh = new SphereMesh { Radius = 0.12f, Height = 0.24f, RadialSegments = 6, Rings = 3,
+                    Material = new StandardMaterial3D { VertexColorUseAsAlbedo = true, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, Roughness = 1, ShadingMode = BaseMaterial3D.ShadingModeEnum.PerVertex } },
+            };
+            AddChild(_smoke);
+            _smoke.Position = new Vector3(_bodyCentre.X, _waist, _bodyCentre.Z - _bodyHalf.Z * 0.7f);
+        }
+        if (_smoke == null) return;
+        _smoke.Emitting = want;
+        float dark = e <= 0 ? 0.08f : 0.45f;
+        _smoke.Color = new Color(dark, dark, dark, e <= 0 ? 0.75f : 0.45f);
+        _smoke.Amount = e <= 0 ? 60 : 30;
     }
 
     /// <summary>The chase camera: on a sphere round the car (behind it by default, the car's heading smoothed so the

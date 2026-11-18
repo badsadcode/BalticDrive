@@ -60,7 +60,7 @@ public sealed partial class EngineSound : Node3D
         }
         float want = _car.Driving ? MathF.Max(800 + throttle * 600 * (kmh < 4 ? 1 : 0), 800 + kmh * RpmPerKmh[_gear]) : 0;
         _rpm = Mathf.Lerp(_rpm, MathF.Min(want, 6200), 1f - MathF.Exp(-6f * dt));
-        float wantLevel = _car.Driving ? 0.2f + throttle * 0.7f : 0f;   // a quiet idle, a roar on the throttle
+        float wantLevel = _car.Driving && _car.Parts.EngineRuns ? 0.2f + throttle * 0.7f : 0f;   // a quiet idle, a roar on the throttle; a dead engine is silent (D67)
         _level = Mathf.Lerp(_level, wantLevel, 1f - MathF.Exp(-4f * dt));
         Fill();
         float speedK = Mathf.Clamp(kmh / 120f, 0, 1);

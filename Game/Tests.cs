@@ -557,6 +557,82 @@ public sealed class Tests
         }
     }
 
+    private double _cpTime = -1;
+    private int _cpStage;
+    private double _cpT0, _cpX0, _cpZ0;
+    private readonly List<string> _cpResults = new();
+
+    /// <summary>--autotest=carparts (D67): runs on a straight stretch (the drive test's start); each a few seconds.
+    /// 0-60 km/h with a good and a bad engine; braking from 60 with good and worn brakes; 6 s straight with a flat front
+    /// tyre (how far it pulls); bullets at a tyre, the windshield and the hood. Checks that nothing wore by itself.</summary>
+    private void CarPartsTest(double delta)
+    {
+        var car = _main.Car;
+        if (car == null) return;
+        if (_cpTime < 0) { if (_settledFor < 1.5) return; _cpTime = 0; _cpStage = 0; car.Recover(); _cpStart = car.GlobalTransform; return; }
+        _cpTime += delta;
+        var parts = car.Parts;
+        float kmh = MathF.Abs(car.Speed) * 3.6f;
+        var (cx, _, cz) = WorldOrigin.ToWorld(car.GlobalPosition);
+        void Reset() { foreach (var p in parts.All) { p.Condition = 100; p.Missing = false; } }
+        void Next(string result) { if (result.Length > 0) { _cpResults.Add(result); Log.Info("Test", "carparts: " + result); } _cpStage++; _cpT0 = _cpTime; car.Warp(_cpStart); car.Autopilot = null; }
+        double t = _cpTime - _cpT0;
+        switch (_cpStage)
+        {
+            case 0: case 1:   // acceleration, good then bad engine
+                if (t < 0.05) { Reset(); if (_cpStage == 1) parts["engine"].Condition = 30; }
+                car.Autopilot = _ => (1f, 0f, 0f);
+                if (kmh >= 60 || t > 20) Next($"0-60 km/h with the engine at {parts["engine"].Condition:0} %: {t:0.0} s{(kmh < 60 ? " (didn't reach it)" : "")}");
+                break;
+            case 2: case 3:   // braking from 60, good then worn
+                if (t < 0.05) { Reset(); if (_cpStage == 3) { parts["brakes.front"].Condition = 10; parts["brakes.rear"].Condition = 10; } _cpX0 = 0; }
+                if (_cpX0 == 0) { car.Autopilot = _ => (1f, 0f, 0f); if (kmh >= 60) { _cpX0 = cx; _cpZ0 = cz; } }
+                else { car.Autopilot = _ => (0f, 1f, 0f); if (kmh < 1) Next($"braking from 60 km/h with the brakes at {parts["brakes.front"].Condition:0} %: {Math.Sqrt((cx - _cpX0) * (cx - _cpX0) + (cz - _cpZ0) * (cz - _cpZ0)):0.0} m"); }
+                if (t > 30) Next("braking: timed out");
+                break;
+            case 4: case 5:   // straight line, all good then a flat front-left
+                if (t < 0.05) { Reset(); if (_cpStage == 5) parts.Tyre(0).Condition = 0; _cpX0 = cx; _cpZ0 = cz; _cpT0b = car.GlobalBasis; }
+                car.Autopilot = _ => (t < 3 ? 0.6f : 0.3f, 0f, 0f);
+                if (t > 6)
+                {
+                    var moved = new Vector3((float)(cx - _cpX0), 0, (float)(cz - _cpZ0));
+                    float side = moved.Dot(_cpT0b.X), ahead = moved.Dot(-_cpT0b.Z);
+                    Next($"6 s with no steering, {(parts.Flat(0) ? "flat front-left tyre" : "all tyres good")}: {ahead:0} m ahead, {side:+0.0;-0.0} m to the side");
+                }
+                break;
+            case 6:   // bullets
+                if (t < 0.05) { Reset(); car.Autopilot = _ => (0f, 1f, 0f); }
+                if (t > 1 && t < 1.1)
+                {
+                    var b = car.GlobalBasis; var o = car.GlobalPosition;
+                    string Fire(Vector3 at) => car.Hit(new OnFoot.BulletHit(at, Vector3.Up, -b.Z * 800, 0.008f, 30, 30)) ?? "-";
+                    var said = new List<string>
+                    {
+                        Fire(car.ToGlobal(new Vector3(0f, 0.55f, -2.1f))),   // hood
+                        Fire(o + b.Z * -0.9f + Vector3.Up * 1.6f),   // windshield
+                        Fire(car.ToGlobal(new Vector3(-0.9f, 0.4f, -1.4f))),   // front-left wheel
+                        Fire(car.ToGlobal(new Vector3(-0.9f, 0.4f, -1.4f))),
+                    };
+                    Next("bullets hit: " + string.Join(", ", said) + " → " + parts.Report());
+                }
+                break;
+            case 7:
+                Log.Info("Test", "carparts: done");
+                _main.GetTree().Quit(0);
+                break;
+        }
+        // nothing should wear on its own while driving the tests
+        // (the flat-tyre run is left out: with nobody steering it pulls off the road into the roadside, a real crash)
+        if (_cpStage < 6 && _cpStage != 5 && t > 0.1)
+        {
+            var worn = parts.All.Where(p => p.Condition < 100 && p.Condition != 30 && p.Condition != 10 && p.Condition != 0).ToList();
+            if (worn.Count > 0 && !_cpWornLogged) { _cpWornLogged = true; Log.Info("Test", "carparts: WORE BY ITSELF: " + string.Join(", ", worn.Select(p => $"{p.Name} {p.Condition:0}"))); }
+        }
+    }
+    private Basis _cpT0b;
+    private Transform3D _cpStart;
+    private bool _cpWornLogged;
+
     private bool _ragdollTest;
     private double _ragTime = -1;
     private OnFoot.Bandit? _ragBandit;
@@ -1171,6 +1247,7 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "farbench") { FarBench(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "banditpath") { BanditPath(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "breath") { BreathTest(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "carparts") { CarPartsTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
@@ -1436,6 +1513,7 @@ public sealed class Tests
             if (_driveTime < _driveLimit) return;
             Shot("drive_end");
             var (wx, _, wz) = World.WorldOrigin.ToWorld(car.GlobalPosition);
+            Log.Info("Test", $"drive: car condition after the drive: {(car.Parts.Report() is { Length: > 0 } r ? r : "all parts over 70 %")}; lowest {car.Parts.All.Min(p => p.Condition):0} %");
             Log.Info("Test", $"drive: {_driveTime:F0} s, {_driven / 1000:F2} km, {(_main.Nav?.Destination == null && _driveLimit > 20 ? "ARRIVED, " : "")}{(_main.Nav?.Route != null ? $"{_main.Nav.Remaining / 1000:F2} km left, " : "")}top {_maxSpeed * 3.6:F0} km/h, {_offRoad:F1} s off road, {_reversals} times stuck, ended at {wx:F0},{wz:F0}, upright {car.GlobalTransform.Basis.Y.Y:F2}");
             _drive = false;
         }

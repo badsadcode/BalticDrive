@@ -404,6 +404,7 @@ public partial class Main : Node3D
 			// the bodywork stops most of it (D52): a fifth reaches the driver. At a half, three bandits took a parked
 			// driver from 100 to 8 in ten seconds: a car is a big target that's hard to miss
 			_car.Shot += d => { if (_car.Driving) _walker?.Body.Damage(d * 0.2f); };
+			_car.Said += s => ShowNote(s);   // a part broke, the engine won't start (D67)
 		}
 		if (_walker != null && _bandits!.Player != _walker)
 		{
@@ -668,7 +669,8 @@ public partial class Main : Node3D
 		if (Time.GetTicksMsec() > _whereAt) { _where = _world.WhereAmI(fx, fz); _whereAt = Time.GetTicksMsec() + 500; }
 		string speed = OnFoot ? $"on foot, {_walker!.Speed * 3.6f:F0} km/h{(_walker.Crouching ? ", crouching" : "")}   "
 			: !Flying && _car != null ? $"{MathF.Abs(_car.Speed) * 3.6f:F0} km/h{(_car.OnRoad ? "" : " (off road)")}   " : "";
-		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {_where}\n" +
+		string carState = !OnFoot && !Flying && _car != null && _car.Parts.Report() is { Length: > 0 } rep ? "car: " + rep + "\n" : "";
+		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {_where}\n" + carState +
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
