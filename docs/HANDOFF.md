@@ -115,6 +115,12 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   fell, marked on the map. Ragdolls: DONE (D56). Later, interiors and a world editor for safehouse
   areas and spawn points (data-driven). After this round Tom wants to go back to world generation, then the other
   Baltic countries.
+  Ideas from Tom (18 Nov), queued:
+  - Hitting bandits with the car: a knockdown (ragdoll for a moment, then they get up if alive), little damage so
+    running people over isn't the easy way to win.
+  - Car damage and repair, Project Zomboid depth: engine, battery, wheels, windshield, windows, doors, hood, trunk,
+    suspension, brakes, seats; each part with its condition, effects on driving, parts found as loot, repairs.
+    Needs a design pass with Tom first (how deep, which parts matter, what repair needs).
   Parked cars (Tom, Project Zomboid style): fill mapped car parks and parking lanes (amenity=parking, parking:lane /
   parking:both on streets) with Synty City cars, sparse and generated around the player; some lootable (glovebox,
   boot), some drivable with keys or fuel to find.
