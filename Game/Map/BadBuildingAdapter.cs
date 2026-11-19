@@ -31,6 +31,8 @@ public static class BadBuildingAdapter
     private const float KindRoller = 0.6f, KindRibbed = 0.72f, KindBrick = 0.78f;
     /// <summary>A glass curtain wall (D70, BadBuilding's office style): panels, mullions and floor bands in the shader.</summary>
     private const float KindCurtain = 0.635f;
+    /// <summary>Weathered wood (D73, BadBuilding's cottages): horizontal planks on walls, vertical boards on gables.</summary>
+    private const float KindTimber = 0.82f, KindBoards = 0.69f;
     private const float Context = 40f;
 
     private static long _count, _ticks, _tris, _failed;
@@ -217,6 +219,8 @@ public static class BadBuildingAdapter
             "roof" => KindFlatRoof,
             "cladding" or "plant" => KindRibbed,
             "curtain" => KindCurtain,
+            "timber" => KindTimber,
+            "boards" => KindBoards,
             "brick" or "chimney" => KindBrick,
             "roller" => KindRoller,
             _ => KindPlain,

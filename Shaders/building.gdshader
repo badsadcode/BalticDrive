@@ -141,6 +141,26 @@ void fragment() {
 		pane = mix(pane, tint * 1.35 + vec3(0.06, 0.065, 0.07), band * 0.8);
 		wall = mix(pane, vec3(0.30, 0.31, 0.32), mull * 0.85);
 	}
+	// weathered wood (D73): horizontal planks 18 cm (timber walls, 0.82) or vertical boards 20 cm with battens over the
+	// joints (gables, 0.69); each plank a shade different, grain along it, dark gaps, greyer and darker low down
+	float is_timber = 1.0 - step(0.012, abs(kind - 0.82));
+	float is_boards = 1.0 - step(0.012, abs(kind - 0.69));
+	if (is_timber + is_boards > 0.5) {
+		float across = mix(UV.y, UV.x, is_boards), along = mix(UV.x, UV.y, is_boards);
+		float pw = mix(0.18, 0.2, is_boards);
+		float pf = fract(across / pw);
+		float pid = floor(across / pw);
+		float wood_fade = clamp(1.0 - dist / 80.0, 0.0, 1.0);
+		float gap = mix(1.0, smoothstep(0.0, 0.07, pf) * smoothstep(1.0, 0.9, pf), wood_fade);
+		float shade = 0.82 + 0.3 * hash(vec2(pid, floor(wpos.x + wpos.z)));
+		float grain = 0.88 + 0.24 * vnoise(vec2(along * 1.3, across * 22.0 + pid * 3.7));
+		vec3 wood = tint * shade * mix(1.0, grain, wood_fade) * mix(0.55, 1.0, gap);
+		// a batten over every other joint on boards
+		float batten = is_boards * (1.0 - step(0.06, abs(fract(across / (pw * 2.0)) - 0.0) * pw * 2.0)) * wood_fade;
+		wood = mix(wood, tint * 0.75, batten * 0.7);
+		wood *= mix(0.7, 1.0, smoothstep(-0.2, 1.4, UV.y));   // damp and dirt near the ground
+		wall = wood;
+	}
 	float glassy = max(max(glass * window * (1.0 - boarded), is_glass), is_curtain * 0.85);
 	// real glass from BadBuilding: its tint, a faint sky reflection, no grime
 	wall = mix(wall, tint * 0.9 + vec3(0.012, 0.016, 0.02), is_glass);

@@ -1152,3 +1152,10 @@ man_made), religion and denomination, architecture, materials, heritage, levels,
 * The F9 dump shows each building's use string in brackets.
 Rebuilt Mazowsze (extract and build, ~60 min). Looked at: Kępa Gocławska (houses with their mapped two storeys),
 the Varso towers, Daniłowiczowska; the dump lists house, outbuilding, service, office with levels and materials.
+
+## D73 — Weathered wood in the building shader (BadBuilding's houses, 19 Nov 2026)
+
+BadBuilding's house family (its D26) brings timber cottages and boarded gables. Two new surface kinds:
+`timber` (0.82): horizontal planks 18 cm, and `boards` (0.69): vertical boards 20 cm with a batten over every other
+joint. Each plank a shade different, grain along it, dark gaps, darker near the ground; the detail fades by 80 m.
+Looked at on Grądy and Serock, with every house forced to a cottage for the test.
