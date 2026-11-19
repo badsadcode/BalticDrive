@@ -94,8 +94,10 @@ Works is in the credits after all.
 
 ## Open questions (Tom's)
 
-1. **The real friends.** Names, places, personalities — or characters only *inspired* by them? Do they want to be in
-   the game? (Ask them first; nothing personal goes into this public repository without their OK.)
+1. ~~**The real friends.**~~ *Answered (Tom, 20 Nov):* no real names or details in the game — "names will be in my
+   head". The people you find get **procedurally generated names**, Bad Ideas Works style: a name generator per
+   language (Estonian, Danish, Scottish, Welsh, Polish, Lithuanian…) from first names and surnames common in each
+   country, seeded so a save keeps the same people.
 2. **Zombies or not?** Sage's vote: no — people are scarier, and quieter fits the tone. Tom's call.
 3. **Who are you?** A named character, or yourself?
 4. **How did the world end?** Explained, hinted, or never said?
