@@ -401,14 +401,15 @@ public static class MapMesher
         var col = new Color(j.Pedestrian ? SurfSlab : SurfAsphalt, 0f, 1f, LaneCode(2, 0));
         var uv2 = new Vector2(1000f, 0f);             // far from any junction: no stop lines, and marking style 0 anyway
         static float U(float x, float z) => ((x * 0.5f + z * 0.5f) % 20f + 30f) % 20f - 10f;
-        // slabs square to the map: UV = metres east (wrapping every 20 m, a whole number of slabs) and south
-        static float W(float x) => (x % 20f + 30f) % 20f - 10f;
+        // slabs square to the map: the shader lays them on the world grid (UV2.y = 2), since UV wrapping inside a big
+        // triangle stretched them
         bool slabs = j.Pedestrian;
+        if (slabs) uv2 = new Vector2(1000f, 2f);
         int baseV = mesh.V.Count;
         int n = j.X.Length;
         for (int k = 0; k < n; k++)
             mesh.Add(new Vector3(jr.OffX + j.X[k], j.Y[k] + bias, jr.OffZ + j.Z[k]), Vector3.Up,
-                slabs ? new Vector2(W(j.X[k]), j.Z[k]) : new Vector2(U(j.X[k], j.Z[k]), j.Z[k] - j.X[k]), uv2, col);
+                new Vector2(U(j.X[k], j.Z[k]), j.Z[k] - j.X[k]), uv2, col);
         for (int t = 0; t + 2 < j.Tris.Length; t += 3)
             mesh.Tri(baseV + j.Tris[t], baseV + j.Tris[t + 1], baseV + j.Tris[t + 2], Vector3.Up, geo.PavedFaces);
         if (j.Elevated) return;

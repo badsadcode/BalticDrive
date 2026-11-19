@@ -1132,3 +1132,5 @@ Not yet: concrete towers and setbacks; the Palace of Culture and such landmarks 
 * BadBuilding D24 in the game: the tower on Fangora no longer floats over a hipped roof, no brick shards on the
   Błękitny Wieżowiec, no eaves through the wall on Al. Jerozolimskie.
 Looked at: all six of Tom's dump spots, before and after.
+* Addendum: the slabs on squares are laid on the world grid by the shader (UV2.y = 2 marks them): wrapping the UV
+  inside the big junction triangles stretched them.

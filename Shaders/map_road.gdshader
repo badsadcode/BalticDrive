@@ -119,7 +119,8 @@ void fragment() {
 	// ---- pavement: grey concrete slabs 50 cm (płyty chodnikowe, D27), joints, some darker or cracked ----
 	// UV.x = metres across from the kerb, UV.y = along the street
 	float is_slab = step(0.85, surf) * step(surf, 0.93);
-	vec2 sl = vec2(u, v) / 0.5;
+	// on squares and pedestrian areas (UV2.y = 2) the slabs lie on the world grid, square to the map (D71)
+	vec2 sl = mix(vec2(u, v), wpos.xz, step(1.5, UV2.y)) / 0.5;
 	vec2 sf = fract(sl);
 	float joint = max(smoothstep(0.05, 0.0, min(sf.x, 1.0 - sf.x)), smoothstep(0.05, 0.0, min(sf.y, 1.0 - sf.y))) * fade;
 	float tone = hash(floor(sl) + 7.3);
