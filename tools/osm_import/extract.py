@@ -7,6 +7,7 @@ stored as int32 centimetres: x = east, y = north. Waterways keep OSM's order (do
 
     python3 extract.py <region.osm.pbf> <workdir>
 """
+import re
 import sys
 import os
 import time
@@ -112,7 +113,9 @@ WATERLINE_DTYPE = [('width_dm', 'u1')]
 LAND_DTYPE = [('cls', 'u1')]
 BUILDING_DTYPE = [('type', 'u1'), ('part', 'u1'), ('roof', 'u1'), ('height_dm', 'u2'),
                   ('min_dm', 'u2'), ('roof_dm', 'u2'), ('has_height', 'u1'),
-                  ('osm', 'i8'), ('street', 'u4'), ('number', 'u4')]
+                  ('osm', 'i8'), ('street', 'u4'), ('number', 'u4'), ('use', 'u4')]
+# use (format 9, D72): what the building is and what is known about it, as one string in names.txt: the raw OSM
+# building value, then key=value facts separated by ';' (see building_use), for BadBuilding's types and styles
 # osm: the OSM id (ways positive, relations negative), for overrides keyed by building (D33); street, number: the
 # address (addr:street or addr:place, addr:housenumber) as indices into names.txt (0 = none); roads' name likewise
 
@@ -402,7 +405,29 @@ class Handler(osmium.SimpleHandler):
         self.buildings.add_area(a, (btype, 1 if part else 0, roof, int(round(height * 10)),
                                     int(round(min_h * 10)), int(round(roof_h * 10)), has_height, osm,
                                     self.name_id(tags.get('addr:street') or tags.get('addr:place') or ''),
-                                    self.name_id(tags.get('addr:housenumber', ''))))
+                                    self.name_id(tags.get('addr:housenumber', '')),
+                                    self.name_id(building_use(kind, tags))))
+
+
+# facts copied for BadBuilding (D72): use, age, listing, materials, architecture, religion
+USE_KEYS = ('amenity', 'shop', 'office', 'healthcare', 'leisure', 'tourism', 'man_made', 'religion', 'denomination',
+            'building:architecture', 'building:material', 'roof:material', 'heritage', 'historic', 'building:levels',
+            'roof:levels')
+
+
+def building_use(kind, tags):
+    """'school;amenity=school;year=1965' - the raw building value first, then the facts that are present. The year is
+    the first four-digit number in start_date (or construction_date)."""
+    out = [kind or 'yes']
+    for k in USE_KEYS:
+        v = tags.get(k)
+        if v:
+            out.append(f"{k}={v.replace(';', ',')[:40]}")
+    sd = tags.get('start_date') or tags.get('construction_date') or ''
+    m = re.search(r'(1[0-9]{3}|20[0-9]{2})', sd)
+    if m:
+        out.append(f'year={m.group(1)}')
+    return ';'.join(out)
 
 
 def paved_kind(tags):

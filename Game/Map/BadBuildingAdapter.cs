@@ -98,13 +98,15 @@ public static class BadBuildingAdapter
             streets.Add(new BB.Model.StreetLine([new NVec2(s.Ax - ox, s.Az - oz), new NVec2(s.Bx - ox, s.Bz - oz)], s.Hw));
         }
 
+        var use = Use.Parse(b.Use);
         var req = new BB.Model.BuildingRequest
         {
             Id = $"bd:{seed:x8}",
             Seed = seed,
             Outer = outer,
             Holes = holes,
-            Type = b.Type switch
+            // the real OSM type and facts when the map has them (format 9, D72), else the game's kind
+            Type = use.Type ?? b.Type switch
             {
                 BuildingKind.Apartments => "apartments",
                 BuildingKind.Commercial => "commercial",
@@ -115,6 +117,10 @@ public static class BadBuildingAdapter
                 BuildingKind.Industrial => "industrial",
                 _ => "yes",
             },
+            StartYear = use.Year,
+            Heritage = use.Heritage,
+            Architecture = use.Architecture,
+            Levels = use.Levels,
             Height = b.Height,
             // the roof as the map (or the importer's guess for houses) has it
             Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
@@ -237,6 +243,48 @@ public static class BadBuildingAdapter
             mesh.Add(new Vector3(bx, y1, bz), n, new Vector2(len, 0), Vector2.Zero, col);
             mesh.Add(new Vector3(ax, y1, az), n, new Vector2(0, 0), Vector2.Zero, col);
             mesh.Quad(v, v + 1, v + 2, v + 3, n);
+        }
+    }
+
+    /// <summary>
+    /// The OSM adapter's translation (BadBuilding D23, Baltic Drive D72): the map's use string
+    /// ("yes;amenity=school;year=1965") into BadBuilding's request facts. The building value is passed as the type;
+    /// an untyped building (yes) takes its type from what it's used for, where that says what kind of building it is.
+    /// </summary>
+    public readonly record struct Use(string? Type, int? Year, bool Heritage, string? Architecture, int? Levels)
+    {
+        public static Use Parse(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return default;
+            var parts = s.Split(';');
+            string type = parts[0];
+            var f = new Dictionary<string, string>();
+            for (int i = 1; i < parts.Length; i++)
+            {
+                int eq = parts[i].IndexOf('=');
+                if (eq > 0) f[parts[i][..eq]] = parts[i][(eq + 1)..];
+            }
+            if (type is "yes" or "building")
+                type = (f.GetValueOrDefault("amenity"), f.GetValueOrDefault("office"), f.GetValueOrDefault("shop")) switch
+                {
+                    ("school", _, _) => "school",
+                    ("kindergarten", _, _) => "kindergarten",
+                    ("college" or "university", _, _) => "university",
+                    ("hospital", _, _) => "hospital",
+                    ("clinic" or "doctors", _, _) => "clinic",
+                    ("fire_station", _, _) => "fire_station",
+                    ("police", _, _) => "police",
+                    ("townhall", _, _) => "townhall",
+                    ("place_of_worship", _, _) => "religious",
+                    ("fuel", _, _) => "service",
+                    (_, { } o, _) when o.Length > 0 => "office",
+                    (_, _, { } sh) when sh.Length > 0 => sh is "supermarket" ? "supermarket" : sh is "kiosk" ? "kiosk" : "retail",
+                    _ => type,
+                };
+            int? year = f.TryGetValue("year", out var y) && int.TryParse(y, out int yi) ? yi : null;
+            bool heritage = f.ContainsKey("heritage") || f.GetValueOrDefault("historic") is "building" or "yes" or "monument";
+            int? levels = f.TryGetValue("building:levels", out var lv) && float.TryParse(lv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf >= 1 ? (int)MathF.Round(lf) : null;
+            return new Use(type, year, heritage, f.GetValueOrDefault("building:architecture"), levels);
         }
     }
 }

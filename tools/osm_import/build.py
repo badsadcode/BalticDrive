@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
 
-FORMAT = 8
+FORMAT = 9
 TILE = 2048.0
 LAND_RES = 512           # land-cover cells per tile side (4 m)
 LAND_CELL = TILE / LAND_RES
@@ -44,7 +44,7 @@ PAK_LIMIT = 48 * 1024 * 1024
 # and buildings are called, collected while encoding them, written as the tile's last section.
 NAMES = ['']
 TILE_ROAD_NAMES = defaultdict(list)       # tile -> one name per road record, in record order
-TILE_BUILDING_INFO = defaultdict(list)    # tile -> (osm id, street, number) per building record, in record order
+TILE_BUILDING_INFO = defaultdict(list)    # tile -> (osm id, street, number, use) per building record, in record order
 
 
 def load_names(work):
@@ -66,15 +66,15 @@ def encode_names(t):
             table.append(x)
         return i
     road_idx = [idx(n) for n in roads]
-    build_idx = [(o, idx(st), idx(nu)) for o, st, nu in builds]
+    build_idx = [(o, idx(st), idx(nu), idx(us)) for o, st, nu, us in builds]
     out = bytearray(struct.pack('<I', len(table)))
     for x in table:
         b = x.encode('utf-8')[:255]
         out += struct.pack('<B', len(b)) + b
     out += struct.pack('<I', len(road_idx)) + np.asarray(road_idx, dtype='<u2').tobytes()
     out += struct.pack('<I', len(build_idx))
-    for o, si, ni in build_idx:
-        out += struct.pack('<qHH', o, si, ni)
+    for o, si, ni, ui in build_idx:
+        out += struct.pack('<qHHH', o, si, ni, ui)
     return bytes(out)
 
 
@@ -1054,9 +1054,10 @@ def build_buildings(work):
 
         per_tile[(tx, tz)].append(encode(tx * TILE, tz * TILE, flags))
         if 'osm' in attrs.dtype.names:
-            TILE_BUILDING_INFO[(tx, tz)].append((int(a_i['osm']), NAMES[int(a_i['street'])], NAMES[int(a_i['number'])]))
+            use = NAMES[int(a_i['use'])] if 'use' in attrs.dtype.names else ''
+            TILE_BUILDING_INFO[(tx, tz)].append((int(a_i['osm']), NAMES[int(a_i['street'])], NAMES[int(a_i['number'])], use))
         else:
-            TILE_BUILDING_INFO[(tx, tz)].append((0, '', ''))
+            TILE_BUILDING_INFO[(tx, tz)].append((0, '', '', ''))
         kept += 1
         # Ghost copies let neighbouring tiles keep trees and grass out of an overhanging building.
         x, z = rings[0]
@@ -1439,7 +1440,7 @@ def main():
         r = roads.get(t, [])
         b = buildings.get(t, [])
         p = pois.get(t, [])
-        blob = bytearray(b'BDT8')
+        blob = bytearray(b'BDT9')
         blob += struct.pack('<I', len(r)) + b''.join(r)
         jr = jtiles.get(t, [])
         blob += struct.pack('<I', len(jr)) + b''.join(jr)

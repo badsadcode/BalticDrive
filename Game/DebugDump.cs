@@ -153,7 +153,7 @@ public static class DebugDump
                 sb.AppendLine($"  {(bb.OsmId > 0 ? $"way {bb.OsmId}" : bb.OsmId < 0 ? $"relation {-bb.OsmId}" : "?")} type {bb.Type}{(bb.IsPart ? " PART" : "")}{(bb.Ghost ? " ghost" : "")} " +
                               $"height {F(bb.Height)} min {F(bb.MinHeight)} roof {bb.Roof}/{F(bb.RoofHeight)} base {F(bb.Base, 1)}  centre {F(br.OffX + bb.Cx)},{F(br.OffZ + bb.Cz)}  " +
                               $"size {F(bb.MaxX - bb.MinX)}×{F(bb.MaxZ - bb.MinZ)}  rings {bb.RX.Length} ({string.Join("/", bb.RX.Select(r => r.Length))} points){(bb.Group >= 0 ? $" group {bb.Group}" : "")}  {(Map.BadBuildingAdapter.Enabled && Map.BadBuildingAdapter.Eligible(bb) ? "BadBuilding" : "classic")}" +
-                              $"{(bb.Street.Length > 0 ? $"  {bb.Street} {bb.Number}" : "")}");
+                              $"{(bb.Street.Length > 0 ? $"  {bb.Street} {bb.Number}" : "")}{(bb.Use.Length > 0 ? $"  [{bb.Use}]" : "")}");
             }
         }
         sb.AppendLine();

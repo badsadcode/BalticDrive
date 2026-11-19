@@ -1134,3 +1134,21 @@ Not yet: concrete towers and setbacks; the Palace of Culture and such landmarks 
 Looked at: all six of Tom's dump spots, before and after.
 * Addendum: the slabs on squares are laid on the world grid by the shader (UV2.y = 2 marks them): wrapping the UV
   inside the big junction triangles stretched them.
+
+## D72 — The real building type and facts reach BadBuilding (map format 9, 19 Nov 2026)
+
+The cookbook review (BadBuilding D21) found the game folded OSM's building types into eleven kinds, so BadBuilding
+couldn't tell a school from a fire station or a garage row from a greenhouse, and never saw a build year or a listing.
+Now each building carries a **use string** through the pipeline: the raw OSM building value, then the known facts
+as key=value (`school;amenity=school;year=1965`): use (amenity, shop, office, healthcare, leisure, tourism,
+man_made), religion and denomination, architecture, materials, heritage, levels, and a year from start_date.
+* Stage 1 (`extract.py`, `building_use`) stores it in names.txt; stage 2 writes it in each tile's names section
+  (format 9, tile magic `BDT9`); `MapData` reads it into `MapBuilding.Use`. Format 7 and 8 maps still load.
+* `BadBuildingAdapter.Use` is the OSM adapter's translation into BadBuilding's request (its D23): the building
+  value as the type; an untyped building takes its type from its use where that says what it is (amenity=school →
+  school, fire_station, hospital, place_of_worship → religious, an office= → office, a shop → retail, supermarket,
+  kiosk); the year, heritage, architecture and levels as request facts. The game's own kinds stay for everything
+  else (classic buildings, defaults, POIs).
+* The F9 dump shows each building's use string in brackets.
+Rebuilt Mazowsze (extract and build, ~60 min). Looked at: Kępa Gocławska (houses with their mapped two storeys),
+the Varso towers, Daniłowiczowska; the dump lists house, outbuilding, service, office with levels and materials.

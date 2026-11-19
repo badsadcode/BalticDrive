@@ -195,6 +195,9 @@ public sealed class MapBuilding
     /// <summary>OSM id (ways positive, relations negative; 0 unknown) and the address, from format 8 (D33).</summary>
     public long OsmId;
     public string Street = "", Number = "";
+    /// <summary>Format 9 (D72): the raw OSM building value, then the known facts as key=value, ';'-separated
+    /// ("school;amenity=school;year=1965"); "" on older maps.</summary>
+    public string Use = "";
     /// <summary>Rings in tile-local metres. Ring 0 is the outline (positive shoelace area in X,Z); the rest are courtyards.</summary>
     public float[][] RX = null!, RZ = null!;
     /// <summary>Roof triangulation over all rings' vertices in order; only present for outlines with courtyards.</summary>
@@ -291,7 +294,7 @@ public sealed class MapTile
         using var ms = new MemoryStream(raw);
         using var r = new BinaryReader(ms);
         uint magic = r.ReadUInt32();
-        if (magic != 0x37544442u && magic != 0x38544442u) throw new InvalidDataException("bad tile magic"); // "BDT7" / "BDT8"
+        if (magic is not (0x37544442u or 0x38544442u or 0x39544442u)) throw new InvalidDataException("bad tile magic"); // "BDT7" / "BDT8" / "BDT9"
 
         int nRoads = (int)r.ReadUInt32();
         var roads = new List<MapRoad>(nRoads);
@@ -463,7 +466,7 @@ public sealed class MapTile
                 Water[i] = v == 0 ? float.NaN : v * hUnit + hBase;
             }
         }
-        if (magic == 0x38544442u) ReadNames(r);
+        if (magic >= 0x38544442u) ReadNames(r, withUse: magic == 0x39544442u);
         foreach (var b in Buildings) b.Base = FootprintBase(b);
         TidyParts();
     }
@@ -513,7 +516,7 @@ public sealed class MapTile
 
     /// <summary>Format 8 (D33): the tile's string table, a street name per road record and an OSM id and address per
     /// building record.</summary>
-    private void ReadNames(BinaryReader r)
+    private void ReadNames(BinaryReader r, bool withUse)
     {
         int n = (int)r.ReadUInt32();
         var table = new string[n];
@@ -531,8 +534,9 @@ public sealed class MapTile
         {
             long osm = r.ReadInt64();
             string street = table[r.ReadUInt16()], number = table[r.ReadUInt16()];
+            string use = withUse ? table[r.ReadUInt16()] : "";
             while (bi < Buildings.Length && Buildings[bi].Ghost) bi++;
-            if (bi < Buildings.Length) { Buildings[bi].OsmId = osm; Buildings[bi].Street = street; Buildings[bi].Number = number; bi++; }
+            if (bi < Buildings.Length) { Buildings[bi].OsmId = osm; Buildings[bi].Street = street; Buildings[bi].Number = number; Buildings[bi].Use = use; bi++; }
         }
     }
 
@@ -713,7 +717,7 @@ public sealed class MapPlace
 /// <summary>Opens a map (index + pack files) and hands out tiles on demand. Safe to call from worker threads.</summary>
 public sealed class MapData : IDisposable
 {
-    public const int Format = 8;
+    public const int Format = 9;
     public readonly string Name;
     public readonly string Directory;
     public readonly List<MapPlace> Places = new();
@@ -750,7 +754,7 @@ public sealed class MapData : IDisposable
         if (r.ReadUInt32() != 0x58494442u) throw new InvalidDataException("bad map index magic"); // "BDIX"
         uint version = r.ReadUInt32();
         // format 7 (no names) still loads, so an old map keeps working until the next rebuild
-        if (version != Format && version != 7) throw new InvalidDataException($"map '{name}' is format {version}; this build reads format {Format}: rebuild it with tools/osm_import");
+        if (version != Format && version is not (7 or 8)) throw new InvalidDataException($"map '{name}' is format {version}; this build reads format {Format}: rebuild it with tools/osm_import");
         float tile = r.ReadSingle();
         uint landRes = r.ReadUInt32(), hRes = r.ReadUInt32();
         HUnit = r.ReadSingle(); HBase = r.ReadSingle();
