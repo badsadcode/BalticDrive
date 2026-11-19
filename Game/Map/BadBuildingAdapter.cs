@@ -128,6 +128,11 @@ public static class BadBuildingAdapter
             Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
             RoofHeight = b.RoofHeight > 0.2f ? b.RoofHeight : null,
             MinHeight = b.IsPart && b.MinHeight > 0.05f ? b.MinHeight : null,   // a part in the air (D70)
+            // the buildings of one school or kindergarten site share a look (D75: each wing is its own OSM building and
+            // drew its own accent colour, purple next to blue): the look stage seeded by a 120 m grid cell
+            StageSeeds = use.Type is "school" or "kindergarten" or "university"
+                ? new Dictionary<string, ulong> { ["look"] = (ulong)BalticDrive.Core.Hash.Of((int)Math.Floor((ctx.Ox + ox) / 120.0), (int)Math.Floor((ctx.Oz + oz) / 120.0), 0, 77) }
+                : new Dictionary<string, ulong>(),
             Neighbours = neighbours,
             Streets = streets,
             Ground = ground,

@@ -1165,3 +1165,10 @@ Looked at on Grądy and Serock, with every house forced to a cottage for the tes
 BadBuilding's garage rows give each door its own colour role (`door0` … `door7`) and shacks carry sheet-metal patches
 (`patch_sheet`); the adapter draws both with the ribbed-metal pattern (D63). Looked at: Ksawerów's garage rows,
 the Górnicza allotments.
+
+## D75 — The buildings of one school site share a look (BadBuilding D29, 19 Nov 2026)
+
+A school is often several OSM buildings (wings, a gym, a connector), and each drew its own accent colour: purple next
+to blue on one school in Osiedle Jantar. For schools, kindergartens and universities the adapter seeds BadBuilding's
+"look" stage from a 120 m grid cell (`StageSeeds`), so neighbouring wings share walls and accent. Looked at: the same
+school, now one red scheme.
