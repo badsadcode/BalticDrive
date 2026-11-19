@@ -217,7 +217,9 @@ public static class BadBuildingAdapter
         {
             "glass" or "glass_block" => KindGlass,
             "roof" => KindFlatRoof,
-            "cladding" or "plant" => KindRibbed,
+            "cladding" or "plant" or "patch_sheet" => KindRibbed,
+            // a garage row's up-and-over doors (door0 … door7, D74): pressed steel
+            _ when role.Length == 5 && role.StartsWith("door") && char.IsDigit(role[4]) => KindRibbed,
             "curtain" => KindCurtain,
             "timber" => KindTimber,
             "boards" => KindBoards,

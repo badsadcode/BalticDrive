@@ -1159,3 +1159,9 @@ BadBuilding's house family (its D26) brings timber cottages and boarded gables. 
 `timber` (0.82): horizontal planks 18 cm, and `boards` (0.69): vertical boards 20 cm with a batten over every other
 joint. Each plank a shade different, grain along it, dark gaps, darker near the ground; the detail fades by 80 m.
 Looked at on Grądy and Serock, with every house forced to a cottage for the test.
+
+## D74 — Garage doors and sheet patches as pressed metal (BadBuilding D28, 19 Nov 2026)
+
+BadBuilding's garage rows give each door its own colour role (`door0` … `door7`) and shacks carry sheet-metal patches
+(`patch_sheet`); the adapter draws both with the ribbed-metal pattern (D63). Looked at: Ksawerów's garage rows,
+the Górnicza allotments.
