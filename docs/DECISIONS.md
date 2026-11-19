@@ -1118,3 +1118,17 @@ Looked at: Rondo ONZ, Varso and the towers round it, from the street and from th
 Fly test (6 km at 40 m/s): median 16.7 ms both ways; worst 59 ms with BadBuilding (62 ms classic), 4 frames over
 33 ms (6 classic).
 Not yet: concrete towers and setbacks; the Palace of Culture and such landmarks stay classic.
+
+## D71 — Squares and wide pavements paved with slabs; no corner islands (Tom's dumps, 19 Nov 2026)
+
+* **Corner pieces follow their pavements.** A street's pavement is left out where a square or paved area lies just
+  behind it (D52), but the rounded corner pieces at its junctions were still drawn, and stood alone as islands with
+  the zebras between them (Plac Bankowy, Senatorska, Plac Małachowskiego: "Picasso-like crossings"). A corner now
+  needs the street's pavement on that side to be there, and isn't drawn where the corner itself lies on a square or
+  paved area.
+* **Pedestrian areas are slabs.** Squares and pavements mapped as areas (`area:highway=footway`, pedestrian squares)
+  were plain light concrete, so the wide pavement of Świętokrzyska read as a missing one. They now have the
+  pavement's 50 cm slabs, square to the map.
+* BadBuilding D24 in the game: the tower on Fangora no longer floats over a hipped roof, no brick shards on the
+  Błękitny Wieżowiec, no eaves through the wall on Al. Jerozolimskie.
+Looked at: all six of Tom's dump spots, before and after.

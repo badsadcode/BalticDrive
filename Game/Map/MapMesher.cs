@@ -396,13 +396,19 @@ public static class MapMesher
         float bias = (j.Paved || j.Pedestrian ? 0.045f : onSquare ? 0.02f : JunctionBias) + (lod > 0 ? 0.06f * lod : 0f);
         // The road shader reads UV.x as the offset from the centre line and COLOR.b * 16 as the half width (beyond it:
         // gravel shoulder). A junction is all carriageway: half width 16 m, UV.x kept within ±10 m (wrapping every 40 m).
-        var col = new Color(j.Pedestrian ? SurfConcrete : SurfAsphalt, 0f, 1f, LaneCode(2, 0));
+        // pedestrian areas (squares, wide pavements mapped as areas) are paved with slabs like the pavements, so a wide
+        // pavement doesn't read as a missing one (Tom's dump on Świętokrzyska, 19 Nov)
+        var col = new Color(j.Pedestrian ? SurfSlab : SurfAsphalt, 0f, 1f, LaneCode(2, 0));
         var uv2 = new Vector2(1000f, 0f);             // far from any junction: no stop lines, and marking style 0 anyway
         static float U(float x, float z) => ((x * 0.5f + z * 0.5f) % 20f + 30f) % 20f - 10f;
+        // slabs square to the map: UV = metres east (wrapping every 20 m, a whole number of slabs) and south
+        static float W(float x) => (x % 20f + 30f) % 20f - 10f;
+        bool slabs = j.Pedestrian;
         int baseV = mesh.V.Count;
         int n = j.X.Length;
         for (int k = 0; k < n; k++)
-            mesh.Add(new Vector3(jr.OffX + j.X[k], j.Y[k] + bias, jr.OffZ + j.Z[k]), Vector3.Up, new Vector2(U(j.X[k], j.Z[k]), j.Z[k] - j.X[k]), uv2, col);
+            mesh.Add(new Vector3(jr.OffX + j.X[k], j.Y[k] + bias, jr.OffZ + j.Z[k]), Vector3.Up,
+                slabs ? new Vector2(W(j.X[k]), j.Z[k]) : new Vector2(U(j.X[k], j.Z[k]), j.Z[k] - j.X[k]), uv2, col);
         for (int t = 0; t + 2 < j.Tris.Length; t += 3)
             mesh.Tri(baseV + j.Tris[t], baseV + j.Tris[t + 1], baseV + j.Tris[t + 2], Vector3.Up, geo.PavedFaces);
         if (j.Elevated) return;
@@ -528,8 +534,17 @@ public static class MapMesher
             foreach (var jr in ctx.Junctions)
                 if (!jr.J.Elevated && jr.J.Contains(px - jr.OffX, pz - jr.OffZ)) return true;
         }
-        // just behind the slabs lies a paved area or a square: the paving is the pavement there (D52, Tom's dump on
-        // Świętokrzyska: a kerbed strip standing alone in a sea of car park asphalt)
+        return PavedBehind(ctx, s, sgn);
+    }
+
+    /// <summary>Just behind the slabs on side <paramref name="sgn"/> lies a paved area or a square: the paving is the
+    /// pavement there (D52, Tom's dump on Świętokrzyska: a kerbed strip standing alone in a sea of car park asphalt).</summary>
+    private static bool PavedBehind(MapContext ctx, in MapSeg s, int sgn)
+    {
+        var road = s.Road;
+        float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
+        if (len < 1e-3f) return false;
+        float rx = -dz / len * sgn, rz = dx / len * sgn;
         float behind = s.Hw + road.WalkWidth + 1.5f;
         int paved = 0;
         for (float t = .25f; t <= .76f; t += .25f)
@@ -873,7 +888,16 @@ public static class MapMesher
             if (d >= r.WalkWidth + 8f) continue;
             float side = (mx - s.Ax) * -(s.Bz - s.Az) + (mz - s.Az) * (s.Bx - s.Ax);
             if (side >= 0 ? !r.WalkRight : !r.WalkLeft) continue;
-            width = r.WalkWidth; return true;
+            // the street's own pavement on that side was left out (a square or paved area behind it, a side road): no
+            // corner either, or it stands alone as an island (Tom's dumps on Plac Bankowy and Plac Małachowskiego)
+            if (PavedBehind(ctx, s, side >= 0 ? 1 : -1)) continue;
+            width = r.WalkWidth;
+            // and none where the corner itself lies on a square or paved area: the paving is the pavement there
+            float cx = mx + outv.X * (width + 1f), cz = mz + outv.Y * (width + 1f);
+            if (ctx.Land(cx, cz) == MapLand.Paved) return false;
+            foreach (var jr in ctx.Junctions)
+                if ((jr.J.Paved || jr.J.Pedestrian) && !jr.J.Elevated && jr.J.Contains(cx - jr.OffX, cz - jr.OffZ)) return false;
+            return true;
         }
         return false;
     }
