@@ -8,6 +8,9 @@ Milestone 1 — *one Polish voivodeship drivable on Thornwake's world machinery*
 importer → packs → streamed ground, roads, buildings, water → a car on Jolt → map screen and GPS. See "Verified" for
 what has been checked on Tom's PC (RTX 3080) and what has not.
 
+Where it's going: **`docs/CAMPAIGN.md`** — the single-player story (Tom, 20 Nov 2026): escape post-apocalyptic
+Warsaw and drive across Europe to find your friends. A concept; its open questions are Tom's.
+
 ## Verified (12 Nov, Tom's PC, RTX 3080, by the self-tests and their screenshots)
 
 * Full Mazowieckie pack: 11,482 tiles, 686 MB, built in 31 min (road heights 5.5 min, heights 15 min).
