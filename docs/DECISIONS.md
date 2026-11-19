@@ -1172,3 +1172,14 @@ A school is often several OSM buildings (wings, a gym, a connector), and each dr
 to blue on one school in Osiedle Jantar. For schools, kindergartens and universities the adapter seeds BadBuilding's
 "look" stage from a 120 m grid cell (`StageSeeds`), so neighbouring wings share walls and accent. Looked at: the same
 school, now one red scheme.
+
+## D76 — Details only in the near ring; balcony glass stays plain (BadBuilding D30, 19 Nov 2026)
+
+* **Details near only.** With houses, farm buildings and new blocks in BadBuilding the buildings got heavier (3,200
+  triangles each on average, from 2,700) and the flight test showed more hitches. BadBuilding's secondary modules
+  (window frames and sills, trims, balconies, porches) are now left out of the far ring of map cells (lod 1), where
+  they're a few pixels: 2,340 triangles each. Flight test after it (alternating, the PC was noisy that evening):
+  BadBuilding 7 and 8 frames over 33 ms, classic 4 and 26; median 16.7 ms throughout.
+* **Balcony glass** (`rail_glass`) isn't drawn with the glass shading: in front of a dark room it read as solid
+  blue-teal panels, and a block with a balcony on every bay looked like a glass box. It's a light frosted colour.
+* Shop fronts (`shopfront`) draw as glass.

@@ -151,6 +151,9 @@ public static class BadBuildingAdapter
         foreach (var m in built.Modules)
         {
             if ((m.Lods & lodBit) == 0) continue;
+            // the small details (window frames and sills, trims, balconies, porches) only in the near ring: from the far
+            // ring they're a few pixels, and they doubled what the houses and new blocks cost to upload (D76)
+            if (lod > 0 && m.Tier == BB.Model.ModuleTier.Secondary) continue;
             var src = m.Mesh;
             foreach (var (role, idx) in src.Groups)
             {
@@ -220,7 +223,7 @@ public static class BadBuildingAdapter
         var c = b.Materials.TryGetValue(role, out var m) ? m.Color : new System.Numerics.Vector3(0.4f);
         float kind = role switch
         {
-            "glass" or "glass_block" => KindGlass,
+            "glass" or "glass_block" or "shopfront" => KindGlass,   // (balcony glass "rail_glass" stays plain: as glass it read as solid blue panels, D76)
             "roof" => KindFlatRoof,
             "cladding" or "plant" or "patch_sheet" => KindRibbed,
             // a garage row's up-and-over doors (door0 … door7, D74): pressed steel
