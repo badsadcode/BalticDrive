@@ -131,7 +131,7 @@ public static class Safehouse
             string path = ProjectSettings.GlobalizePath(FilePath);
             if (!File.Exists(path)) return null;
             var f = JsonSerializer.Deserialize<FileShape>(File.ReadAllText(path), Json);
-            var e = f?.Safehouses?.LastOrDefault(s => s.Map == map);
+            var e = f?.Safehouses?.LastOrDefault(s => Same(s.Map, map));
             return e == null ? null : new Doorstep(e.X, e.Z, e.Yaw, e.OsmId, e.Address)
             {
                 Building = e.Building ?? "", Flat = e.Flat ?? "", Y = e.Y ?? float.NaN, BX = e.BX, BZ = e.BZ, Shell = e.Shell ?? "",
@@ -146,12 +146,15 @@ public static class Safehouse
         {
             string path = ProjectSettings.GlobalizePath(FilePath);
             var list = File.Exists(path) ? JsonSerializer.Deserialize<FileShape>(File.ReadAllText(path), Json)?.Safehouses ?? new() : new();
-            list.RemoveAll(s => s.Map == map);
+            list.RemoveAll(s => Same(s.Map, map));
             list.Add(new Entry(d.X, d.Z, d.Yaw, d.OsmId, d.Address, map, d.Building, d.Flat, float.IsNaN(d.Y) ? null : d.Y, d.BX, d.BZ, d.Shell));
             File.WriteAllText(path, JsonSerializer.Serialize(new FileShape(list), Json));
         }
         catch (Exception ex) { Log.Error("Safehouse", ex.Message); }
     }
+
+    /// <summary>Saves made before D90 were kept under the map's name ("mazowsze"); they're the same world.</summary>
+    private static bool Same(string saved, string world) => saved == world || saved == "mazowsze" && world == Main.SaveWorld;
 
     /// <summary>Self-tests: forget the safehouse so a test starts clean.</summary>
     public static void Clear(string map)
@@ -161,7 +164,7 @@ public static class Safehouse
             string path = ProjectSettings.GlobalizePath(FilePath);
             if (!File.Exists(path)) return;
             var list = JsonSerializer.Deserialize<FileShape>(File.ReadAllText(path), Json)?.Safehouses ?? new();
-            list.RemoveAll(s => s.Map == map);
+            list.RemoveAll(s => Same(s.Map, map));
             File.WriteAllText(path, JsonSerializer.Serialize(new FileShape(list), Json));
         }
         catch (Exception ex) { Log.Error("Safehouse", ex.Message); }

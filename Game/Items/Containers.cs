@@ -44,6 +44,7 @@ public static class Containers
         {
             string path = ProjectSettings.GlobalizePath(FilePath);
             var all = File.Exists(path) ? JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, List<object[]>>>>(File.ReadAllText(path)) ?? new() : new();
+            if (_map == Main.SaveWorld) all.Remove("mazowsze");
             all[_map] = _open.ToDictionary(kv => kv.Key, kv => kv.Value.Stacks.Select(s => new object[] { s.Id, s.Count }).ToList());
             File.WriteAllText(path, JsonSerializer.Serialize(all));
         }
@@ -60,7 +61,8 @@ public static class Containers
             string path = ProjectSettings.GlobalizePath(FilePath);
             if (!File.Exists(path)) return;
             var all = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, List<JsonElement[]>>>>(File.ReadAllText(path));
-            if (all == null || !all.TryGetValue(map, out var mine)) return;
+            // before D90 the world was kept under the map's name
+            if (all == null || !all.TryGetValue(map, out var mine) && !(map == Main.SaveWorld && all.TryGetValue("mazowsze", out mine))) return;
             foreach (var (id, stacks) in mine)
             {
                 var inv = new Inventory();

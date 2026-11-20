@@ -121,7 +121,7 @@ public partial class Main : Node3D
 		AddChild(ui);
 		WorldOrigin.Shifted += (dx, dz) => _camera.Position -= new Vector3((float)dx, 0, (float)dz);
 
-		string mapName = Args.GetValueOrDefault("map", "mazowsze");
+		string mapName = MapName;
 		string dir = MapDirectory();
 		try { _world = new MapWorld(new MapData(dir, mapName)); }
 		catch (Exception e)
@@ -163,7 +163,7 @@ public partial class Main : Node3D
 			sx = place.X; sz = place.Z;
 			Log.Info("Main", $"Starting at {place.Name} ({sx:F0}, {sz:F0})");
 		}
-		Teleport(sx, sz, 40f, 0f, -12f);
+		Teleport(sx, sz, 40f, float.Parse(Args.GetValueOrDefault("yaw", "0"), CultureInfo.InvariantCulture), -12f);
 		Flying = Args.ContainsKey("fly") || Args.ContainsKey("views") || Args.GetValueOrDefault("autotest", "").Contains("fly");
 		if (!Flying) SpawnCar(sx, sz);
 		if (Args.ContainsKey("views") || Args.ContainsKey("autotest")) _tests = new Tests(this);
@@ -256,7 +256,7 @@ public partial class Main : Node3D
 	public void OpenInventory(Items.ContainerSpot? spot)
 	{
 		if (_walker == null || _inventory == null || _inventory.IsOpen) return;
-		Items.Inventory? other = spot == null ? null : Items.Containers.Get(MapName, spot.Id, spot.LootKind, spot.Room);
+		Items.Inventory? other = spot == null ? null : Items.Containers.Get(SaveWorld, spot.Id, spot.LootKind, spot.Room);
 		_parkedAutopilot = _walker.Autopilot;
 		_walker.Autopilot = _ => (Vector2.Zero, false);
 		var w = _walker;
@@ -294,7 +294,7 @@ public partial class Main : Node3D
 		{
 			_deathLabel.Visible = _downTime > 1.2f;
 			string what = _downCause switch { "starved" => "You collapsed from hunger.", "dehydrated" => "You collapsed from thirst.", _ => "You were shot." };
-			_deathLabel.Text = $"{what}\nYour things stay here with you.\n\nClick to wake up {(BalticDrive.OnFoot.Safehouse.Get(MapName) is { } sh ? "in your safehouse" : "somewhere else")}.";
+			_deathLabel.Text = $"{what}\nYour things stay here with you.\n\nClick to wake up {(BalticDrive.OnFoot.Safehouse.Get(SaveWorld) is { } sh ? "in your safehouse" : "somewhere else")}.";
 		}
 	}
 
@@ -307,7 +307,16 @@ public partial class Main : Node3D
 	private (BalticDrive.OnFoot.Doorstep Step, string Name)? _homeHere;
 	/// <summary>Self-tests: acts as holding K.</summary>
 	public bool TestClaim;
-	public static string MapName => Args.GetValueOrDefault("map", "mazowsze");
+	/// <summary>The map packs to open: <c>--map=</c>, else the joined regions (D90: "polska") when they're built, else
+	/// "mazowsze".</summary>
+	public static string MapName => _mapName ??= Args.GetValueOrDefault("map",
+		File.Exists(MapData.IndexPath(MapDirectory(), "polska")) ? "polska" : "mazowsze");
+	private static string? _mapName;
+
+	/// <summary>What the player's saves are kept under (safehouse, searched furniture). Every map is cut from the same
+	/// Baltic-wide projection (D2), so a place has the same coordinates in any of them: one world, whichever packs are
+	/// open (D90). Saves from before D90, kept under "mazowsze", are read as this world's.</summary>
+	public const string SaveWorld = "baltic";
 	public BalticDrive.OnFoot.Doorstep? SafehouseAt => _safehouse;
 
 	/// <summary>Down: out of the car first if it happened at the wheel (D52), then the fall.</summary>
@@ -405,7 +414,7 @@ public partial class Main : Node3D
 				{
 					Building = inside.Id, Flat = flat, Y = (float)wy + 0.05f, BX = found.X, BZ = found.Z, Shell = found.Json,
 				};
-				BalticDrive.OnFoot.Safehouse.Set(MapName, s);
+				BalticDrive.OnFoot.Safehouse.Set(SaveWorld, s);
 				_safehouse = s;
 				_claim = 0;
 				ShowNote($"{char.ToUpper(name[0]) + name[1..]} is your safehouse now. You'll wake up here.", 8);
@@ -429,7 +438,7 @@ public partial class Main : Node3D
 			// facing out from the wall when you wake: the way you'd walk out of the door
 			var (wx, _, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
 			var s = here.Step with { X = wx, Z = wz };
-			BalticDrive.OnFoot.Safehouse.Set(MapName, s);
+			BalticDrive.OnFoot.Safehouse.Set(SaveWorld, s);
 			_safehouse = s;
 			_claim = 0;
 			ShowNote($"{char.ToUpper(here.Name[0]) + here.Name[1..]} is your safehouse now. You'll wake up here.", 8);
@@ -492,7 +501,7 @@ public partial class Main : Node3D
 		bool on = OnFoot && _walker != null;
 		_leads!.Update(on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : null);
 		_bars!.Visible = (on || (_car != null && _car.Driving && !Flying && _walker != null)) && !PlayerDown;   // health in the car too (D52)
-		if (!_safehouseLoaded) { _safehouseLoaded = true; _safehouse = BalticDrive.OnFoot.Safehouse.Get(MapName); }
+		if (!_safehouseLoaded) { _safehouseLoaded = true; _safehouse = BalticDrive.OnFoot.Safehouse.Get(SaveWorld); }
 		// wrecks along the way, on foot or driving (D69)
 		if (on) _wrecks?.Update(_walker!.GlobalPosition, now);
 		else if (_car != null && _car.Driving && !Flying) _wrecks?.Update(_car.GlobalPosition, now);
@@ -504,7 +513,7 @@ public partial class Main : Node3D
 		if (_spot != null)
 		{
 			_prompt!.Visible = true;
-			_prompt.Text = $"F: search {Items.Containers.Label(_spot.FurnitureKind)}" + (Items.Containers.Searched(MapName, _spot.Id) ? " (searched)" : "");
+			_prompt.Text = $"F: search {Items.Containers.Label(_spot.FurnitureKind)}" + (Items.Containers.Searched(SaveWorld, _spot.Id) ? " (searched)" : "");
 			_bars.QueueRedraw();
 			return;
 		}

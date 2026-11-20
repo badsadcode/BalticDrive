@@ -1227,7 +1227,10 @@ public sealed class Tests
         {
             if (_settledFor < 1.5) return;
             if (!_main.ToggleOnFoot()) { _death = false; return; }
-            OnFoot.Safehouse.Clear(Main.MapName);
+            // the player's own safehouse is kept and put back at the end
+            string sf = ProjectSettings.GlobalizePath("user://safehouses.json");
+            _deathSafeBackup = System.IO.File.Exists(sf) ? System.IO.File.ReadAllText(sf) : null;
+            OnFoot.Safehouse.Clear(Main.SaveWorld);
             _deathTime = 0;
             return;
         }
@@ -1299,8 +1302,9 @@ public sealed class Tests
             var sh = _main.SafehouseAt;
             Log.Info("Test", $"death: woke {(sh is { } h2 ? Math.Sqrt((x - h2.X) * (x - h2.X) + (z - h2.Z) * (z - h2.Z)) : -1):0.0} m from the safehouse door");
             Shot("death_safehouse");
-            OnFoot.Safehouse.Clear(Main.MapName);
-            Log.Info("Test", "death: done");
+            string sf = ProjectSettings.GlobalizePath("user://safehouses.json");
+            if (_deathSafeBackup != null) System.IO.File.WriteAllText(sf, _deathSafeBackup); else OnFoot.Safehouse.Clear(Main.SaveWorld);
+            Log.Info("Test", "death: done (the player's safehouse file restored)");
             _death = false;
         }
     }
@@ -1745,7 +1749,7 @@ public sealed class Tests
     private float _iY0;
     private List<double[]>? _iCams;
     private List<string>? _iLook;
-    private string? _iSafeBackup, _iFlat;
+    private string? _iSafeBackup, _iFlat, _deathSafeBackup;
     private BadBuilding.Interior.BalconySite? _iBal;
 
     /// <summary>--autotest=interior (D81): out of the car, to the door of the nearest block of flats that has an
@@ -1993,7 +1997,7 @@ public sealed class Tests
                 if (At(0.1))
                 {
                     _iSafeBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
-                    Items.Containers.Forget(Main.MapName);
+                    Items.Containers.Forget(Main.SaveWorld);
                     w.Body.Pack.Stacks.Clear();
                     Log.Info("Test", $"loot: {Items.ItemDb.All.Count} items known");
                 }
@@ -2040,8 +2044,8 @@ public sealed class Tests
                     Log.Info("Test", $"loot: hunger now {w.Body.Hunger:0}, pack {Items.Inventory.Say(w.Body.Pack.Stacks)}");
                     // searched again: what's left is remembered
                     var spot = ints.ContainerInReach(w.GlobalPosition, w.Yaw);
-                    Log.Info("Test", $"loot: the last one searched before: {spot != null && Items.Containers.Searched(Main.MapName, spot.Id)}");
-                    if (_iSafeBackup != null) System.IO.File.WriteAllText(file, _iSafeBackup); else Items.Containers.Forget(Main.MapName);
+                    Log.Info("Test", $"loot: the last one searched before: {spot != null && Items.Containers.Searched(Main.SaveWorld, spot.Id)}");
+                    if (_iSafeBackup != null) System.IO.File.WriteAllText(file, _iSafeBackup); else Items.Containers.Forget(Main.SaveWorld);
                     Log.Info("Test", "loot: done (the old containers file restored)");
                     _main.GetTree().Quit();
                 }
@@ -2054,7 +2058,7 @@ public sealed class Tests
                 {
                     // keep Tom's own safehouse: back it up, restore it at the end
                     _iSafeBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
-                    OnFoot.Safehouse.Clear(Main.MapName);
+                    OnFoot.Safehouse.Clear(Main.SaveWorld);
                     var lv = RoomOf("living", Math.Min(3, mdl.Levels - 1)) ?? RoomOf("living", 1);
                     _iFlat = lv?.Flat;
                     if (lv != null) { Put(Centre(lv) + Vector3.Up * 0.1f, Centre(lv, 1.4f) + new Vector3(mdl.Frame.AxisV.X, 0, mdl.Frame.AxisV.Z) * 5f); w.SetView(true); }
@@ -2088,7 +2092,7 @@ public sealed class Tests
                 }
                 if (At(8.0))
                 {
-                    if (_iSafeBackup != null) System.IO.File.WriteAllText(file, _iSafeBackup); else OnFoot.Safehouse.Clear(Main.MapName);
+                    if (_iSafeBackup != null) System.IO.File.WriteAllText(file, _iSafeBackup); else OnFoot.Safehouse.Clear(Main.SaveWorld);
                     Log.Info("Test", "safehouse: done (the old safehouse file restored)");
                     _main.GetTree().Quit();
                 }

@@ -32,6 +32,20 @@ python tools/osm_import/build.py data/work/mazowsze map --dem data/dem/gugik10 -
 
 `--tiles tx0,tz0,tx1,tz1` builds only those tiles (a quick test map; central Warsaw is about `32,311,34,313`).
 
+## Several regions in one map (D90)
+
+Merge the extracts first, then run both stages on the merged file; border roads come out whole, with no seams:
+
+```bash
+python tools/osm_import/merge.py data/source/polska-261120.osm.pbf "data/source/mazowieckie-*.osm.pbf" "data/source/podlaskie-*.osm.pbf"
+python tools/dem/fetch_gugik.py --pbf data/source/podlaskie-261120.osm.pbf --out data/dem/gugik10
+python tools/dem/fill_gugik_sheets.py data/dem/gugik10
+python tools/osm_import/extract.py data/source/polska-261120.osm.pbf data/work/polska
+python tools/osm_import/build.py data/work/polska map --dem data/dem/gugik10 --name polska
+```
+
+The game opens `polska` when it's there, else `mazowsze` (`--map=` chooses).
+
 ## Coordinates
 
 Everything is projected once, in stage 1, with the Baltic-wide Lambert conformal conic in `common.py` (D2 in

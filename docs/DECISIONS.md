@@ -1346,3 +1346,24 @@ bottle, rice), a wardrobe (rags, sheets), an empty mirror cabinet and fridge; to
 hungry; the player's own containers file is backed up and restored. The old loot and death tests still pass.
 Not yet: dropping items, ammo as items, clothing and bags (more weight), crafting recipes, items shown on shelves,
 "full" furniture models (Tom's Zomboid idea), outdoor caches as containers in the same window.
+
+## D90 — Regions joined by merging their extracts: one map, "polska" (Tom: "Next region: Podlaskie", 20 Nov)
+The map grows by whole voivodeships with no seams (region-order: Podlaskie next). Building each region on its own
+would leave the border tiles half-filled in two pack sets, with road heights solved twice and not meeting. Instead:
+* **Merge the extracts, build once.** `tools/osm_import/merge.py` merges Geofabrik extracts (pyosmium
+  `MergeInputReader`, one copy of every object, the newest), so ways crossing the border are whole; stage 1 and 2 run
+  on the merged file as on one region. The packs are named `polska` (they'll hold more of Poland as it's added).
+  Rebuilding everything each time costs time (Mazowsze alone: ~8 min stage 1, ~52 min stage 2), not seams; per-tile
+  rebuilds can come later if it gets slow.
+* **One projection, one world.** Every pack is cut from the Baltic-wide projection (D2), so a place has the same
+  coordinates in `mazowsze` and `polska`. The player's saves (safehouse, searched furniture) are now kept under the
+  world, `Main.SaveWorld = "baltic"`, not the pack name; saves from before, under "mazowsze", are read as the world's
+  (and the containers file moves them on its next write).
+* **The game opens `polska` when it's built**, else `mazowsze`; `--map=` still chooses. `--yaw=` sets the start heading
+  (for tests crossing the border).
+* Elevation: GUGiK's WCS (as for Mazowsze); on 20 Nov it was failing (connections cut, HTTP 400, timeouts), so the
+  download retries every 20 minutes until every block is in (Tom: retry, keep the 10 m quality). Then the EVRF2007
+  sheet fill as for Mazowsze.
+* The death self-test now keeps the player's own safehouse file and puts it back (it used to clear it).
+Not yet: the build and the drive across the border (waiting for the elevation); Podlaskie's own look (wooden
+villages, Orthodox churches with OSM evidence, the Tatar mosques, forests): proposed, waiting for Tom's choices.
