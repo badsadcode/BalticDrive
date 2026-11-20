@@ -18,6 +18,14 @@ namespace BalticDrive.Vehicle;
 public partial class Car : VehicleBody3D, OnFoot.IHittable
 {
     private const float TopSpeed = 50f;           // m/s (180 km/h)
+    /// <summary>Tyre grip (D97): the wheels' friction slip, a friction coefficient (lateral force up to grip × load).
+    /// About 1.4 g of cornering: the tyres slide before a car this tall would roll (it used to be 3.3, ~3 g).</summary>
+    private static readonly float GripFront = Grip(1.45f), GripRear = Grip(1.35f);
+    /// <summary>Tuning and tests: <c>--grip=K</c> scales the grip, <c>--antiroll=0</c> turns the helper off.</summary>
+    private static float Grip(float g) => g * (Main.Args.TryGetValue("grip", out var k) && float.TryParse(k, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f) ? f : 1f);
+    private static readonly bool AntiRoll = Main.Args.GetValueOrDefault("antiroll", "1") != "0";
+    /// <summary>The arcade anti-roll bars (D97): torque per radian of roll and per rad/s of roll rate, per kg.</summary>
+    private const float RollStiffness = 22f, RollDamping = 5f, MaxRollRate = 2.2f;
     // VehicleBody3D drives towards +Z for positive engine force; the car's nose is -Z.
     private const float DriveSign = -1f;
     private const string ModelPath = "res://Assets/Vehicles/Vehicle_Pickup.gltf";
@@ -298,6 +306,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     }
     /// <summary>Scripted inputs (tests): throttle 0..1, brake 0..1, steer -1..1 (left positive).</summary>
     public Func<Car, (float Throttle, float Brake, float Steer)>? Autopilot;
+    /// <summary>The handbrake when an autopilot drives (self-tests).</summary>
+    public bool AutoHandbrake;
     /// <summary>Whether ground collision is loaded under a world point (the car freezes where it is not).</summary>
     public Func<double, double, bool>? HasGround;
     private PhysicsRayQueryParameters3D? _wheelRay;
@@ -482,7 +492,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
                 WheelRadius = radius, WheelRestLength = rest, SuspensionTravel = 0.22f,
                 SuspensionStiffness = 32f, SuspensionMaxForce = 24000f,
                 DampingCompression = 2.8f, DampingRelaxation = 3.8f,
-                WheelFrictionSlip = front ? 3.3f : 3.1f, WheelRollInfluence = 0.015f,
+                WheelFrictionSlip = front ? GripFront : GripRear, WheelRollInfluence = 0.015f,
             };
             AddChild(w);
             _wheels[i] = w;
@@ -588,7 +598,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
         float throttle = 0, brakeIn = 0, steerIn = 0;
         bool handbrake = false;
-        if (Autopilot != null) (throttle, brakeIn, steerIn) = Autopilot(this);
+        if (Autopilot != null) { (throttle, brakeIn, steerIn) = Autopilot(this); handbrake = AutoHandbrake; }
         else if (Driving)
         {
             throttle = Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up) ? 1f : 0f;
@@ -671,7 +681,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             bool rear = i >= 2;
             w.EngineForce = force * 0.25f * DriveSign;
             w.Brake = handbrake && rear ? 70f : brake * (rear ? 0.75f : 1f) * (brake > 2f ? Parts.Brakes(rear) : 1f);
-            w.WheelFrictionSlip = (rear ? 3.1f : 3.3f) * grip * (handbrake && rear ? 0.45f : 1f) * Parts.Grip(i);
+            w.WheelFrictionSlip = (rear ? GripRear : GripFront) * grip * (handbrake && rear ? 0.45f : 1f) * Parts.Grip(i);
             // a flat runs on its rim; worn suspension is soft, low and bouncy
             w.WheelRadius = Parts.Flat(i) ? _wheelRadius * 0.82f : _wheelRadius;
             float s = Parts.Suspension(rear);
@@ -681,11 +691,36 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             w.WheelRestLength = 0.25f * (0.7f + 0.3f * s);
         }
 
+        Stabilise(contacts);
+
         var v = LinearVelocity;
         ApplyCentralForce(-v * v.Length() * 0.40f);
         if (!OnRoad && contacts > 0) ApplyCentralForce(-v * 60f);
 
         if (Map != null && GlobalPosition.Y < Map.Height(wx, wz) - 4f) Recover();
+    }
+
+    /// <summary>
+    /// Anti-roll (D97): while wheels touch the ground, a torque round the car's length pulls it back toward its wheels
+    /// (like stiff anti-roll bars) and damps rolling, and the roll rate is capped so a kerb strike can't throw it over
+    /// in one step. Only roll: the car still pitches, climbs and jumps. Off the ground (or past 75°, already going
+    /// over) it does nothing, so a real crash still rolls.
+    /// </summary>
+    private void Stabilise(int contacts)
+    {
+        if (contacts == 0 || !AntiRoll) return;
+        var b = GlobalTransform.Basis;
+        var fwd = -b.Z;
+        // the roll: how far the car's up leans sideways, about its own length
+        float side = b.X.Dot(Vector3.Up);                  // sin of the roll (0 upright)
+        if (b.Y.Y < 0.26f) return;                         // already over (past ~75°): let it fall
+        float rate = AngularVelocity.Dot(fwd);
+        float k = Mass * (contacts >= 2 ? 1f : 0.5f);
+        // turning about fwd (= −Z) by +a lowers X's y by a, so +side needs a positive torque to come back
+        float torque = side * RollStiffness * k - rate * RollDamping * k;
+        ApplyTorque(fwd * torque);
+        if (MathF.Abs(rate) > MaxRollRate)
+            AngularVelocity -= fwd * (rate - MathF.Sign(rate) * MaxRollRate);
     }
 
     public override void _Process(double delta)

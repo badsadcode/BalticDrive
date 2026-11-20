@@ -1435,3 +1435,22 @@ at the hinge, hood, trunk, wheels at the hub), glass, seats, engine and battery 
 glovebox containers (D89), and highlight or remove the real parts in the workshop. The spec lacks vehicle part names
 and a `container` marker: proposed for Noor Interchange v0.6, object names carry it meanwhile (the spec's fallback).
 Waiting for: Tom's first car in `data/inbox`.
+
+## D97 — The car stops tipping over (Tom: "It's so easy to tip the car", 21 Nov)
+Reproduced with a new self-test, `--autotest=tip`: on a field off the S8, the first double lane change at 50 km/h
+rolled the car onto its side. The cause was the tyres' grip: Godot's wheel friction slip is a friction coefficient
+(sideways force up to slip × the wheel's load), and 3.3 meant about 3 g of cornering, far past a car's roll-over
+threshold (about 1.3 g for a track of 1.5 m and a centre of mass 0.55 m up), so the car pivoted over its tyres
+instead of sliding. Now:
+* **Grip 1.45 front, 1.35 rear** (about 1.4 g): the tyres slide first, as real ones do, rear a little looser.
+* **Arcade anti-roll** (`Car.Stabilise`): while wheels touch the ground, a torque about the car's length pulls it back
+  toward its wheels (22 N·m per kg per radian, like stiff anti-roll bars) and damps the roll (5 per rad/s); the roll
+  rate is capped at 2.2 rad/s so a kerb strike can't throw it over in one step. Roll only (it still pitches and jumps);
+  past 75° or with no wheel down it lets go, so a real crash still rolls.
+* `--grip=K` scales the grip and `--antiroll=0` turns the helper off, for tuning; the autopilot can pull the handbrake
+  (`Car.AutoHandbrake`).
+Results, before → after: a field by the S8, lane change at 50 km/h: flipped → 5° of roll; all six manoeuvres (lane
+changes at 50/70/90 km/h, full lock at 40/60, a handbrake turn at 50) in central Warsaw with kerbs: worst roll 6°,
+no flips. The route drive (`--autotest=drive --dest`) covers the same distance with the old grip and the new
+(1.45 / 1.44 km in 120 s, 2.8 s off road both: the test's autopilot clips something on that route either way).
+Not yet: Tom's feel in his own hands; per-car settings (weight, power, grip, sound) for his own cars (D96).

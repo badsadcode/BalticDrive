@@ -73,6 +73,12 @@ public sealed class Tests
     private bool _drive;
     private double _driveTime, _maxSpeed, _offRoad;
     private bool _driveStarted;
+    // --autotest=tip (D97): lane changes and a handbrake turn at speed, the worst roll and the flips
+    private bool _tip, _tipStarted;
+    private int _tipStep, _tipFlips, _tipRound;
+    private double _tipAt, _tipT;
+    private float _tipMaxRoll, _tipRoundRoll;
+    private readonly List<string> _tipReport = new();
     private double _driveLimit = 20;
     private int _routeHint;
     private float _stuckTime, _reverseLeft, _reverseSteer;   // drive test: a car pinned against a kerb backs off and retries
@@ -108,6 +114,7 @@ public sealed class Tests
         _fly = Main.Args.GetValueOrDefault("autotest", "").Contains("fly");
         _map = Main.Args.GetValueOrDefault("autotest", "").Contains("map");
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
+        _tip = Main.Args.GetValueOrDefault("autotest", "").Contains("tip");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -1650,6 +1657,11 @@ public sealed class Tests
             view.Toggle();
             _map = false;
         }
+        if (_tip && _main.Car is { } tcar)
+        {
+            if (TipTest(tcar, delta)) return;
+            _tip = false;
+        }
         if (_drive && _main.Car is { } car && _main.World is { } map)
         {
             if (!_driveStarted)
@@ -1741,6 +1753,83 @@ public sealed class Tests
         Log.Info("Test", "done");
         _main.GetTree().Quit(0);
     }
+
+    // ---- --autotest=tip (D97) -----------------------------------------------------------------------------------
+    /// <summary>The car through a double lane change (full steer one way, the other, back) at 50, 70 and 90 km/h, a
+    /// full-lock turn at 40, and a handbrake turn at 50: the worst roll in each, and whether it went over. True while
+    /// running.</summary>
+    private bool TipTest(Vehicle.Car car, double delta)
+    {
+        if (!_tipStarted)
+        {
+            if (_settledFor < 1.5) return true;
+            _tipStarted = true; _tipAt = 0; _tipT = 0;
+            car.Autopilot = Pilot;
+            Log.Info("Test", "tip: start");
+        }
+        _tipT += delta;
+        var up = car.GlobalTransform.Basis.Y;
+        float roll = Mathf.RadToDeg(MathF.Acos(Math.Clamp(up.Y, -1f, 1f)));
+        _tipRoundRoll = MathF.Max(_tipRoundRoll, roll);
+        _tipMaxRoll = MathF.Max(_tipMaxRoll, roll);
+        if (up.Y < 0.3f && _tipStep != 99)
+        {
+            _tipFlips++;
+            Shot($"tip_flip_{_tipFlips}");
+            _tipReport.Add($"{Rounds[Math.Min(_tipRound, Rounds.Length - 1)].Kind} at {Rounds[Math.Min(_tipRound, Rounds.Length - 1)].Kmh} km/h: FLIPPED");
+            Log.Info("Test", $"tip: {_tipReport[^1]}");
+            car.Recover();
+            NextRound();
+        }
+        if (_tipRound >= Rounds.Length)
+        {
+            Log.Info("Test", $"tip: {string.Join("; ", _tipReport)}");
+            Log.Info("Test", $"tip: worst roll {_tipMaxRoll:0} degrees, {_tipFlips} flips");
+            car.Autopilot = null;
+            return false;
+        }
+        return true;
+
+        (float, float, float) Pilot(Vehicle.Car c)
+        {
+            var r = Rounds[Math.Min(_tipRound, Rounds.Length - 1)];
+            double t = _tipT - _tipAt;
+            switch (_tipStep)
+            {
+                case 0:   // up to speed, straight
+                    if (c.Speed * 3.6f >= r.Kmh) { _tipStep = 1; _tipAt = _tipT; _tipRoundRoll = 0; }
+                    else if (t > 25) { _tipReport.Add($"{r.Kind} at {r.Kmh} km/h: never got up to speed"); Log.Info("Test", $"tip: {_tipReport[^1]}"); NextRound(); }
+                    return (1f, 0f, 0f);
+                case 1:   // the manoeuvre
+                {
+                    float steer = r.Kind switch
+                    {
+                        "lane" => t < 1.0 ? 1f : t < 2.2 ? -1f : t < 3.0 ? 1f : 0f,
+                        _ => t < 2.5 ? 1f : 0f,
+                    };
+                    c.AutoHandbrake = r.Kind == "handbrake" && t < 2.0;
+                    if (t > (r.Kind == "lane" ? 3.6 : 3.0)) { _tipStep = 2; _tipAt = _tipT; }
+                    return (r.Kind == "full" ? 0.6f : 0.3f, 0f, steer);
+                }
+                default:  // stop, report, next
+                    c.AutoHandbrake = false;
+                    if (MathF.Abs(c.Speed) < 1f || t > 8)
+                    {
+                        _tipReport.Add($"{r.Kind} at {r.Kmh} km/h: roll {_tipRoundRoll:0} degrees");
+                        Log.Info("Test", $"tip: {_tipReport[^1]}");
+                        NextRound();
+                    }
+                    return (0f, 1f, 0f);
+            }
+        }
+    }
+
+    private void NextRound() { _tipRound++; _tipStep = 0; _tipAt = _tipT; _tipRoundRoll = 0; _main.Car?.Recover(); }
+
+    private static readonly (string Kind, float Kmh)[] Rounds =
+    {
+        ("lane", 50), ("lane", 70), ("lane", 90), ("full", 40), ("full", 60), ("handbrake", 50),
+    };
 
     // ---- --autotest=interior (D81) -----------------------------------------------------------------------------
     private double _iTime = -1, _iPhaseAt;
