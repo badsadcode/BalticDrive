@@ -1290,3 +1290,19 @@ windows...), with physics and loot markers (not used by the game yet). A 15-stor
 boxes: planned in ~0.3 s on a worker; its surfaces are uploaded a few per frame (4 ms each), and the collision shape
 still costs ~30 ms once, about 20 m before you reach the door. The self-test starts the walker on free floor. Known: the
 self-test's third-person shot in a Skaryszew bedroom comes out black (not investigated; first-person views are fine).
+
+## D87 — Furniture models by kind: Synty now, our own later (BadBuilding D39, 20 Nov)
+Tom: "I want to be able to swap the assets with any model... For now, use Synty mixed with our own if something is
+missing."
+* `Assets/Furniture/furniture.json` (committed): per kind, a list of models (any Godot-loadable file), each with a
+  `yaw` and a `fit` (stretch, footprint, uniform); picked by the piece's id. `World.FurnitureCatalog` loads it at start;
+  a missing file (Synty isn't in the public repo) leaves that kind generated. Placed per building as one multimesh per
+  model part (materials baked into a copy of each mesh); the models' own colliders are ignored, the library's boxes do.
+* Synty (copied with `tools/synty_copy.py`, git-ignored): City couch for sofas; Heist glass and square coffee tables,
+  chest of drawers for bedside tables and the hall's shoe cabinet; Gang Warfare office shelf as the bookcase and metal
+  shelving in storerooms. None of Tom's packs has beds, wardrobes, fridges, bathroom fittings, TVs or armchairs: those
+  stay generated, waiting for our own models. (The Heist couches are white leather from the bank: left out.)
+* The models' materials glow faintly with their own colours indoors like the rest (emission = the albedo texture,
+  multiplied; "add" made everything white).
+* `Assets/Furniture/README.md` explains adding a model; `tools/prefab_sizes.gd` prints a model's size; the self-test's
+  `--look=kind,kind` photographs a piece of each kind from in front.

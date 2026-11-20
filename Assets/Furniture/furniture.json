@@ -1,0 +1,52 @@
+{
+  "_about": "Models for the furniture NoorFengShui places, by kind (D87). Any model Godot loads: a Synty prefab, a .glb or .tscn of our own. A kind with no entry, or whose model isn't on disk (Synty is licensed and not in this repository), keeps BadBuilding's generated shape. fit: stretch (to the footprint and the piece's height), footprint (to the footprint, own height), uniform (own proportions, inside the footprint). yaw: degrees, turns the model so its front faces +Z. Kinds: bed_double bed_single nightstand wardrobe desk bookshelf sofa armchair tv_unit coffee_table dining_table counter fridge kitchen_table bath shower toilet basin washer shoe_cabinet coat_rack shelves.",
+  "kinds": {
+    "sofa": [
+      {
+        "model": "res://Assets/Synty/PolygonCity/Prefabs/Props/SM_Prop_Couch_01.tscn",
+        "fit": "footprint",
+        "yaw": 0
+      }
+    ],
+    "coffee_table": [
+      {
+        "model": "res://Assets/Synty/PolygonHeist/Prefab/Props/SM_Prop_CoffeTable_01.tscn",
+        "fit": "stretch",
+        "yaw": 0
+      },
+      {
+        "model": "res://Assets/Synty/PolygonHeist/Prefab/Props/SM_Prop_CoffeeTable_02.tscn",
+        "fit": "uniform",
+        "yaw": 0
+      }
+    ],
+    "nightstand": [
+      {
+        "model": "res://Assets/Synty/PolygonHeist/Prefab/Props/SM_Prop_Drawers_01.tscn",
+        "fit": "stretch",
+        "yaw": 0
+      }
+    ],
+    "shoe_cabinet": [
+      {
+        "model": "res://Assets/Synty/PolygonHeist/Prefab/Props/SM_Prop_Drawers_01.tscn",
+        "fit": "stretch",
+        "yaw": 0
+      }
+    ],
+    "bookshelf": [
+      {
+        "model": "res://Assets/Synty/PolygonGangWarfare/Prefabs/Props/SM_Prop_Office_Shelf_01.tscn",
+        "fit": "stretch",
+        "yaw": 0
+      }
+    ],
+    "shelves": [
+      {
+        "model": "res://Assets/Synty/PolygonGangWarfare/Prefabs/Props/SM_Prop_Shelf_01.tscn",
+        "fit": "stretch",
+        "yaw": 0
+      }
+    ]
+  }
+}

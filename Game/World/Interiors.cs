@@ -54,31 +54,49 @@ public partial class Interiors : Node
 
     /// <summary>The Godot-ready arrays, made on the worker thread so adding an interior costs the frame little: one
     /// surface per material role, and every collider's faces as one concave shape.</summary>
-    private sealed record Prepared(List<(string Role, Vector3[] V, Vector3[] N, Vector2[] Uv)> Surfaces, Vector3[] Faces);
+    private sealed record Prepared(List<(string Role, Vector3[] V, Vector3[] N, Vector2[] Uv)> Surfaces, Vector3[] Faces,
+        Dictionary<(FurnitureCatalog.Model Model, int Part), List<Transform3D>> Placed);
 
-    private static Prepared Prepare(BB.Interior.InteriorModel m)
+    private static Prepared Prepare(BB.Interior.InteriorModel m, FurnitureCatalog cat)
     {
         var surfaces = new List<(string, Vector3[], Vector3[], Vector2[])>();
-        var src = m.Mesh;
-        foreach (var (role, idx) in src.Groups)
+        // the rooms, and the generated furniture of every kind the catalogue has no model for (D87)
+        var placed = new Dictionary<(FurnitureCatalog.Model, int), List<Transform3D>>();
+        var sources = new List<BB.Geometry.Mesh> { m.Mesh };
+        foreach (var item in m.Furniture)
         {
-            if (idx.Count == 0) continue;
-            var v = new Vector3[idx.Count]; var n = new Vector3[idx.Count]; var uv = new Vector2[idx.Count];
-            for (int k = 0; k < idx.Count; k++)
+            var model = cat.For(item);
+            if (model == null) { sources.Add(item.Shape); continue; }
+            var t = FurnitureCatalog.Place(model, item, m.Frame);
+            for (int pi = 0; pi < model.Parts.Count; pi++)
+                (placed.TryGetValue((model, pi), out var list) ? list : placed[(model, pi)] = new()).Add(t * model.Parts[pi].Local);
+        }
+        foreach (var role in sources.SelectMany(x => x.Groups.Keys).Distinct())
+        {
+            int count = sources.Sum(x => x.Groups.TryGetValue(role, out var g) ? g.Count : 0);
+            if (count == 0) continue;
+            var v = new Vector3[count]; var n = new Vector3[count]; var uv = new Vector2[count];
+            int k = 0;
+            foreach (var src in sources)
             {
-                var p = src.Positions[idx[k]]; var q = src.Normals[idx[k]];
-                v[k] = new Vector3(p.X, p.Y, p.Z);
-                n[k] = new Vector3(q.X, q.Y, q.Z);
-                // UVs in metres along the surface, for later textures
-                uv[k] = MathF.Abs(q.Y) > 0.5f ? new Vector2(p.X, p.Z) : new Vector2(p.X * -q.Z + p.Z * q.X, p.Y);
+                if (!src.Groups.TryGetValue(role, out var idx)) continue;
+                foreach (int i in idx)
+                {
+                    var p = src.Positions[i]; var q = src.Normals[i];
+                    v[k] = new Vector3(p.X, p.Y, p.Z);
+                    n[k] = new Vector3(q.X, q.Y, q.Z);
+                    // UVs in metres along the surface, for later textures
+                    uv[k] = MathF.Abs(q.Y) > 0.5f ? new Vector2(p.X, p.Z) : new Vector2(p.X * -q.Z + p.Z * q.X, p.Y);
+                    k++;
+                }
             }
             // Godot draws clockwise triangles as the front: the library's wind counter-clockwise about their normal
             // (without this every face was seen from behind: floors and outer walls vanished, D83)
-            for (int k = 0; k + 2 < v.Length; k += 3)
+            for (int t = 0; t + 2 < v.Length; t += 3)
             {
-                (v[k + 1], v[k + 2]) = (v[k + 2], v[k + 1]);
-                (n[k + 1], n[k + 2]) = (n[k + 2], n[k + 1]);
-                (uv[k + 1], uv[k + 2]) = (uv[k + 2], uv[k + 1]);
+                (v[t + 1], v[t + 2]) = (v[t + 2], v[t + 1]);
+                (n[t + 1], n[t + 2]) = (n[t + 2], n[t + 1]);
+                (uv[t + 1], uv[t + 2]) = (uv[t + 2], uv[t + 1]);
             }
             surfaces.Add((role, v, n, uv));
         }
@@ -98,8 +116,10 @@ public partial class Interiors : Node
                 faces[f++] = Corner(a); faces[f++] = Corner(cc); faces[f++] = Corner(d);
             }
         }
-        return new Prepared(surfaces, faces);
+        return new Prepared(surfaces, faces, placed);
     }
+    /// <summary>Models for furniture by kind (D87); read-only after loading, so the workers use it too.</summary>
+    public FurnitureCatalog Catalog { get; }
     private double _scan;
     private static readonly Dictionary<string, StandardMaterial3D> _materials = new();
 
@@ -115,6 +135,7 @@ public partial class Interiors : Node
     public Interiors(Main main)
     {
         _main = main; Name = "Interiors";
+        Catalog = FurnitureCatalog.Load();
         if (Main.Args.TryGetValue("interior-reach", out var r) && float.TryParse(r, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float rf))
         { LoadReach = rf; DropReach = rf * 2; }
     }
@@ -172,6 +193,7 @@ public partial class Interiors : Node
         if (MathF.Abs(k - _fill) < 0.003f) return;
         _fill = k;
         // ceilings catch the light the floors throw up
+        foreach (var cm in Catalog.Materials) cm.EmissionEnergyMultiplier = k;
         foreach (var (key, m) in _materials)
             if (m.Transparency == BaseMaterial3D.TransparencyEnum.Disabled) m.EmissionEnergyMultiplier = key.StartsWith("ceiling") ? k * 1.6f : k;
     }
@@ -194,7 +216,7 @@ public partial class Interiors : Node
             {
                 BB.Interior.InteriorModel? m = null; Prepared? prep = null; string why = "";
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                try { m = BB.Interior.InteriorGenerator.Generate(entry.Shell, out why); if (m != null) { prep = Prepare(m); m.Report.Metrics["ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 1); } }
+                try { m = BB.Interior.InteriorGenerator.Generate(entry.Shell, out why); if (m != null) { prep = Prepare(m, Catalog); m.Report.Metrics["ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 1); } }
                 catch (Exception ex) { why = ex.Message; }
                 _done.Enqueue((entry, m, prep, why));
             });
@@ -291,6 +313,13 @@ public partial class Interiors : Node
         foreach (var srf in prep.Surfaces) _uploads.Enqueue((mesh, m, srf));
         // double-sided shadows: the walls, floors and ceilings keep the sun out except through the windows
         node.AddChild(new MeshInstance3D { Mesh = mesh, Name = "Rooms", CastShadow = GeometryInstance3D.ShadowCastingSetting.DoubleSided });
+        // furniture models: one multimesh per model part for the whole building
+        foreach (var ((model, part), list) in prep.Placed)
+        {
+            var mm = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = model.Parts[part].Mesh, InstanceCount = list.Count };
+            for (int i = 0; i < list.Count; i++) mm.SetInstanceTransform(i, list[i]);
+            node.AddChild(new MultiMeshInstance3D { Multimesh = mm, Name = "Furniture", CastShadow = GeometryInstance3D.ShadowCastingSetting.DoubleSided });
+        }
 
         double tMesh = sw.Elapsed.TotalMilliseconds;
         var body = new StaticBody3D { CollisionLayer = Bodies.Interior, CollisionMask = 0, Name = "Walls" };

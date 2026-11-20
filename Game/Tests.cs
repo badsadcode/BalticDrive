@@ -1744,6 +1744,7 @@ public sealed class Tests
     private BadBuilding.Interior.InteriorModel? _iModel;
     private float _iY0;
     private List<double[]>? _iCams;
+    private List<string>? _iLook;
     private BadBuilding.Interior.BalconySite? _iBal;
 
     /// <summary>--autotest=interior (D81): out of the car, to the door of the nearest block of flats that has an
@@ -1841,6 +1842,13 @@ public sealed class Tests
                 if (t < 1.5) break;
                 // --cams="x,y,z,yaw,pitch;..." (world metres, degrees, from F9 dumps' Camera line): stand where the
                 // first-person camera was and photograph, then stop
+                // --look=sofa,nightstand,...: photograph a piece of each kind from in front of it (D87), then stop
+                if (Main.Args.TryGetValue("look", out var look))
+                {
+                    _iLook = look.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                    Phase(11);
+                    break;
+                }
                 if (Main.Args.TryGetValue("cams", out var cams))
                 {
                     _iCams = cams.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(c => c.Split(',').Select(Num).ToArray()).ToList();
@@ -1973,6 +1981,24 @@ public sealed class Tests
                     w.Autopilot = _ => (new Vector2(0, 1), false);
                 }
                 break;
+            case 11:
+            {
+                int i = (int)(t / 1.5);
+                if (i >= _iLook!.Count) { Log.Info("Test", "interior: looks done"); _main.GetTree().Quit(); break; }
+                double ti = t - i * 1.5;
+                var item = mdl.Furniture.Where(f => f.Kind == _iLook[i]).OrderBy(f => MathF.Abs(f.Floor - (mdl.Floor + mdl.StoreyHeight))).FirstOrDefault();
+                if (item == null) { if (ti < delta * 1.5) Log.Info("Test", $"interior: no {_iLook[i]}"); break; }
+                if (ti < 0.5)
+                {
+                    var c = new System.Numerics.Vector2((item.Min.X + item.Max.X) * 0.5f, (item.Min.Y + item.Max.Y) * 0.5f);
+                    float reach = MathF.Abs(item.Facing.Y) > 0.5f ? item.Max.Y - item.Min.Y : item.Max.X - item.Min.X;
+                    var stand = c + item.Facing * (reach * 0.5f + 1.6f);
+                    w.SetView(true);
+                    Put(P(stand.X, item.Floor + 0.1f, stand.Y), P(c.X, item.Floor + item.Height * 0.5f, c.Y));
+                }
+                if (tb < i * 1.5 + 1.2 && t >= i * 1.5 + 1.2) Shot($"look_{_iLook[i]}");
+                break;
+            }
             case 10:
             {
                 int i = (int)(t / 1.5);
