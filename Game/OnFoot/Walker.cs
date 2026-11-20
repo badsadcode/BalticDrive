@@ -354,6 +354,26 @@ public partial class Walker : CharacterBody3D, IHittable
         if (Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
     }
 
+    /// <summary>The highest ledge the walker steps onto without jumping (D85): a kerb, a doorstep, the first step.</summary>
+    public const float StepHeight = 0.42f;
+
+    /// <summary>Walking into a low ledge: when the way ahead is blocked by something upright but clear
+    /// <see cref="StepHeight"/> higher, the body is lifted onto it (the floor snap settles it). Godot's character body
+    /// slides along a step's face instead of climbing it (D85).</summary>
+    private void StepUp(Vector3 flat)
+    {
+        if (!IsOnFloor() || flat.LengthSquared() < 0.25f) return;
+        var ahead = flat.Normalized() * 0.3f;
+        var t = GlobalTransform;
+        var hit = new KinematicCollision3D();
+        if (!TestMove(t, ahead, hit) || MathF.Abs(hit.GetNormal().Y) > 0.4f) return;
+        var up = Vector3.Up * StepHeight;
+        if (TestMove(t, up)) return;                        // no room overhead
+        var raised = t.Translated(up);
+        if (TestMove(raised, ahead)) return;                // still blocked up there: a wall, not a step
+        GlobalPosition += up;
+    }
+
     /// <summary>Inside a building (D81): the building's solid mass stops counting for the body and the camera, its
     /// interior's walls take over.</summary>
     public bool Indoors
@@ -433,6 +453,7 @@ public partial class Walker : CharacterBody3D, IHittable
         var flat = new Vector3(v.X, 0, v.Z).MoveToward(want, accel * dt);
         v = new Vector3(flat.X, IsOnFloor() && v.Y < 0 ? -0.5f : v.Y - Gravity * dt, flat.Z);
         Velocity = v;
+        StepUp(flat);
         MoveAndSlide();
         Speed = new Vector2(Velocity.X, Velocity.Z).Length();
 

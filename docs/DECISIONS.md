@@ -1276,3 +1276,10 @@ Loggias in contemporary blocks open like balcony doors (their glass is the same 
 you walk out into the recess and stop at the rail. Self-test `--interior-want=loggia` picks the nearest block with
 loggias: at Skaryszew (`--start=70356,637584`) the walker went through the glass and stood at the rail, 0.45 m in
 from the facade. The window jambs that faced into the wall now face into the opening.
+
+## D85 — Stepping up, and doors you can reach from the side (BadBuilding D37, 20 Nov)
+Tom: "sometimes it's hard to get into some buildings because the character cannot jump high enough to get on the first
+step". The walker now steps up ledges up to 0.42 m without jumping (a kerb, a doorstep): when the way ahead is blocked
+by something upright but clear that much higher, the body is lifted onto it (`Walker.StepUp`). With BadBuilding D37's
+wider landing, side ramps and thin jambs, the self-test walked in from 3.5 m to the side (`--interior-angle=M`) in
+about 2 s in a PRL block and a contemporary one; the loggia in front of a stairwell is gone.

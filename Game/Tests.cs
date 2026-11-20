@@ -1770,7 +1770,9 @@ public sealed class Tests
                 var e = m.Entrances[0];
                 var door = WorldOrigin.ToLocal(x + e.Position.X, e.Position.Y, z + e.Position.Z);
                 var o = new Vector3(e.Out.X, 0, e.Out.Z);
-                w0.GlobalPosition = door + o * 5f + Vector3.Up * 0.5f;
+                // --interior-angle=M: start M metres to the side as well, to walk at the door at an angle (D85)
+                float sideways = Main.Args.TryGetValue("interior-angle", out var ang) ? (float)Num(ang) : 0f;
+                w0.GlobalPosition = door + o * 5f + o.Cross(Vector3.Up) * sideways + Vector3.Up * 0.5f;
                 w0.Velocity = Vector3.Zero;
                 w0.Face(door + Vector3.Up * 1.4f);
                 w0.SetView(false);
@@ -1839,7 +1841,9 @@ public sealed class Tests
             case 1:   // walk in
             {
                 var h = Here();
-                w.Face(P(e0, F(0) + 1.5f, 3f));
+                // like a player: to the doorway first, then in
+                float front = mdl.Frame.Local(new System.Numerics.Vector2(mdl.Entrances[0].Position.X, mdl.Entrances[0].Position.Z)).V;
+                w.Face(h.V < front - 1.0f && MathF.Abs(h.U - e0) > 0.3f ? P(e0, F(0) + 1.5f, front - 0.8f) : P(e0, F(0) + 1.5f, front + 3f));
                 if ((int)(tb * 2) != (int)(t * 2)) Log.Info("Test", $"interior: walking in: v {h.V:0.0} m, height {h.Y - F(0):0.00} above the floor, indoors {w.Indoors}");
                 if (h.V > 0.9f)
                 {
