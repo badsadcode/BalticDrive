@@ -1,0 +1,23 @@
+{
+  "_about": "Sandbox settings (D99), Project Zomboid style: how the generated world is stocked and how hard it is. Every spawner reads its numbers here. A preset fills them all; the player's own choices (user://sandbox.json: {\"preset\": \"...\", \"overrides\": {\"key\": value}}) and --sandbox=preset / --sb.key=value on the command line win over it. Multipliers: 1 is the game as designed; 0 turns a thing off.",
+  "settings": {
+    "loot.abundance":      { "default": 1.0,  "min": 0,   "max": 4,   "about": "How much is in drawers, cupboards, crates and stashes (× the items rolled)." },
+    "caches.frequency":    { "default": 1.0,  "min": 0,   "max": 3,   "about": "How many places outdoors have a crate (× the chance per place)." },
+    "bandits.frequency":   { "default": 1.0,  "min": 0,   "max": 4,   "about": "How often bandits turn up (× the chance, ÷ the quiet time between encounters). 0: none." },
+    "bandits.max_near":    { "default": 2,    "min": 0,   "max": 8,   "about": "No new bandits while this many are alive within 250 m." },
+    "wrecks.frequency":    { "default": 1.0,  "min": 0,   "max": 5,   "about": "How many abandoned cars stand around (× the chance per 48 m square)." },
+    "wrecks.runners":      { "default": 0.2,  "min": 0,   "max": 1,   "about": "The share of abandoned cars that still run: engine, battery and four wheels good enough to drive away." },
+    "wrecks.condition":    { "default": 1.0,  "min": 0.2, "max": 2,   "about": "How worn abandoned cars' parts are (× their condition; above 1 better, never above 100 %)." },
+    "wrecks.picked_over":  { "default": 1.0,  "min": 0,   "max": 2,   "about": "How often scavengers took parts before you came (× the chance a part is missing)." }
+  },
+  "presets": {
+    "baltic_drive": { "about": "The game as designed." },
+    "scavenger":    { "about": "A kinder world: more to find, cars that run, fewer bandits.",
+                      "values": { "loot.abundance": 1.8, "caches.frequency": 1.5, "bandits.frequency": 0.5, "wrecks.runners": 0.45, "wrecks.condition": 1.3, "wrecks.picked_over": 0.5 } },
+    "apocalypse":   { "about": "Little left, a lot of trouble.",
+                      "values": { "loot.abundance": 0.5, "caches.frequency": 0.6, "bandits.frequency": 2.0, "bandits.max_near": 4, "wrecks.frequency": 1.5, "wrecks.runners": 0.05, "wrecks.condition": 0.7, "wrecks.picked_over": 1.6 } },
+    "road_trip":    { "about": "Sightseeing: no bandits, plenty of cars to borrow.",
+                      "values": { "bandits.frequency": 0, "wrecks.frequency": 1.5, "wrecks.runners": 0.6, "wrecks.condition": 1.5, "loot.abundance": 1.5 } }
+  },
+  "default_preset": "baltic_drive"
+}

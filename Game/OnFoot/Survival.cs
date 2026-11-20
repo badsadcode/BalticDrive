@@ -264,7 +264,7 @@ public sealed partial class CacheField : Node3D
                     string key = string.IsNullOrEmpty(poi.Id) ? $"{tx}.{tz}.{poi.X:0}.{poi.Z:0}" : poi.Id;
                     if (_live.ContainsKey(key)) continue;
                     var rng = new Random(Hash(key));
-                    if (rng.NextDouble() > Chance(poi.Kind)) continue;        // most places have nothing
+                    if (rng.NextDouble() > Chance(poi.Kind) * Core.Sandbox.Get("caches.frequency")) continue;   // most places have nothing (sandbox, D99)
                     if (Spot(px, pz, rng) is not { } spot) continue;
                     var c = MakeCache(key, poi, rng, spot);
                     c.Opened = _opened.Contains(key);

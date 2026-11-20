@@ -754,9 +754,12 @@ public sealed partial class BanditField : Node3D
         if (now < _nextLook) return;
         _nextLook = now + 8;
         // a little more often than at first (Tom: "not that many"), but never a horde: at most four alive near you
-        if (_all.Count(b => !b.Dead && b.GlobalPosition.DistanceTo(at) < 250) >= 2) return;
-        if (now - _lastEncounter < 60) return;
-        if (_rng.NextDouble() > 0.5) return;
+        // sandbox (D99): how often, and how many at once
+        float often = Sandbox.Get("bandits.frequency");
+        if (often <= 0) return;
+        if (_all.Count(b => !b.Dead && b.GlobalPosition.DistanceTo(at) < 250) >= (int)Sandbox.Get("bandits.max_near")) return;
+        if (now - _lastEncounter < 60 / often) return;
+        if (_rng.NextDouble() > Math.Min(1, 0.5 * often)) return;
         if (t.InCar)
         {
             // driving (D52): somewhere ahead along the way you're going, 140-200 m, off the road

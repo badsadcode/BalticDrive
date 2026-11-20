@@ -650,9 +650,9 @@ public partial class Main : Node3D
 			}
 			else if (_fHeld >= 0)
 			{
-				// a tap: get in (your car), or a word about a wreck
+				// a tap: get in (your car, or another that still runs: D99), or why it won't go
 				_fHeld = -1;
-				if (_fTarget == _car) ToggleOnFoot(); else ShowNote("A wreck: hold F to strip it for parts");
+				if (_fTarget == _car) ToggleOnFoot(); else if (_fTarget != null) TryTakeCar(_fTarget);
 			}
 			GetViewport().SetInputAsHandled();
 			return;
@@ -676,6 +676,44 @@ public partial class Main : Node3D
 			return;
 		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F8 } && _world != null) ToggleFreeCamera();
+	}
+
+	/// <summary>Why a car can't be driven away (D99), or null when it can: the engine, the battery, the wheels.</summary>
+	public static string? WontGo(Vehicle.Car c)
+	{
+		var p = c.Parts;
+		if (p["engine"].Missing) return "there's no engine";
+		if (p["engine"].Health <= 0) return "the engine is wrecked";
+		if (p["battery"].Missing) return "there's no battery";
+		if (p["battery"].Health <= 0.08f) return "the battery is flat";
+		int wheels = 0;
+		for (int i = 0; i < 4; i++) if (p.Tyre(i).Missing) wheels++;
+		if (wheels > 0) return wheels == 1 ? "a wheel is missing" : $"{wheels} wheels are missing";
+		return null;
+	}
+
+	/// <summary>Another car (a wreck that still runs, or one you left, D99): you get in and it's yours; the car you had
+	/// stays parked where it stands for the rest of the session.</summary>
+	public void TryTakeCar(Vehicle.Car c)
+	{
+		if (WontGo(c) is { } why) { ShowNote($"It won't start: {why}. Hold F to work on it"); return; }
+		if (_car != null && _car != c)
+		{
+			_car.Driving = false;
+			_car.Parked = true;
+			_wrecks?.Leave(_car);
+		}
+		_wrecks?.Take(c);
+		c.Parked = false;
+		c.Freeze = false;
+		c.HasGround ??= _terrain.HasGround;
+		if (c.GetChildren().OfType<Audio.EngineSound>().FirstOrDefault() == null) c.AddChild(new Audio.EngineSound(c));
+		_car = c;
+		_walker?.Deactivate();
+		c.Driving = true;
+		c.SetView(false);
+		ShowNote(c.Parts.Report() is { Length: > 0 } r ? $"It starts. {r}" : "It starts");
+		Core.Log.Info("Main", $"took the car {c.Name} ({c.Model.GetFile()}, drives as '{c.Spec.Id}')");
 	}
 
 	/// <summary>E (D38): out of the car on the driver's side, or back in when standing by it.</summary>

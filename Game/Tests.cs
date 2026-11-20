@@ -75,6 +75,11 @@ public sealed class Tests
     private bool _driveStarted;
     // --autotest=tip (D97): lane changes and a handbrake turn at speed, the worst roll and the flips
     private bool _tip, _tipStarted;
+    // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
+    private bool _take;
+    private double _takeT = -1;
+    private Vehicle.Car? _takeOld, _takeNew;
+    private Vector3 _takeFrom;
     private int _tipStep, _tipFlips, _tipRound;
     private double _tipAt, _tipT;
     private float _tipMaxRoll, _tipRoundRoll;
@@ -115,6 +120,7 @@ public sealed class Tests
         _map = Main.Args.GetValueOrDefault("autotest", "").Contains("map");
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
         _tip = Main.Args.GetValueOrDefault("autotest", "").Contains("tip");
+        _take = Main.Args.GetValueOrDefault("autotest", "").Contains("takecar");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -1657,6 +1663,11 @@ public sealed class Tests
             view.Toggle();
             _map = false;
         }
+        if (_take)
+        {
+            if (TakeCarTest(delta)) return;
+            _take = false;
+        }
         if (_tip && _main.Car is { } tcar)
         {
             if (TipTest(tcar, delta)) return;
@@ -1822,6 +1833,64 @@ public sealed class Tests
                     return (0f, 1f, 0f);
             }
         }
+    }
+
+    /// <summary>Out of the car, to the nearest wreck, take it (or hear why not), drive it, check the old car stayed. True
+    /// while running.</summary>
+    private bool TakeCarTest(double delta)
+    {
+        if (_takeT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _takeT = 0;
+            _takeOld = _main.Car;
+            _main.ToggleOnFoot();
+            Log.Info("Test", "takecar: on foot, looking for wrecks");
+            return true;
+        }
+        double before = _takeT;
+        _takeT += delta;
+        bool At(double t) => before < t && _takeT >= t;
+        var w = _main.Walker!;
+        if (At(6))   // the wrecks have had time to appear around us
+        {
+            var wreck = _main.Wrecks?.Live.Where(c => c != _takeOld).OrderBy(c => c.GlobalPosition.DistanceTo(w.GlobalPosition)).FirstOrDefault();
+            if (wreck == null) { Log.Info("Test", "takecar: no wreck within reach"); return false; }
+            Log.Info("Test", $"takecar: nearest wreck {wreck.Name} ({wreck.Model.GetFile()}) {wreck.GlobalPosition.DistanceTo(w.GlobalPosition):0} m away; won't go: {Main.WontGo(wreck) ?? "-"}");
+            // stand by its driver's door
+            var t = wreck.GlobalTransform;
+            w.GlobalPosition = t.Origin - t.Basis.X * 2.2f + Vector3.Up * 0.5f;
+            _takeNew = wreck;
+        }
+        if (At(7) && _takeNew != null)
+        {
+            _main.TryTakeCar(_takeNew);
+            bool took = _main.Car == _takeNew;
+            Log.Info("Test", $"takecar: {(took ? "took it" : "didn't take it")}; driving {(_main.Car?.Driving ?? false)}");
+            if (!took) { Shot("takecar_refused"); return false; }
+            _takeFrom = _takeNew.GlobalPosition;
+            _takeNew.Autopilot = c => (1f, 0f, 0f);
+        }
+        if (At(15) && _takeNew != null)
+        {
+            _takeNew.Autopilot = c => (0f, 1f, 0f);
+            Shot("takecar_driving");
+            Log.Info("Test", $"takecar: drove {_takeNew.GlobalPosition.DistanceTo(_takeFrom):0} m, {_takeNew.Speed * 3.6f:0} km/h, upright {_takeNew.GlobalTransform.Basis.Y.Y:0.00}");
+            bool kept = _takeOld != null && GodotObject.IsInstanceValid(_takeOld) && (_main.Wrecks?.Live.Contains(_takeOld) ?? false);
+            Log.Info("Test", $"takecar: the old car is {(kept ? "still there, parked" : "GONE")} {(_takeOld != null ? _takeOld.GlobalPosition.DistanceTo(_takeNew.GlobalPosition) : 0):0} m back");
+        }
+        if (At(19) && _takeNew != null && _takeOld != null)
+        {
+            // out, back to the old car, take it again
+            _takeNew.Autopilot = null;
+            _main.ToggleOnFoot();
+            var t = _takeOld.GlobalTransform;
+            w.GlobalPosition = t.Origin - t.Basis.X * 2.2f + Vector3.Up * 0.5f;
+            _main.TryTakeCar(_takeOld);
+            Log.Info("Test", $"takecar: back in the old car: {_main.Car == _takeOld}; the taken one left parked: {_main.Wrecks?.Live.Contains(_takeNew)}");
+            return false;
+        }
+        return true;
     }
 
     private void NextRound() { _tipRound++; _tipStep = 0; _tipAt = _tipT; _tipRoundRoll = 0; _main.Car?.Recover(); }

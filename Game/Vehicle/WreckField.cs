@@ -30,8 +30,23 @@ public sealed partial class WreckField : Node3D
     /// <summary>The parts of every wreck met this session, kept when it's put away.</summary>
     private readonly Dictionary<(long, long), CarParts> _seen = new();
     private readonly HashSet<(long, long)> _empty = new();
+    /// <summary>Squares whose wreck the player drove away (D99): no new one there this session.</summary>
+    private readonly HashSet<(long, long)> _taken = new();
+    /// <summary>Cars the player left behind (D99): kept where they stand, never put away, still in <see cref="Live"/>.</summary>
+    private readonly List<Car> _left = new();
     private double _next;
-    public IEnumerable<Car> Live => _live.Values;
+    public IEnumerable<Car> Live => _live.Values.Concat(_left.Where(IsInstanceValid));
+
+    /// <summary>The player drives this wreck away (D99): it stops being a wreck (no more putting away) and its square
+    /// stays empty.</summary>
+    public void Take(Car car)
+    {
+        foreach (var kv in _live.Where(kv => kv.Value == car).ToList()) { _live.Remove(kv.Key); _taken.Add(kv.Key); }
+        _left.Remove(car);
+    }
+
+    /// <summary>A car the player left: parked where it stands for the rest of the session, still yours to come back to.</summary>
+    public void Leave(Car car) { if (!_left.Contains(car)) _left.Add(car); }
 
     public WreckField(MapWorld world) { _world = world; Name = "Wrecks"; }
 
@@ -56,7 +71,7 @@ public sealed partial class WreckField : Node3D
                 double mx = (cx + 0.5) * Cell - wx, mz = (cz + 0.5) * Cell - wz;
                 if (mx * mx + mz * mz > Near * Near) continue;
                 var rng = new Random((int)Hash.Of((int)cx, (int)cz, 4711));
-                if (rng.NextDouble() > 0.13 || Spot(cx, cz, rng) is not { } spot) { _empty.Add(key); continue; }
+                if (_taken.Contains(key) || rng.NextDouble() > 0.13 * Sandbox.Get("wrecks.frequency") || Spot(cx, cz, rng) is not { } spot) { _empty.Add(key); continue; }
                 Spawn(key, spot, rng);
                 made++;
             }
@@ -120,6 +135,9 @@ public sealed partial class WreckField : Node3D
         if (_seen.TryGetValue(key, out var kept)) { car.Parts.CopyFrom(kept); _seen[key] = car.Parts; }
         else
         {
+            // sandbox (D99): a runner still drives away (engine, battery, four wheels); the rest worn and picked over
+            bool runner = rng.NextDouble() < Sandbox.Get("wrecks.runners");
+            float wear = Sandbox.Get("wrecks.condition"), picked = Sandbox.Get("wrecks.picked_over");
             foreach (var p in car.Parts.All)
             {
                 // worn, some gone: what scavengers want first is missing most often
@@ -128,9 +146,14 @@ public sealed partial class WreckField : Node3D
                     PartKind.Battery => 0.45, PartKind.Tyre => 0.25, PartKind.Engine => 0.15, PartKind.Seat => 0.1,
                     PartKind.Windshield or PartKind.Window => 0.0, _ => 0.08,
                 };
-                p.Condition = (float)Math.Round(5 + 80 * Math.Pow(rng.NextDouble(), 1.3));
+                p.Condition = (float)Math.Min(100, Math.Round((5 + 80 * Math.Pow(rng.NextDouble(), 1.3)) * wear));
                 if (p.Kind is PartKind.Windshield or PartKind.Window && rng.NextDouble() < 0.3) p.Condition = 0;   // smashed
-                p.Missing = rng.NextDouble() < gone;
+                p.Missing = rng.NextDouble() < gone * picked;
+                if (runner && p.Kind is PartKind.Engine or PartKind.Battery or PartKind.Tyre)
+                {
+                    p.Missing = false;
+                    p.Condition = Math.Max(p.Condition, (float)Math.Round(35 + 45 * rng.NextDouble()));
+                }
             }
             _seen[key] = car.Parts;
         }

@@ -193,6 +193,9 @@ public static class LootTables
         float W(Entry e) => e.Weight * (bias != null && bias.TryGetValue(e.Item, out var k) ? k : 1f);
         float total = t.Items.Sum(W);
         int draws = rng.Next(t.Min, t.Max + 1);
+        // sandbox (D99): more or less in everything; the fraction left over rounds up by chance (from the same id)
+        double want = draws * Sandbox.Get("loot.abundance");
+        draws = (int)want + (rng.NextDouble() < want - Math.Floor(want) ? 1 : 0);
         for (int i = 0; i < draws; i++)
         {
             float r = (float)rng.NextDouble() * total;

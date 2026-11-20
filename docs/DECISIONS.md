@@ -1469,3 +1469,23 @@ else the default; `--carspec=id` picks one; `--grip` and `--antiroll` still tune
 * **small_classic**, waiting for Tom's Maluch-like car: 600 kg, rear engine and rear drive, 2.6 kN, 105 km/h.
 Tests: `--autotest=tip` in central Warsaw: the sedan's worst roll 6°, the pickup's 14° (it leans more, as it should),
 no flips; the route drive the same distance as before, with no damage this time.
+
+## D99 — Sandbox settings, and wrecks you can drive away (Tom: "drivable wrecks next… I'm a fan of Project Zomboid…
+## players are able to set so many settings in sandbox settings", 21 Nov)
+**Sandbox settings** (`Core.Sandbox`, `GameData/sandbox.json`), Project Zomboid style: every generated thing asks it for
+its number. Each setting has a default, a range and a line saying what it does; presets fill them (`baltic_drive`,
+the game as designed; `scavenger`, kinder; `apocalypse`, scarce and dangerous; `road_trip`, no bandits and cars to
+borrow); the player's choice is `user://sandbox.json` (`{"preset": …, "overrides": {…}}`, written by `Sandbox.Save` for
+a future menu); `--sandbox=preset` and `--sb.key=value` win (tests). Wired now: `loot.abundance` (× the items rolled in
+every container, D89), `caches.frequency` (outdoor crates), `bandits.frequency` and `bandits.max_near` (0 turns them
+off), `wrecks.frequency`, `wrecks.runners` (share that still run, default 1 in 5), `wrecks.condition`,
+`wrecks.picked_over`. Next: parked cars, and a menu.
+**Wrecks you can drive away.** A runner has its engine, battery and four wheels (35–80 %), the rest as worn as any
+wreck. A tap of F at a wreck: if it can go (`Main.WontGo`: engine there and not wrecked, battery there and not flat,
+no wheel missing) you get in and it's your car, with its own handling (D98: `Car.Spec` from its model); otherwise "It
+won't start: there's no battery. Hold F to work on it", and the workshop can put it right. The car you had stays parked
+where you left it for the session (`WreckField.Leave`), and you can take it back the same way; a square whose wreck you
+took gets no new one (`WreckField.Take`).
+Self-test `--autotest=takecar`: with every wreck a runner, out of the sedan, the nearest wreck (a rusty small car,
+rear suspension missing) taken and driven 14 m (straight into the bollards across Emilii Plater: the test steers
+straight ahead), the sedan still there 67 m back, taken back; with no runners, "a wheel is missing" and nothing taken.
