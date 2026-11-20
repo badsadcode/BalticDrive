@@ -69,15 +69,20 @@ public static class BadBuildingAdapter
             or BuildingKind.House or BuildingKind.Farm or BuildingKind.Shed or BuildingKind.Industrial;
 
     /// <summary>A place of worship BadBuilding has a style for, mapped as one outline: a church the map calls orthodox
-    /// (denomination=…orthodox, Christian: an orthodox synagogue is religion=jewish), or a mosque (religion=muslim).</summary>
+    /// (denomination=…orthodox, Christian: an orthodox synagogue is religion=jewish), a mosque (religion=muslim), or a
+    /// Catholic or other Western church or chapel (D95: Christian or no religion said). Synagogues and the rest keep the
+    /// classic meshes.</summary>
     public static bool PlaceOfWorship(MapBuilding b)
     {
         if (b.Type != BuildingKind.Church || b.Ghost || b.IsPart || b.Height < 2.4f) return false;
-        bool orthodox = b.Use.Contains("orthodox", StringComparison.OrdinalIgnoreCase);
-        bool mosque = b.Use.Contains("religion=muslim") || b.Use.StartsWith("mosque", StringComparison.Ordinal);
-        if (!orthodox && !mosque) return false;
+        if ((b.MaxX - b.MinX) * (b.MaxZ - b.MinZ) < 14f) return false;   // a wayside shrine, not a chapel
         var u = Use.Parse(b.Use);
-        return u.Religion == "muslim" || u.Type == "mosque" && u.Religion is null || orthodox && u.Religion is null or "christian";
+        bool orthodox = b.Use.Contains("orthodox", StringComparison.OrdinalIgnoreCase);
+        if (u.Religion == "muslim" || u.Type == "mosque" && u.Religion is null) return true;
+        if (u.Religion is not (null or "christian")) return false;
+        if (orthodox) return true;
+        return u.Type is "church" or "chapel" or "cathedral" or "monastery" or "convent" or "basilica"
+            || u.Religion == "christian" && u.Type is "religious" or "yes";
     }
 
     /// <summary>Generates one building into the chunk mesh. False when the library could not build it (the caller then
@@ -151,8 +156,9 @@ public static class BadBuildingAdapter
             Religion = use.Religion,
             Denomination = use.Denomination,
             Levels = use.Levels,
-            // a church without a mapped height gets the importer's 16 m guess: let the style decide instead (D92)
-            Height = b.Type == BuildingKind.Church && MathF.Abs(b.Height - 16f) < 0.05f ? null : b.Height,
+            // a church without a mapped height gets the importer's 16 m guess, and a mapped one often counts its tower:
+            // let the style decide its walls (D92, D95)
+            Height = b.Type == BuildingKind.Church && (MathF.Abs(b.Height - 16f) < 0.05f || b.Height > 20f) ? null : b.Height,
             // the roof as the map (or the importer's guess for houses) has it
             Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
             RoofHeight = b.RoofHeight > 0.2f ? b.RoofHeight : null,

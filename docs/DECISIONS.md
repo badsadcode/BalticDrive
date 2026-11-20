@@ -1416,3 +1416,11 @@ with two (one lying): low-poly, white with black wing ends, red beak and legs. T
 the poles. Checked by Żyłowo near Rabędy (two nests on the Mazowsze side of the fade) and a 6 km fly over the fade:
 median 16.7 ms, 2 frames over 33 ms, no ground gaps. Not yet: storks that fly or walk the meadows, nests on roofs,
 the season (storks leave in late August), Podlaskie's forests seen in the game (the joined map, D90).
+
+## D95 — Catholic churches through BadBuilding (its D43)
+`PlaceOfWorship` now also takes a church-kind building that is a church, chapel, cathedral, basilica, monastery or
+convent (or untyped and Christian), Christian or with no religion said; a footprint's box under 14 m² (a wayside
+shrine) keeps the classic mesh, and synagogues and other religions too. A church's height is passed only when mapped
+and at most 20 m: the importer's 16 m guess, and mapped heights that count the tower, would stretch the walls. Checked
+at Ostrów Mazowiecka: a modern church with its tower and cross on Małkińska, a white one on Pasterska (its outline too
+ragged for a tower), a little red-brick neo-Gothic church with a dark spire near Pałapus.
