@@ -1257,3 +1257,16 @@ interiors (1–3 staircases, 4–17 storeys). Not yet: shops, balconies, furnitu
 Tom, from inside a 15-storey block near Sosnowa: "very cramped". Staircases, landings, halls, corridors, bathrooms,
 bedrooms and doors all grew (sizes in BadBuilding D34); the windows show a faint glass sheen instead of looking like
 holes. Same self-test at Tom's spot (`--start=68567,639452`): in, up a storey on foot (2.91 m of 3.01), out.
+
+## D83 — Interiors seen from the right side, balconies, no cracks (BadBuilding D35, 20 Nov)
+Tom's dumps: missing walls and floors, a gap by the stairs, balconies that aren't, gaps round the windows.
+* Every interior face was wound the wrong way for Godot (clockwise is the front, like `MeshData.Tri` makes them; the
+  library winds counter-clockwise about the normal): you saw each face from behind, so floors and outer walls vanished,
+  ceilings showed the floor above's underside, and walls showed the next room's paint. The winding is flipped when
+  the arrays are prepared. The stair "gap" and dark step stripes were the same thing.
+* Balconies: the adapter gives balcony door glass its own kind (vertex alpha 0.52, still glass to the shader);
+  `building.gdshader` discards it within 2.2 m of the player while they're inside (`player_near`), so the door opens as
+  you come up to it, for every balcony at once. A balcony and its doorway count as indoors.
+* Self-test: `--cams="x,y,z,yaw,pitch;..."` (from F9 dumps' Camera line) photographs exactly where a dump was taken;
+  the walk-through now steps out onto a balcony: 0.7–1.0 m out, at floor height, held by the rail, in both a PRL block
+  (Sosnowa) and a contemporary one (Skaryszew).

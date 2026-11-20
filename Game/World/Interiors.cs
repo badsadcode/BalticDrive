@@ -72,6 +72,14 @@ public partial class Interiors : Node
                 // UVs in metres along the surface, for later textures
                 uv[k] = MathF.Abs(q.Y) > 0.5f ? new Vector2(p.X, p.Z) : new Vector2(p.X * -q.Z + p.Z * q.X, p.Y);
             }
+            // Godot draws clockwise triangles as the front: the library's wind counter-clockwise about their normal
+            // (without this every face was seen from behind: floors and outer walls vanished, D83)
+            for (int k = 0; k + 2 < v.Length; k += 3)
+            {
+                (v[k + 1], v[k + 2]) = (v[k + 2], v[k + 1]);
+                (n[k + 1], n[k + 2]) = (n[k + 2], n[k + 1]);
+                (uv[k + 1], uv[k + 2]) = (uv[k + 2], uv[k + 1]);
+            }
             surfaces.Add((role, v, n, uv));
         }
         var faces = new Vector3[m.Colliders.Count * 36];
@@ -128,7 +136,7 @@ public partial class Interiors : Node
             _scan = 0.3;
             Scan(w!.GlobalPosition);
         }
-        if (!onFoot) { if (w != null) w.Indoors = false; Inside = null; Room = null; }
+        if (!onFoot) { if (w != null) w.Indoors = false; Inside = null; Room = null; RenderingServer.GlobalShaderParameterSet("player_near", Vector4.Zero); }
         else Track(w!);
         Doors();
         Daylight();
@@ -202,6 +210,15 @@ public partial class Interiors : Node
             var p = l.ToBuilding(w.GlobalPosition);
             var m = l.Model;
             if (p.Y > m.Floor - 1.5f && p.Y < m.Top + 1f && BB.Geometry.Polygon.Contains(m.Footprint, new NVec2(p.X, p.Z))) { inside = l; break; }
+            // out on a balcony (or in its doorway): still the interior's (D83)
+            foreach (var bs in m.Balconies)
+            {
+                var d = p - bs.Position;
+                var o = new NVec2(bs.Out.X, bs.Out.Z);
+                float outward = d.X * o.X + d.Z * o.Y, along = MathF.Abs(d.X * -o.Y + d.Z * o.X);
+                if (along < MathF.Max(0.8f, bs.Width * 0.5f) && outward > -0.5f && outward < bs.Depth + 0.4f && d.Y > -0.6f && d.Y < 2.4f) { inside = l; break; }
+            }
+            if (inside != null) break;
             foreach (var e in m.Entrances)
             {
                 var d = p - e.Position;
@@ -218,6 +235,9 @@ public partial class Interiors : Node
         }
         Inside = inside;
         w.Indoors = inside != null;
+        // balcony doors open within reach while you're inside
+        var chest = w.GlobalPosition + Vector3.Up * 1.1f;
+        RenderingServer.GlobalShaderParameterSet("player_near", inside != null ? new Vector4(chest.X, chest.Y, chest.Z, 2.2f) : Vector4.Zero);
         Room = inside?.Model.RoomAt(inside.ToBuilding(w.GlobalPosition + Vector3.Up * 0.3f));
     }
 
@@ -268,7 +288,11 @@ public partial class Interiors : Node
         node.AddChild(body);
         // --interior-dump=DIR: the plan of every interior built, for checking the layouts (D81)
         if (Main.Args.TryGetValue("interior-dump", out var dump))
+        {
             System.IO.File.WriteAllText(System.IO.Path.Combine(dump, e.Shell.Id.Replace(':', '_') + ".json"), m.PlanJson(e.Shell.Style));
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dump, e.Shell.Id.Replace(':', '_') + ".shell.json"),
+                System.Text.Json.JsonSerializer.Serialize(e.Shell, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
+        }
         var l = new Loaded { Id = e.Shell.Id, Model = m, Node = node, X = e.X, Z = e.Z };
         _loaded[e.Shell.Id] = l;
         var bySide = e.Shell.Openings.GroupBy(o => o.Kind).Select(g => $"{g.Count()} {g.Key}");

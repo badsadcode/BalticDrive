@@ -37,6 +37,8 @@ public static class BadBuildingAdapter
     private const float KindBoardConcrete = 0.75f;
     /// <summary>A door: the shader hides it while the building's interior is loaded (D81).</summary>
     private const float KindDoor = 0.84f;
+    /// <summary>A balcony door's glass: still glass to the shader, hidden within reach of the player inside (D83).</summary>
+    private const float KindBalconyDoor = 0.52f;
     /// <summary>A preset for BadBuilding's style choice (D79): null, or "brutalist" (Shift+F7, --preset=brutalist).</summary>
     public static string? Preset;
     private const float Context = 40f;
@@ -233,7 +235,8 @@ public static class BadBuildingAdapter
         var c = b.Materials.TryGetValue(role, out var m) ? m.Color : new System.Numerics.Vector3(0.4f);
         float kind = role switch
         {
-            "glass" or "glass_block" or "shopfront" => KindGlass,   // (balcony glass "rail_glass" stays plain: as glass it read as solid blue panels, D76)
+            "glass" or "glass_block" or "shopfront" => KindGlass,
+            "balcony_door" => KindBalconyDoor,   // (balcony glass "rail_glass" stays plain: as glass it read as solid blue panels, D76)
             "roof" => KindFlatRoof,
             "cladding" or "plant" or "patch_sheet" => KindRibbed,
             // a garage row's up-and-over doors (door0 … door7, D74): pressed steel

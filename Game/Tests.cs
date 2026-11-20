@@ -1743,6 +1743,8 @@ public sealed class Tests
     private string? _iId;
     private BadBuilding.Interior.InteriorModel? _iModel;
     private float _iY0;
+    private List<double[]>? _iCams;
+    private BadBuilding.Interior.BalconySite? _iBal;
 
     /// <summary>--autotest=interior (D81): out of the car, to the door of the nearest block of flats that has an
     /// interior; walk in, look round the landing, a living room, climb a storey on foot, look out of a top-floor window,
@@ -1820,6 +1822,14 @@ public sealed class Tests
             case 0:   // at the door, waiting for the interior to load
                 if (loaded == null) { if (t > 15) { Log.Error("Test", "interior: never loaded"); _main.GetTree().Quit(); } break; }
                 if (t < 1.5) break;
+                // --cams="x,y,z,yaw,pitch;..." (world metres, degrees, from F9 dumps' Camera line): stand where the
+                // first-person camera was and photograph, then stop
+                if (Main.Args.TryGetValue("cams", out var cams))
+                {
+                    _iCams = cams.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(c => c.Split(',').Select(Num).ToArray()).ToList();
+                    Phase(10);
+                    break;
+                }
                 Shot("int_0_door");
                 Phase(1);
                 w.Autopilot = _ => (new Vector2(0, 1), false);
@@ -1902,6 +1912,40 @@ public sealed class Tests
                 if (At(3.2)) Shot("int_8_kitchen");
                 if (At(3.5))
                 {
+                    // out onto a balcony above the ground floor (D83), if the block has one
+                    var bal = mdl.Balconies.Where(b => b.Depth > 0.3f && b.Position.Y > mdl.Floor + 1f).OrderBy(b => b.Position.Y).FirstOrDefault();
+                    if (bal == null) { Log.Info("Test", "interior: no balcony to step onto"); Phase(9); break; }
+                    _iBal = bal;
+                    var o = new Vector3(bal.Out.X, 0, bal.Out.Z);
+                    var door = loaded!.ToScene(bal.Position);
+                    Put(door - o * 1.8f + Vector3.Up * 0.1f, door + o * 4f + Vector3.Up * 1.4f);
+                    w.SetView(true);
+                    Phase(8);
+                    w.Autopilot = _ => (new Vector2(0, 1), false);
+                }
+                break;
+            case 8:   // walk out onto the balcony and stop at the rail
+            {
+                var bal = _iBal!;
+                var o = new Vector3(bal.Out.X, 0, bal.Out.Z);
+                var door = loaded!.ToScene(bal.Position);
+                float outward = (w.GlobalPosition - door).Dot(o), drop = door.Y - w.GlobalPosition.Y;
+                if (At(0.6)) Shot("int_b0_balcony_door");
+                if (t > 3.0 && w.Autopilot != null)
+                {
+                    w.Autopilot = null;
+                    Log.Info("Test", $"interior: balcony: {outward:0.00} m out of the door (balcony {bal.Depth:0.0} m deep), {drop:0.00} m below its floor, indoors {w.Indoors}");
+                    w.Face(door + o * 6f + Vector3.Up * 0.6f);
+                }
+                if (At(3.4)) Shot("int_b1_on_balcony");
+                if (At(3.6)) w.Face(door - o * 4f + Vector3.Up * 1.4f);
+                if (At(4.1)) Shot("int_b2_looking_in");
+                if (At(4.3)) Phase(9);
+                break;
+            }
+            case 9:
+                if (At(0.1))
+                {
                     // and out again
                     Put(P(e0, F(0) + 0.1f, 1.0f), P(e0, F(0) + 1.4f, -6f));
                     w.SetView(false);
@@ -1909,6 +1953,27 @@ public sealed class Tests
                     w.Autopilot = _ => (new Vector2(0, 1), false);
                 }
                 break;
+            case 10:
+            {
+                int i = (int)(t / 1.5);
+                if (i >= _iCams!.Count) { Log.Info("Test", "interior: cams done"); _main.GetTree().Quit(); break; }
+                var c = _iCams[i];
+                double ti = t - i * 1.5;
+                if (ti < 0.5)
+                {
+                    w.SetView(true);
+                    var eye = WorldOrigin.ToLocal(c[0], c[1], c[2]);
+                    float yaw = Mathf.DegToRad((float)c[3]), pitch = Mathf.DegToRad((float)c[4]);
+                    var fwd = new Vector3(-MathF.Sin(yaw) * MathF.Cos(pitch), MathF.Sin(pitch), -MathF.Cos(yaw) * MathF.Cos(pitch));
+                    w.GlobalPosition = eye - Vector3.Up * 1.66f;
+                    w.Velocity = Vector3.Zero;
+                    w.Face(eye + fwd * 5f);
+                }
+                if (tb < i * 1.5 + 1.2 && t >= i * 1.5 + 1.2) { Shot($"cam_{i}"); string where = "";
+                    if (ints.Inside is { } li) { var bp = li.ToBuilding(w.GlobalPosition); var (cu, cv) = li.Model.Frame.Local(new System.Numerics.Vector2(bp.X, bp.Z)); where = $"u {cu:0.00} v {cv:0.00} above the floor {bp.Y - li.Model.Floor:0.00}; "; }
+                    Log.Info("Test", $"interior: cam {i}: {where}{ints.Describe()}"); }
+                break;
+            }
             case 7:
             {
                 var h = Here();

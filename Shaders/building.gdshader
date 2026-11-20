@@ -16,6 +16,8 @@ global uniform vec4 open_door0;
 global uniform vec4 open_door1;
 global uniform vec4 open_door2;
 global uniform vec4 open_door3;
+// balcony doors (vertex alpha 0.52, D83) open as the player comes up to them from inside: xyz the player, w the reach
+global uniform vec4 player_near;
 // the skyline's copy of a building the near cells draw themselves: hidden within this distance (D32; 0 = never)
 uniform float near_cut = 0.0;
 
@@ -47,6 +49,7 @@ void fragment() {
 	float kind = COLOR.a;
 	if (abs(kind - 0.84) < 0.006 && (distance(lpos, open_door0.xyz) < open_door0.w || distance(lpos, open_door1.xyz) < open_door1.w
 		|| distance(lpos, open_door2.xyz) < open_door2.w || distance(lpos, open_door3.xyz) < open_door3.w)) discard;
+	if (abs(kind - 0.52) < 0.008 && distance(lpos, player_near.xyz) < player_near.w) discard;
 	vec3 tint = COLOR.rgb;
 	float dist = length(VERTEX);
 	float fade = clamp(1.0 - dist / 140.0, 0.0, 1.0);
