@@ -1270,3 +1270,9 @@ Tom's dumps: missing walls and floors, a gap by the stairs, balconies that aren'
 * Self-test: `--cams="x,y,z,yaw,pitch;..."` (from F9 dumps' Camera line) photographs exactly where a dump was taken;
   the walk-through now steps out onto a balcony: 0.7–1.0 m out, at floor height, held by the rail, in both a PRL block
   (Sosnowa) and a contemporary one (Skaryszew).
+
+## D84 — Loggias (BadBuilding D36, 20 Nov)
+Loggias in contemporary blocks open like balcony doors (their glass is the same kind, hidden near you from inside);
+you walk out into the recess and stop at the rail. Self-test `--interior-want=loggia` picks the nearest block with
+loggias: at Skaryszew (`--start=70356,637584`) the walker went through the glass and stood at the rail, 0.45 m in
+from the facade. The window jambs that faced into the wall now face into the opening.

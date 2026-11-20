@@ -1762,6 +1762,8 @@ public sealed class Tests
             // the nearest shell that makes an interior
             foreach (var (sh, x, z) in World.Interiors.NearestShells(wx, wz, 40))
             {
+                // --interior-want=loggia: the nearest block with loggias (D84)
+                if (Main.Args.GetValueOrDefault("interior-want") == "loggia" && !sh.Balconies.Any(b => b.Loggia)) continue;
                 var m = BadBuilding.Interior.InteriorGenerator.Generate(sh, out var why);
                 if (m == null) { Log.Info("Test", $"interior: {sh.Id} ({sh.Style}, {sh.Levels} storeys) has none: {why}"); continue; }
                 _iId = sh.Id; _iModel = m;
@@ -1913,12 +1915,13 @@ public sealed class Tests
                 if (At(3.5))
                 {
                     // out onto a balcony above the ground floor (D83), if the block has one
-                    var bal = mdl.Balconies.Where(b => b.Depth > 0.3f && b.Position.Y > mdl.Floor + 1f).OrderBy(b => b.Position.Y).FirstOrDefault();
+                    bool wantLoggia = Main.Args.GetValueOrDefault("interior-want") == "loggia";
+                    var bal = mdl.Balconies.Where(b => b.Depth > 0.3f && b.Position.Y > mdl.Floor + 1f && b.Loggia == wantLoggia).OrderBy(b => b.Position.Y).FirstOrDefault();
                     if (bal == null) { Log.Info("Test", "interior: no balcony to step onto"); Phase(9); break; }
                     _iBal = bal;
                     var o = new Vector3(bal.Out.X, 0, bal.Out.Z);
                     var door = loaded!.ToScene(bal.Position);
-                    Put(door - o * 1.8f + Vector3.Up * 0.1f, door + o * 4f + Vector3.Up * 1.4f);
+                    Put(door - o * (1.8f + (bal.Loggia ? bal.Depth : 0f)) + Vector3.Up * 0.1f, door + o * 4f + Vector3.Up * 1.4f);
                     w.SetView(true);
                     Phase(8);
                     w.Autopilot = _ => (new Vector2(0, 1), false);
@@ -1934,7 +1937,7 @@ public sealed class Tests
                 if (t > 3.0 && w.Autopilot != null)
                 {
                     w.Autopilot = null;
-                    Log.Info("Test", $"interior: balcony: {outward:0.00} m out of the door (balcony {bal.Depth:0.0} m deep), {drop:0.00} m below its floor, indoors {w.Indoors}");
+                    Log.Info("Test", $"interior: {(bal.Loggia ? "loggia" : "balcony")}: {outward:0.00} m out of the {(bal.Loggia ? "facade" : "door")} ({bal.Depth:0.0} m deep), {drop:0.00} m below its floor, indoors {w.Indoors}");
                     w.Face(door + o * 6f + Vector3.Up * 0.6f);
                 }
                 if (At(3.4)) Shot("int_b1_on_balcony");
