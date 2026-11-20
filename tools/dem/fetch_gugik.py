@@ -86,6 +86,24 @@ def fetch(bx, by, block, spacing, out):
     return f"FAILED {bx},{by}: {err}"
 
 
+def write_empty(todo, block, spacing, out):
+    """Empty blocks (zeros: the importer's and the filler's "no data") with the same grid as fetched ones."""
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+    n = block // spacing
+    made = 0
+    for bx, by in todo:
+        path = os.path.join(out, f"{bx * block}_{by * block}.tif")
+        if os.path.exists(path):
+            continue
+        with rasterio.open(path, "w", driver="GTiff", width=n, height=n, count=1, dtype="float32", crs="EPSG:2180",
+                           transform=from_origin(bx * block, (by + 1) * block, spacing, spacing)) as d:
+            d.write(np.zeros((n, n), np.float32), 1)
+        made += 1
+    return made
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bbox", nargs=4, type=float, metavar=("LON0", "LAT0", "LON1", "LAT1"))
@@ -94,9 +112,16 @@ def main():
     ap.add_argument("--block", type=int, default=10000, help="block side in metres")
     ap.add_argument("--spacing", type=int, default=10, help="grid spacing in metres")
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--empty", action="store_true",
+                    help="don't download: write the missing blocks empty (all no-data), for fill_gugik_sheets.py to fill "
+                         "from GUGiK's sheet files when the WCS is down (D90)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     todo = blocks_with_data(a.pbf, a.block) if a.pbf else blocks(a.bbox, a.block)
+    if a.empty:
+        made = write_empty(todo, a.block, a.spacing, a.out)
+        print(f"{len(todo)} blocks, {made} written empty", flush=True)
+        return
     print(f"{len(todo)} blocks of {a.block} m at {a.spacing} m", flush=True)
     done = failed = 0
     with cf.ThreadPoolExecutor(a.workers) as ex:
