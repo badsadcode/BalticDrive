@@ -1576,6 +1576,101 @@ footer a { color: var(--sign); }
       <ul class="facts"><li>1 feng shui module</li><li>22 kinds of furniture</li><li>5 of them Synty</li><li>1 flood per piece</li><li>132 tests passing</li></ul>
     </div>
   </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>42</strong></div>
+    <div>
+      <h2>Things in drawers</h2>
+      <div class="date">20 November 2026, around noon</div>
+      <p>Tom has a goal, and he said it out loud: he wants Baltic Drive as close to Project Zomboid as we can make it.
+        That means our own code, our own items and our own recipes, but the same feeling of a world full of drawers
+        worth opening. Two pieces landed.</p>
+      <p>First, safehouses got smaller. You used to claim a whole building. Now you claim the flat you're standing in:
+        "the flat on the 3rd floor, left". Die anywhere in Mazowsze and you wake up on its living-room floor.</p>
+      <p>Second, things. There are 51 of them, and they live in a data file, not in the code: tins of beans, sprats and
+        pâté, kabanos, a jar of pickles, rusks, compote, vodka, plasters, a can opener, duct tape, a transistor radio.
+        You carry a pack that holds 15 kg. Every wardrobe, fridge, chest of drawers and kitchen cupboard that
+        NoorFengShui put in a flat can be searched: walk up to one and press F. Its contents are rolled the first time
+        anyone opens it, and the room matters, so bathrooms hold more plasters and storerooms more tools. Whatever you
+        leave behind stays there for next time.</p>
+      <figure class="photo">
+        <img src="img/items-cupboards.webp" alt="An inventory window over a kitchen: on the left the kitchen cupboards with a bag of rice, a tin of pâté and an empty bottle; on the right your empty pack, 0 of 15 kg" loading="lazy">
+        <figcaption>Kitchen cupboards on Sosnowa: rice, pâté, and an empty bottle for later.</figcaption>
+      </figure>
+      <p>The window is the one every game has, because it works: the container on the left, you on the right. Drag
+        things across, double-click a pile, right-click for just one, or press E to take all. Food, drinks and medicine
+        have Eat, Drink and Use buttons. Eating still happens by itself when you're hungry, and now it picks whatever
+        fits best. A finished water bottle stays in your pack, empty, waiting for the crafting recipes.</p>
+      <ul class="facts"><li>51 items</li><li>15 kg in the pack</li><li>1 flat to wake up in</li><li>0 lines of Zomboid's code</li></ul>
+    </div>
+  </article>
+
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>43</strong></div>
+    <div>
+      <h2>Over the border, eventually</h2>
+      <div class="date">20 November 2026, afternoon and evening</div>
+      <p>Tom pulled us back to the map ("The temptation is great. But let's go back to map making. :P"), and the map
+        is growing by its first whole voivodeship: Podlaskie, Tom's holiday country. Regions are joined the simple way.
+        Merge their OpenStreetMap files into one, then build it as if it had always been one region. The roads across
+        the border come out whole, with no seam to drive over. Your safehouse and your searched drawers belong to the
+        world now, not to the map file, so they come along.</p>
+      <p>The map itself isn't built yet, and that's GUGiK's fault. The government's elevation server, which handed us
+        225 GB for Mazowsze without complaint, spent the whole day hanging up on us. Of the 347 blocks Podlaskie needs,
+        242 are still missing. A script now asks again every 20 minutes, very politely. In Tom's words: "GUGiK is against us
+        today ;(". So everything below was built in the meantime.</p>
+      <p><b>Wooden villages.</b> We read up on the Land of Open Shutters (Soce, Trześcianka, Puchły) and looked at photos
+        of village houses. Then BadBuilding learnt Podlasie's house. It's built of boards in honey varnish, ox-blood,
+        brown or ochre. The gable faces the street, boarded in a chevron above a little skirt roof, under white barge
+        boards cut into teeth. Every window gets a white surround with a carved crown, and its shutters stand open. Tom:
+        "Wow, this looks amazing."</p>
+      <figure class="photo">
+        <img src="img/podlasie-house.webp" alt="A brown wooden house with a yellow chevron-boarded gable, white serrated barge boards, a small skirt roof, and two windows with white carved crowns and open sky-blue shutters" loading="lazy">
+        <figcaption>A Podlasie house from BadBuilding: chevron gable, carved crowns, open shutters.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/podlasie-row.webp" alt="A row of seven wooden houses in honey, brown and ochre with grey, red and dark roofs, each with its gable to the street" loading="lazy">
+        <figcaption>Seven seeds, seven houses. A village in the making.</figcaption>
+      </figure>
+      <p><b>Cerkwie.</b> Orthodox churches get onion domes only where the map says they're Orthodox, which was Tom's rule
+        from the start. One tag needed double-checking: <code>denomination=orthodox</code> also means Orthodox Judaism,
+        and one synagogue in the data is tagged exactly that. It stays a synagogue. The churches get a drum and onion
+        over the nave, a small onion over the sanctuary, a tower at the west end and gilded eight-pointed crosses. In
+        Podlasie most are wooden and painted blue.</p>
+      <figure class="photo">
+        <img src="img/cerkiew-blue.webp" alt="A blue wooden Orthodox church with a grey roof, a tower with a tent spire at the west end, a silver onion dome on a drum, and a small onion at the east end, gold crosses on top" loading="lazy">
+        <figcaption>A village cerkiew, blue as most of them are.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/cerkiew-praga.webp" alt="An aerial view of the Orthodox cathedral in Praga, Warsaw, a white building with a blue roof and a big golden onion dome, between blocks of flats and a wide street" loading="lazy">
+        <figcaption>Warsaw's Orthodox cathedral in Praga, now with a golden onion.</figcaption>
+      </figure>
+      <p><b>The Tatar mosques.</b> Two wooden mosques still stand in Podlasie, at Kruszyniany and Bohoniki, and they are
+        nothing alike. So BadBuilding builds both, and the footprint chooses. A long one gets Kruszyniany's look: green
+        boards, two tall towers at the front with dark cupolas, an arched porch. A square one gets Bohoniki's: plain
+        wood, a hipped roof, a lantern with a dome in the middle. Every cupola is topped with a crescent. Modern mosques,
+        like the two in Warsaw, get plaster, a dome and a minaret.</p>
+      <figure class="photo">
+        <img src="img/mosque-kruszyniany.webp" alt="A green wooden mosque with a brown gabled roof, two square towers with dark cupolas at the front, pointed-arch windows down the side" loading="lazy">
+        <figcaption>Kruszyniany's kind: green boards, two towers.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/mosque-bohoniki.webp" alt="A square wooden mosque with a dark hipped roof and an octagonal lantern with a dark dome in the middle" loading="lazy">
+        <figcaption>Bohoniki's kind: square, with a lantern on top.</figcaption>
+      </figure>
+      <p><b>Forests and storks.</b> Podlaskie's woods have more spruce than Mazowsze's. Four named forests get their own
+        mix: Białowieża (old oak and spruce, bigger trees), Augustów, Knyszyn, and the Biebrza marshes, which are mostly
+        birch and willow. And storks. Villages rarely have their electricity poles mapped, so the storks get their own
+        poles in the yards, the way people put them up for them. In Podlasie you'll find one by about every
+        fourteenth house.</p>
+      <figure class="photo">
+        <img src="img/stork-nest.webp" alt="A wooden pole beside a village house with a twig nest on top and a white stork with a red beak standing in it, flat fields behind" loading="lazy">
+        <figcaption>The first stork, near Żyłowo, on the Mazowsze side of the border.</figcaption>
+      </figure>
+      <p>All of it fades in over the last 12 km before the border, house by house and tree by tree. The style doesn't
+        stop at a line on a map. Now we just need GUGiK to pick up the phone.</p>
+      <ul class="facts"><li>1 new voivodeship (pending)</li><li>231 Orthodox buildings in the data</li><li>2 Tatar mosques</li><li>4 named forests</li><li>1 stork nest per ~14 houses</li><li>242 elevation blocks to go</li><li>157 tests passing</li></ul>
+    </div>
+  </article>
 </main>
 
 <footer>
