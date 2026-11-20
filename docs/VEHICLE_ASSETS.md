@@ -33,6 +33,11 @@ Separate objects, named like this, each with its **origin where it turns**:
 These match the car's parts in the game (`CarParts`, D67): engine, battery, tyres, brakes, suspension, windshield,
 windows, doors, hood, trunk, seats.
 
+## Rear-engined cars (a Maluch-like one)
+Name the lids by where they are: `Hood` at the front, `Trunk` at the back, whatever is under them. The game looks at
+where `Engine` sits: the lid over the engine opens onto the engine, the other one onto the luggage (a Maluch's small
+front boot). A two-door car has only `Door_FL` and `Door_FR`.
+
 ## Materials
 A handful of PBR materials, textures embedded: **`Paint`** (the body colour, light grey or white: the game repaints
 every car), `Glass`, `Chrome`, `Rubber`, `Interior`, `Lights`. About 15–40k triangles per car.
