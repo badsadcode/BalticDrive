@@ -1396,3 +1396,23 @@ long kind) and Bohoniki (historic, 13 × 14 m, the square kind), Białystok's mo
 and the Wilanów mosque; the last two checked in the game (domes on the halls; Ochota's importer-guessed gabled roof
 stays). A Muslim tomb (ruins) and the Muslim Religious Union's office are left alone. Kruszyniany and Bohoniki will
 be seen when the joined map is built (D90).
+
+## D94 — Podlaskie's forests and storks (Tom: "Forests and storks", 20 Nov)
+**Forests in data.** `GameData/regions.json` now gives tree mixes per land class (forest, wetland, scrub, park):
+* a region's (Podlaskie: more spruce than Mazowsze, 38 pine / 28 spruce / 18 birch / 13 oak; wetlands mostly birch
+  and willow), fading over the region's 12 km like its houses;
+* named **zones** that win inside their rough outlines, fading over 1.5–2 km: the Białowieża Forest (old mixed
+  forest: oak, spruce, maple standing in for hornbeam and lime, birch, pine, poplar for aspen; bigger trees, 0.95–1.65),
+  the Augustów Forest (pine and spruce), the Knyszyn Forest (pine, spruce, some oak), the Biebrza marshes (birch and
+  willow scrub on the wetland, birchy woods). Outside every area the old Mazowsze mix stays. The species stand-ins are
+  named in the data until the tree assets have hornbeam, lime, alder and aspen.
+* `TreePlacement` asks `Regions.Near` once per cell and `Regions.TreesAt` per tree (from the tree's own hash, so near
+  and far cells agree); `Regions` now reads both kinds of area (`Area`, `TreeMix`).
+**Storks.** White stork nests (`MapMesher.StorkNest`): on mapped electricity poles in villages (one in 40, one in 10
+in Podlasie), and, since villages seldom have their poles mapped (none within 3 km of Rabędy, none round Soce), on
+nest poles of their own a few metres from a house or farm building (one site in 60 buildings, one in 14 in Podlasie).
+Villages only: 2 to 30 buildings within 80 m. A twig drum on the pole's top, empty (15 %), with one stork standing or
+with two (one lying): low-poly, white with black wing ends, red beak and legs. Three instanced meshes per chunk, with
+the poles. Checked by Żyłowo near Rabędy (two nests on the Mazowsze side of the fade) and a 6 km fly over the fade:
+median 16.7 ms, 2 frames over 33 ms, no ground gaps. Not yet: storks that fly or walk the meadows, nests on roofs,
+the season (storks leave in late August), Podlaskie's forests seen in the game (the joined map, D90).

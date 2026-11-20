@@ -30,6 +30,7 @@ public partial class MapContentStreamer : Node3D
     private readonly Dictionary<(long, long), int> _want = new();
     private Material _road = null!, _building = null!, _furniture = null!, _barrier = null!;
     private ArrayMesh _lamp = null!, _pole = null!, _pylon = null!;
+    private ArrayMesh[] _nests = null!;
     private MapSkyline? _skyline;
     private MapFarBuildings? _far;
     public MapFarBuildings? Far => _far;
@@ -49,6 +50,8 @@ public partial class MapContentStreamer : Node3D
         _lamp = MapMesher.LampMesh(_furniture);
         _pole = MapMesher.PoleMesh(_furniture);
         _pylon = MapMesher.PylonMesh(_furniture);
+        var nestMat = new StandardMaterial3D { VertexColorUseAsAlbedo = true, Roughness = 0.9f };
+        _nests = new[] { MapMesher.NestMesh(nestMat, 0), MapMesher.NestMesh(nestMat, 1), MapMesher.NestMesh(nestMat, 2) };
         _skyRoot = new Node3D { Name = "Skyline" };
         AddChild(_skyRoot);
     }
@@ -151,6 +154,9 @@ public partial class MapContentStreamer : Node3D
         Bodies.AddFaces(node, geo.BuildingFaces, "hard", true, Bodies.Buildings);
         AddInstances(node, _lamp, geo.Lamps, true);
         AddInstances(node, _pole, geo.Poles, false);
+        AddInstances(node, _nests[0], geo.Nests0, false);
+        AddInstances(node, _nests[1], geo.Nests1, false);
+        AddInstances(node, _nests[2], geo.Nests2, false);
         AddInstances(node, _pylon, geo.Pylons, true);
         if (geo.Posts is { Count: > 0 } posts)
         {

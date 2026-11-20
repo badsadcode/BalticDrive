@@ -89,6 +89,8 @@ public sealed class MapChunkGeometry
     public List<Vector3>? PavedFaces, LooseFaces, BuildingFaces;
     /// <summary>MultiMesh instance buffers for street lamps, wooden power poles and pylons.</summary>
     public List<float>? Lamps, Poles, Pylons;
+    /// <summary>Stork nests on poles (D94): empty, with one stork, with two.</summary>
+    public List<float>? Nests0, Nests1, Nests2;
     /// <summary>Thin colliders for the above: xyz local position, w radius.</summary>
     public List<Vector4>? Posts;
 }
@@ -1228,6 +1230,7 @@ public static class MapMesher
 
     private static void AddFurniture(MapContext ctx, float size, int lod, MapChunkGeometry geo, bool collide)
     {
+        if (lod < 2) AddStorkPoles(ctx, size, geo, collide);
         var pts = ctx.Points;
         for (int i = 0; i < pts.Count; i++)
         {
@@ -1270,6 +1273,10 @@ public static class MapMesher
                      : kind == MapPointKind.Pole ? geo.Poles ??= new List<float>()
                      : geo.Pylons ??= new List<float>();
             Write(list, new Transform3D(new Basis(Vector3.Up, yaw), new Vector3(p.X, y, p.Z)), new Color(1, 1, 1));
+            // a stork's nest on a village pole now and then, more often in Podlasie (D94)
+            if (kind == MapPointKind.Pole && StorkNest(ctx, p.X, p.Z, out int storks))
+                Write(storks == 0 ? geo.Nests0 ??= new List<float>() : storks == 1 ? geo.Nests1 ??= new List<float>() : geo.Nests2 ??= new List<float>(),
+                    new Transform3D(new Basis(Vector3.Up, yaw), new Vector3(p.X, y, p.Z)), new Color(1, 1, 1));
             if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(p.X, y, p.Z, kind == MapPointKind.Pylon ? 0.45f : 0.12f));
         }
     }
@@ -1334,6 +1341,103 @@ public static class MapMesher
         d.Box(new Vector3(-0.1f, -0.3f, -0.1f), new Vector3(0.1f, 8.6f, 0.1f), wood);
         d.Box(new Vector3(-0.95f, 7.5f, -0.05f), new Vector3(0.95f, 7.62f, 0.05f), wood);
         return d.ToMesh(m);
+    }
+
+    /// <summary>
+    /// Whether a pole carries a white stork's nest (D94): poles in villages (2 to 30 buildings within 80 m: not open
+    /// fields, not towns), one in 40, one in 10 in Podlasie (the regions' preset, with its fade). Most nests are lived
+    /// in: one stork standing, or two. Decided from the pole's position, so it's the same every visit.
+    /// </summary>
+    /// <summary>Where nests were placed (world x, z), for the self-test log.</summary>
+    public static readonly List<(double X, double Z)> NestLog = new();
+
+    private static bool StorkNest(MapContext ctx, float x, float z, out int storks, float podlasie = 0.1f, float elsewhere = 0.025f)
+    {
+        storks = 0;
+        double wx = ctx.Ox + x, wz = ctx.Oz + z;
+        uint h = Hash.Of((int)Math.Floor(wx * 10), (int)Math.Floor(wz * 10), 61);
+        float r = Hash.F01(h);
+        if (r >= Math.Max(podlasie, elsewhere)) return false;
+        float chance = World.Regions.PresetAt(wx, wz, h) == "podlasie" ? podlasie : elsewhere;
+        if (r >= chance) return false;
+        int n = 0;
+        foreach (var b in ctx.Buildings)
+        {
+            float dx = b.OffX + b.B.Cx - x, dz = b.OffZ + b.B.Cz - z;
+            if (dx * dx + dz * dz < 80f * 80f && ++n > 30) return false;
+        }
+        if (n < 2) return false;
+        float k = Hash.F01(Hash.Mix(h ^ 0x51ed27u));
+        storks = k < 0.15f ? 0 : k < 0.6f ? 1 : 2;
+        lock (NestLog) if (NestLog.Count < 200 && !NestLog.Contains((wx, wz))) NestLog.Add((wx, wz));
+        return true;
+    }
+
+    /// <summary>
+    /// Nest poles (D94): villages seldom have their electricity poles mapped, so storks get their own, the way they are
+    /// put up for them: a pole in the yard a few metres from a house or farm building, with a nest on top (one site in
+    /// 14 buildings in Podlasie, one in 60 elsewhere, villages only; StorkNest decides).
+    /// </summary>
+    private static void AddStorkPoles(MapContext ctx, float size, MapChunkGeometry geo, bool collide)
+    {
+        foreach (var r in ctx.Buildings)
+        {
+            var b = r.B;
+            if (b.Ghost || b.IsPart || b.Type is not (BuildingKind.House or BuildingKind.Farm or BuildingKind.Generic)) continue;
+            float cx = r.OffX + b.Cx, cz = r.OffZ + b.Cz;
+            if (cx < 0 || cx >= size || cz < 0 || cz >= size) continue;
+            float hx = (b.MaxX - b.MinX) * 0.5f, hz = (b.MaxZ - b.MinZ) * 0.5f;
+            if (hx * hz * 4f is < 25f or > 450f) continue;
+            uint h = Hash.Of((int)Math.Floor((ctx.Ox + cx) * 4), (int)Math.Floor((ctx.Oz + cz) * 4), 67);
+            float ang = Hash.F01(h) * Mathf.Tau;
+            float d = MathF.Sqrt(hx * hx + hz * hz) + 3.5f;
+            float x = cx + MathF.Cos(ang) * d, z = cz + MathF.Sin(ang) * d;
+            if (!StorkNest(ctx, x, z, out int storks, podlasie: 1f / 14f, elsewhere: 1f / 60f)) continue;
+            if (ctx.InBuilding(x, z, 1.5f) || !StepOffRoad(ctx, ref x, ref z) || !float.IsNaN(ctx.Water(x, z))) continue;
+            float y = ctx.Height(x, z, 0f, out _);
+            var t = new Transform3D(new Basis(Vector3.Up, Hash.F01(Hash.Mix(h)) * Mathf.Tau), new Vector3(x, y, z));
+            Write(geo.Poles ??= new List<float>(), t, new Color(1, 1, 1));
+            Write(storks == 0 ? geo.Nests0 ??= new List<float>() : storks == 1 ? geo.Nests1 ??= new List<float>() : geo.Nests2 ??= new List<float>(), t, new Color(1, 1, 1));
+            if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(x, y, z, 0.12f));
+        }
+    }
+
+    /// <summary>A stork's nest on top of the pole (8.6 m), with <paramref name="storks"/> white storks in it.</summary>
+    public static ArrayMesh NestMesh(Material m, int storks)
+    {
+        var d = new MeshData();
+        var twigs = new Color(0.22f, 0.17f, 0.11f); var top = new Color(0.30f, 0.24f, 0.15f);
+        // a rough drum of sticks: three turned boxes, a lighter top
+        for (int k = 0; k < 3; k++)
+            d.Box(new Vector3(-0.75f, 8.45f, -0.75f), new Vector3(0.75f, 8.95f, 0.75f), twigs, yaw: k * 0.52f);
+        d.Box(new Vector3(-0.62f, 8.95f, -0.62f), new Vector3(0.62f, 9.0f, 0.62f), top, yaw: 0.26f);
+        if (storks >= 1) Stork(d, 0f, 0f, 0f, standing: true);
+        if (storks >= 2) Stork(d, -0.15f, 0.25f, 2.6f, standing: false);
+        return d.ToMesh(m);
+    }
+
+    /// <summary>A white stork in the nest at (x, z), facing <paramref name="yaw"/>: white body, black wing ends, a long
+    /// neck, a red beak, red legs when standing.</summary>
+    private static void Stork(MeshData d, float x, float z, float yaw, bool standing)
+    {
+        var white = new Color(0.92f, 0.92f, 0.9f); var black = new Color(0.06f, 0.06f, 0.07f); var red = new Color(0.85f, 0.25f, 0.12f);
+        var rot = new Basis(Vector3.Up, yaw);
+        float b = standing ? 9.42f : 9.12f;   // the body's middle
+        void Part(Vector3 c, Vector3 size, Color col)
+        {
+            var w = new Vector3(x, 0, z) + rot * new Vector3(c.X, 0, c.Z) + new Vector3(0, c.Y, 0);
+            d.Box(w - size * 0.5f, w + size * 0.5f, col, yaw: yaw);
+        }
+        Part(new Vector3(0, b, 0), new Vector3(0.62f, 0.28f, 0.3f), white);
+        Part(new Vector3(-0.34f, b + 0.02f, 0), new Vector3(0.22f, 0.16f, 0.26f), black);     // wing ends and tail
+        Part(new Vector3(0.29f, b + 0.24f, 0), new Vector3(0.08f, 0.42f, 0.08f), white);      // the neck
+        Part(new Vector3(0.33f, b + 0.46f, 0), new Vector3(0.16f, 0.12f, 0.11f), white);      // the head
+        Part(new Vector3(0.53f, b + 0.43f, 0), new Vector3(0.26f, 0.04f, 0.04f), red);        // the beak
+        if (standing)
+        {
+            Part(new Vector3(0.02f, 9.13f, 0.06f), new Vector3(0.04f, 0.34f, 0.04f), red);
+            Part(new Vector3(0.02f, 9.13f, -0.06f), new Vector3(0.04f, 0.34f, 0.04f), red);
+        }
     }
 
     public static ArrayMesh PylonMesh(Material m)

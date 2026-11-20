@@ -76,7 +76,8 @@ public static class TreePlacement
                     Add(trees, world, ctx, x0, z0, wx, wz, Pick(MapLand.Park, h), 0.75f + 0.45f * R(h, 3), h, strict: false);
                 }
             }
-        // scattered over the land cover
+        // scattered over the land cover; regions and named forests may change what grows (D94)
+        var areas = World.Regions.Near(x0, z0, x1, z1);
         foreach (var sc in Scatters)
         {
             long gx0 = (long)Math.Floor(x0 / sc.Spacing), gx1 = (long)Math.Floor((x1 - 1e-6) / sc.Spacing);
@@ -91,8 +92,11 @@ public static class TreePlacement
                     if (wx < x0 || wx >= x1 || wz < z0 || wz >= z1) continue;
                     var tile = world.Data.TileAt(wx, wz);
                     if (tile.Empty || tile.LandAt((float)(wx - tile.OriginX), (float)(wz - tile.OriginZ)) != sc.Land) continue;
-                    float scale = sc.MinScale + (sc.MaxScale - sc.MinScale) * R(h, 7);
-                    Add(trees, world, ctx, x0, z0, wx, wz, Pick(sc.Land, h), scale, h, strict: true);
+                    var mix = areas.Count > 0 ? World.Regions.TreesAt(areas, sc.Land, wx, wz, h) : null;
+                    float lo = mix is { MinScale: > 0 } ? mix.MinScale : sc.MinScale, hi = mix is { MaxScale: > 0 } ? mix.MaxScale : sc.MaxScale;
+                    float scale = lo + (hi - lo) * R(h, 7);
+                    int species = mix != null ? mix.Pick(R(h, 1), Hash.Of((int)h, 2, 977)) : Pick(sc.Land, h);
+                    Add(trees, world, ctx, x0, z0, wx, wz, species, scale, h, strict: true);
                 }
         }
         return trees;
