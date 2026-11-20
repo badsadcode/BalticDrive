@@ -1192,4 +1192,14 @@ school, now one red scheme.
   (drawn like a ghost copy: it still keeps trees out). On Plac Konstytucji a 6–25 m piece stood inside the block's
   0–25 m piece.
 Looked at: Marszałkowska by Plac Konstytucji (stone blocks with paired windows, balconies and balustrades).
-Not yet: a blank wall on one overlapping-piece block east of the square.
+Not yet: a blank wall on one overlapping-piece block east of the square (found and fixed in D78).
+
+## D78 — The blank wall on Plac Konstytucji, found (20 Nov 2026)
+
+Isolated by skipping one OSM piece at a time (a temporary `--bbskip=` switch): the long blank cream wall east of
+Plac Konstytucji was way 238951890, a 6–25 m piece of the MDM block drawn inside its 0–25 m outline piece. D77's
+"hidden when wholly inside a bigger part" missed it: of its 77 traced corners a few poked a hair outside. Now a part
+counts as inside when its centre and 90 % of its corners are. And the block's stone evidence is shared: the
+`building:material=sandstone` tag sits on one piece only, so the other pieces of the same building now get it too,
+and the whole block comes out as one stone MDM front instead of tenement pieces.
+Looked at: the square from the street, from the air and along Marszałkowska.

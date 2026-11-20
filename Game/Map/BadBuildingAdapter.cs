@@ -123,7 +123,7 @@ public static class BadBuildingAdapter
             StartYear = use.Year,
             Heritage = use.Heritage,
             Architecture = use.Architecture,
-            Material = use.Material,
+            Material = use.Material is "sandstone" or "stone" ? use.Material : GroupStone(ctx, b) ?? use.Material,
             Levels = use.Levels,
             Height = b.Height,
             // the roof as the map (or the importer's guess for houses) has it
@@ -313,5 +313,15 @@ public static class BadBuildingAdapter
         if (use.Type is "school" or "kindergarten" or "university")
             d["look"] = (ulong)BalticDrive.Core.Hash.Of((int)Math.Floor(x / 120.0), (int)Math.Floor(z / 120.0), 0, 77);
         return d;
+    }
+
+    /// <summary>Stone evidence shared by the parts of one building (D78): MDM's block has its sandstone tag on one piece
+    /// only, and the rest came out as tenements.</summary>
+    private static string? GroupStone(MapContext ctx, MapBuilding b)
+    {
+        if (!b.IsPart || b.Group < 0) return null;
+        foreach (var o in ctx.Buildings)
+            if (o.B.Group == b.Group && o.B.IsPart && !ReferenceEquals(o.B, b) && o.B.Use.Contains("building:material=sandstone")) return "sandstone";
+        return null;
     }
 }

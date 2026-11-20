@@ -524,10 +524,12 @@ public sealed class MapTile
                 if (i == j || q.Ghost || q.Group != p.Group) continue;
                 if (q.MinHeight > p.MinHeight + 0.5f || q.Height < p.Height - 0.5f) continue;
                 if ((q.MaxX - q.MinX) * (q.MaxZ - q.MinZ) <= (p.MaxX - p.MinX) * (p.MaxZ - p.MinZ)) continue;
-                // every corner of p (and its centre) inside q
+                // its centre and nearly all its corners inside q (90 %: traced outlines poke a hair out here and there;
+                // the 6–25 m piece on Plac Konstytucji has 77 corners and a few of them did)
                 var rx = p.RX[0]; var rz = p.RZ[0];
-                bool inside = q.Contains(p.Cx, p.Cz);
-                for (int k = 0; k < rx.Length && inside; k++) inside = q.Contains(rx[k] + (p.Cx - rx[k]) * 0.05f, rz[k] + (p.Cz - rz[k]) * 0.05f);
+                int inCorners = 0;
+                for (int k = 0; k < rx.Length; k++) if (q.Contains(rx[k] + (p.Cx - rx[k]) * 0.05f, rz[k] + (p.Cz - rz[k]) * 0.05f)) inCorners++;
+                bool inside = q.Contains(p.Cx, p.Cz) && inCorners >= 0.9f * rx.Length;
                 if (inside) { p.Flags |= 1; break; }   // hidden like a ghost copy: not drawn, still keeps trees out
             }
         }
