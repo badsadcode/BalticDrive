@@ -1252,3 +1252,8 @@ Self-test `--autotest=interior --start=68600,639300 --buildings=bb`: out of the 
 block, walked in (indoors after 1.7 s), up a flight (1.43 m) and the next (2.97 m of a 3.07 m storey) on foot, living
 room and top-floor windows looked out of, and back out (indoors off). Around the start all 11 blocks within 300 m got
 interiors (1–3 staircases, 4–17 storeys). Not yet: shops, balconies, furniture, loot or bandits indoors, locked doors.
+
+## D82 — Roomier interiors (BadBuilding D34, 20 Nov)
+Tom, from inside a 15-storey block near Sosnowa: "very cramped". Staircases, landings, halls, corridors, bathrooms,
+bedrooms and doors all grew (sizes in BadBuilding D34); the windows show a faint glass sheen instead of looking like
+holes. Same self-test at Tom's spot (`--start=68567,639452`): in, up a storey on foot (2.91 m of 3.01), out.
