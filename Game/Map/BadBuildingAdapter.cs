@@ -60,11 +60,20 @@ public static class BadBuildingAdapter
     /// <summary>What the library builds (D29; houses, barns and pitched roofs since its roofs, D37): not churches,
     /// towers, canopies, parts of multi-part buildings or domes, which keep the old meshes.</summary>
     public static bool Eligible(MapBuilding b) =>
+        // an Orthodox church, whole (not mapped in parts), on the map's word (D92, BadBuilding D41)
+        OrthodoxChurch(b) ||
         !b.Ghost && !b.IsCanopy && b.Height >= 2.4f && b.Roof != RoofKind.Dome
         // parts too (D70: skyscrapers are mapped as parts), but not the slivers that make up spires and antenna rings
         && (!b.IsPart || (b.MaxX - b.MinX) * (b.MaxZ - b.MinZ) > 60f && b.Height - b.MinHeight > 2.4f)
         && b.Type is BuildingKind.Generic or BuildingKind.Apartments or BuildingKind.Commercial or BuildingKind.Civic
             or BuildingKind.House or BuildingKind.Farm or BuildingKind.Shed or BuildingKind.Industrial;
+
+    /// <summary>A church the map calls orthodox (its use string carries denomination=…orthodox), mapped as one outline.</summary>
+    public static bool OrthodoxChurch(MapBuilding b) =>
+        b.Type == BuildingKind.Church && !b.Ghost && !b.IsPart && b.Height >= 2.4f
+        && b.Use.Contains("orthodox", StringComparison.OrdinalIgnoreCase)
+        // Christian: an orthodox synagogue (religion=jewish) is not a cerkiew
+        && Use.Parse(b.Use).Religion is null or "christian";
 
     /// <summary>Generates one building into the chunk mesh. False when the library could not build it (the caller then
     /// uses the old mesh).</summary>
@@ -134,8 +143,11 @@ public static class BadBuildingAdapter
             Material = use.Material is "sandstone" or "stone" ? use.Material : GroupStone(ctx, b) ?? use.Material,
             // the Shift+F7 preset wins; else the region's (D91: Podlasie's wooden houses)
             Preset = Preset ?? World.Regions.PresetAt(ctx.Ox + ox, ctx.Oz + oz, seed),
+            Religion = use.Religion,
+            Denomination = use.Denomination,
             Levels = use.Levels,
-            Height = b.Height,
+            // a church without a mapped height gets the importer's 16 m guess: let the style decide instead (D92)
+            Height = b.Type == BuildingKind.Church && MathF.Abs(b.Height - 16f) < 0.05f ? null : b.Height,
             // the roof as the map (or the importer's guess for houses) has it
             Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
             RoofHeight = b.RoofHeight > 0.2f ? b.RoofHeight : null,
@@ -281,7 +293,8 @@ public static class BadBuildingAdapter
     /// ("yes;amenity=school;year=1965") into BadBuilding's request facts. The building value is passed as the type;
     /// an untyped building (yes) takes its type from what it's used for, where that says what kind of building it is.
     /// </summary>
-    public readonly record struct Use(string? Type, int? Year, bool Heritage, string? Architecture, int? Levels, string? Material = null)
+    public readonly record struct Use(string? Type, int? Year, bool Heritage, string? Architecture, int? Levels, string? Material = null,
+        string? Religion = null, string? Denomination = null)
     {
         public static Use Parse(string s)
         {
@@ -314,7 +327,8 @@ public static class BadBuildingAdapter
             int? year = f.TryGetValue("year", out var y) && int.TryParse(y, out int yi) ? yi : null;
             bool heritage = f.ContainsKey("heritage") || f.GetValueOrDefault("historic") is "building" or "yes" or "monument";
             int? levels = f.TryGetValue("building:levels", out var lv) && float.TryParse(lv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf >= 1 ? (int)MathF.Round(lf) : null;
-            return new Use(type, year, heritage, f.GetValueOrDefault("building:architecture"), levels, f.GetValueOrDefault("building:material"));
+            return new Use(type, year, heritage, f.GetValueOrDefault("building:architecture"), levels, f.GetValueOrDefault("building:material"),
+                f.GetValueOrDefault("religion"), f.GetValueOrDefault("denomination"));
         }
     }
 

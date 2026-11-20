@@ -1377,3 +1377,14 @@ Checked in the game with `--preset=podlasie` in Rabędy (on the Mazowsze side, 4
 render with the planks shader, crowns, shutters, the orange sheet roof. The real look waits for the joined map
 (D90: the elevation is still downloading). Next for Podlaskie: Orthodox churches (OSM evidence only), the Tatar
 mosques as landmarks, forests (spruce, Białowieża), storks.
+
+## D92 — Orthodox churches through BadBuilding (its D41)
+`BadBuildingAdapter.OrthodoxChurch`: a church (the importer's church kind), whole (not a building:part, not a ghost
+outline), whose use string (D72) says `denomination=…orthodox` and whose religion is christian or unmapped, goes to
+BadBuilding, which builds it as a cerkiew; other churches keep the classic meshes. The request carries religion and
+denomination. A church with the importer's guessed height (exactly 16 m, no height or levels mapped) goes without one,
+so the style sets its own (a village cerkiew's walls are about 6 m). Checked in Warsaw: the church at Wolska 138/140
+and the cathedral at Aleja Solidarności now have onions and crosses (the cathedral's ragged outline gets a flat roof;
+its real five domes are not mapped as parts). In the merged data there are 231 orthodox buildings, nearly all in
+Podlaskie, waiting for the joined map (D90). Fixed while doing it: every building has a Group (its own index when it
+has no parts), so "Group < 0" had excluded every church.
