@@ -1,3 +1,8 @@
+> **Changed 20 November 2026 (Tom, D88/D89):** the game is to be as close to Project Zomboid as we can make it in our
+> own way: data-driven items, an inventory with weight, containers in the furniture, crafting recipes, loot tables.
+> Where this brief says "not the plan: elaborate crafting, base building", that no longer holds. The rest (sparse,
+> local, generated around the player; good gunplay) still does.
+
 # Baltic Drive — On-Foot Gameplay Brief
 
 *A direction for Sage, not a giant implementation checklist.*

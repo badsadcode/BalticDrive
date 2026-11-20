@@ -1843,6 +1843,8 @@ public sealed class Tests
                 if (t < 1.5) break;
                 // --cams="x,y,z,yaw,pitch;..." (world metres, degrees, from F9 dumps' Camera line): stand where the
                 // first-person camera was and photograph, then stop
+                // --interior-loot: search furniture, take things, look in the pack (D89), then stop
+                if (Main.Args.ContainsKey("interior-loot")) { Phase(13); break; }
                 // --interior-safehouse: claim a flat, die far away, wake up in it (D88), then stop
                 if (Main.Args.ContainsKey("interior-safehouse")) { Phase(12); break; }
                 // --look=sofa,nightstand,...: photograph a piece of each kind from in front of it (D87), then stop
@@ -1984,6 +1986,67 @@ public sealed class Tests
                     w.Autopilot = _ => (new Vector2(0, 1), false);
                 }
                 break;
+            case 13:
+            {
+                string file = ProjectSettings.GlobalizePath("user://containers.json");
+                string[] kinds = { "counter", "wardrobe", "basin", "fridge" };
+                if (At(0.1))
+                {
+                    _iSafeBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
+                    Items.Containers.Forget(Main.MapName);
+                    w.Body.Pack.Stacks.Clear();
+                    Log.Info("Test", $"loot: {Items.ItemDb.All.Count} items known");
+                }
+                for (int k = 0; k < kinds.Length; k++)
+                {
+                    double t0 = 0.5 + k * 3.0;
+                    var item = mdl.Furniture.Where(f => f.Kind == kinds[k] && mdl.StoreyAt(f.Floor + 0.1f) == 1).FirstOrDefault()
+                               ?? mdl.Furniture.FirstOrDefault(f => f.Kind == kinds[k]);
+                    if (item == null) { if (At(t0)) Log.Info("Test", $"loot: no {kinds[k]}"); continue; }
+                    if (At(t0))
+                    {
+                        // stand before it and look at it
+                        var c = new System.Numerics.Vector2((item.Min.X + item.Max.X) * 0.5f, (item.Min.Y + item.Max.Y) * 0.5f);
+                        float reach = MathF.Abs(item.Facing.Y) > 0.5f ? item.Max.Y - item.Min.Y : item.Max.X - item.Min.X;
+                        var stand = c + item.Facing * (reach * 0.5f + 0.55f);
+                        w.SetView(true);
+                        Put(P(stand.X, item.Floor + 0.1f, stand.Y), P(c.X, item.Floor + 0.6f, c.Y));
+                    }
+                    if (At(t0 + 0.8))
+                    {
+                        var spot = ints.ContainerInReach(w.GlobalPosition, w.Yaw);
+                        Log.Info("Test", $"loot: by the {kinds[k]}: {(spot == null ? "nothing to search" : $"{Items.Containers.Label(spot.FurnitureKind)} ({spot.LootKind}, {spot.Room})")}");
+                        if (spot != null) _main.OpenInventory(spot);
+                    }
+                    if (At(t0 + 1.4)) Shot($"loot_{k}_{kinds[k]}");
+                    if (At(t0 + 1.8) && _main.InventoryWindow!.IsOpen)
+                    {
+                        _main.InventoryWindow.TakeAll();
+                        Log.Info("Test", $"loot: took all; pack {w.Body.Pack.Weight:0.00} kg: {Items.Inventory.Say(w.Body.Pack.Stacks)}");
+                    }
+                    if (At(t0 + 2.4)) _main.InventoryWindow!.Close();
+                }
+                double tp = 0.5 + kinds.Length * 3.0;
+                if (At(tp)) { _main.OpenInventory(null); }
+                if (At(tp + 0.6)) Shot("loot_pack");
+                if (At(tp + 1.0))
+                {
+                    _main.InventoryWindow!.Close();
+                    w.Body.Hunger = 30;
+                    Log.Info("Test", $"loot: hungry (30), food {w.Body.Food} in the pack");
+                }
+                if (At(tp + 2.0))
+                {
+                    Log.Info("Test", $"loot: hunger now {w.Body.Hunger:0}, pack {Items.Inventory.Say(w.Body.Pack.Stacks)}");
+                    // searched again: what's left is remembered
+                    var spot = ints.ContainerInReach(w.GlobalPosition, w.Yaw);
+                    Log.Info("Test", $"loot: the last one searched before: {spot != null && Items.Containers.Searched(Main.MapName, spot.Id)}");
+                    if (_iSafeBackup != null) System.IO.File.WriteAllText(file, _iSafeBackup); else Items.Containers.Forget(Main.MapName);
+                    Log.Info("Test", "loot: done (the old containers file restored)");
+                    _main.GetTree().Quit();
+                }
+                break;
+            }
             case 12:
             {
                 string file = ProjectSettings.GlobalizePath("user://safehouses.json");

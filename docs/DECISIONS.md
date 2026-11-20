@@ -1323,3 +1323,26 @@ inside a wall or a piece of furniture (to handle when the generator gets version
 Next, by Tom's direction (20 Nov): a Project Zomboid-like survival layer of our own (data-driven items, inventory with
 weight, containers in the furniture, crafting recipes, loot tables). This changes the on-foot brief's "not the plan:
 elaborate crafting"; the brief is to be updated when that work starts.
+
+## D89 — Items, a pack with weight, furniture you can search (Tom: "Yes, items next", 20 Nov)
+The first piece of the Project Zomboid-like survival layer (D88's note; our own design and data, not Zomboid's):
+* **Items are data:** `GameData/items.json` (51 items: tinned food, drinks, medicine, tools, materials, junk; names
+  and weights in post-PRL Mazowsze), `GameData/loot.json` (what each kind of container holds, weighted, and the rooms
+  that make some items likelier). `Items.ItemDb` reads them at start; code refers to items by id only. Not `data/`:
+  that folder is git-ignored (map data), and on Windows `Data/` would be too. The export now includes `*.json`
+  (it hadn't: `furniture.json` was missing from the dist build).
+* **The pack:** `Survival.Pack`, an `Items.Inventory` (stacks by id, a weight limit: 15 kg). The old counters (food,
+  water, medkits) are views onto it; eating and drinking still happen by themselves when you get hungry or thirsty,
+  now with whatever fits best (and a bottle leaves an empty bottle); H uses what fits the wound. Caches, bandits'
+  bodies, leads and the package where you fell give items; ammo stays with the guns for now.
+* **Furniture you can search:** every piece with a loot marker (NoorFengShui, D86) within reach in the interior you're
+  in: "F: search the wardrobe". What's inside is rolled from the loot tables the first time, from the piece's id, and
+  what's left is remembered (`user://containers.json`, per map; the world's changes apart from the generated world).
+* **The window:** the container on the left, you on the right, with weights; drag, double-click (the pile) or
+  right-click (one) to move, "Take all" (E); Eat / Drink / Use on your own food, drink and medicine; Tab opens your
+  pack alone; Esc, Tab or F closes. The walker stands still while it's open.
+Self-test `--autotest=interior --interior-loot --start=68567,639452 --buildings=bb`: kitchen cupboards (pâté, an empty
+bottle, rice), a wardrobe (rags, sheets), an empty mirror cabinet and fridge; took everything; ate the rice when
+hungry; the player's own containers file is backed up and restored. The old loot and death tests still pass.
+Not yet: dropping items, ammo as items, clothing and bags (more weight), crafting recipes, items shown on shelves,
+"full" furniture models (Tom's Zomboid idea), outdoor caches as containers in the same window.

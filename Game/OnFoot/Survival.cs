@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BalticDrive.Items;
 using BalticDrive.Map;
 using BalticDrive.World;
 using Godot;
@@ -17,12 +18,35 @@ public sealed partial class Survival : Node
 {
     private readonly Walker _w;
     public float Health = 100, Hunger = 85, Thirst = 80;   // hunger and thirst: 100 = full, 0 = starving / parched
-    public int Food, Water, Medkits;
-    public const int MaxFood = 4, MaxWater = 4, MaxMedkits = 3;
+    /// <summary>What you carry (D89): real items, as much as the weight allows.</summary>
+    public readonly Inventory Pack = new(MaxCarry);
+    public const float MaxCarry = 15f;
+
+    // the old counters (D46), now views onto the pack: what there is to eat, to drink, to heal with. Setting one (the
+    // self-tests do) replaces that kind of item with the plain one: beans, water, first aid kits.
+    public int Food { get => Pack.CountWhere(IsFood); set => SetCount(IsFood, "beans", value); }
+    public int Water { get => Pack.CountWhere(IsDrink); set => SetCount(IsDrink, "water", value); }
+    public int Medkits { get => Pack.CountWhere(IsMedical); set => SetCount(IsMedical, "medkit", value); }
+    private static bool IsFood(ItemDef d) => d.Category == "food";
+    private static bool IsDrink(ItemDef d) => d.Category == "drink" && d.Drink > 0;
+    private static bool IsMedical(ItemDef d) => d.Category == "medical" && d.Heal > 0;
+    private void SetCount(Func<ItemDef, bool> kind, string plain, int n)
+    {
+        foreach (var id in Pack.Stacks.Where(st => ItemDb.Get(st.Id) is { } d && kind(d)).Select(st => st.Id).Distinct().ToList()) Pack.Remove(id, int.MaxValue);
+        Pack.Add(plain, n);
+    }
+
+    /// <summary>The item of a kind that best fits what's missing: the biggest that doesn't waste much, else the smallest.</summary>
+    private string? Best(Func<ItemDef, bool> kind, Func<ItemDef, float> value, float missing)
+    {
+        var have = Pack.Stacks.Select(st => ItemDb.Get(st.Id)).OfType<ItemDef>().Where(kind).DistinctBy(d => d.Id).ToList();
+        if (have.Count == 0) return null;
+        var fits = have.Where(d => value(d) <= missing + 10).OrderByDescending(value).FirstOrDefault();
+        return (fits ?? have.OrderBy(value).First()).Id;
+    }
     /// <summary>Minutes of walking from full to empty.</summary>
     public const float HungerMinutes = 45, ThirstMinutes = 30;
     private float _healing;            // medkit health still to come
-    private string _lastFood = "food";
 
     /// <summary>A line for the HUD when something happens ("You eat a kebab").</summary>
     public event Action<string>? Said;
@@ -37,9 +61,22 @@ public sealed partial class Survival : Node
         float effort = _w.Speed > Walker.RunSpeed + 0.5f ? 2f : _w.Speed > 0.5f ? 1.2f : 1f;
         Hunger = MathF.Max(0, Hunger - dt * effort * 100f / (HungerMinutes * 60));
         Thirst = MathF.Max(0, Thirst - dt * effort * 100f / (ThirstMinutes * 60));
-        // carried food and water are used without asking, before it hurts
-        if (Hunger < 35 && Food > 0) { Food--; Hunger = MathF.Min(100, Hunger + 40); Say($"You eat the {_lastFood}"); }
-        if (Thirst < 35 && Water > 0) { Water--; Thirst = MathF.Min(100, Thirst + 45); Say("You drink a bottle of water"); }
+        // carried food and water are used without asking, before it hurts: what fits the hunger best
+        if (Hunger < 35 && Best(IsFood, d => d.Food, 100 - Hunger) is { } eat)
+        {
+            var d = ItemDb.Def(eat);
+            Pack.Remove(eat, 1);
+            Hunger = Math.Clamp(Hunger + d.Food, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink, 0, 100);
+            Say($"You eat a {d.Name}");
+        }
+        if (Thirst < 35 && Best(IsDrink, d => d.Drink, 100 - Thirst) is { } drink)
+        {
+            var d = ItemDb.Def(drink);
+            Pack.Remove(drink, 1);
+            Thirst = Math.Clamp(Thirst + d.Drink, 0, 100); Hunger = Math.Clamp(Hunger + d.Food, 0, 100);
+            Pack.Add(d.Id is "water" or "mineral_water" or "juice" or "compote" ? "empty_bottle" : "", 1);
+            Say($"You drink a {d.Name}");
+        }
         // health: empty stomach or bottle hurts, a looked-after body heals up to 70 by itself, a medkit all the way
         if (Hunger <= 0) { Health -= dt * 0.25f; _cause = "starved"; }
         if (Thirst <= 0) { Health -= dt * 0.4f; _cause = "dehydrated"; }
@@ -48,13 +85,39 @@ public sealed partial class Survival : Node
         if (Health <= 0) { Health = 0; Fall(); }
     }
 
+    /// <summary>Can an item be used from the inventory (D89): food, drink, medicine.</summary>
+    public static bool Usable(ItemDef d) => d.Category is "food" or "drink" || d.Category == "medical" && d.Heal > 0;
+
+    /// <summary>Eats, drinks or uses one of an item you carry (the inventory's Use button).</summary>
+    public void UseItem(string id)
+    {
+        var d = ItemDb.Get(id);
+        if (d == null || Pack.Count(id) == 0) return;
+        if (d.Category == "medical")
+        {
+            if (Health >= 99) { Say("You're fine"); return; }
+            _healing += d.Heal;
+            Say($"You patch yourself up with a {d.Name}");
+        }
+        else
+        {
+            Hunger = Math.Clamp(Hunger + d.Food, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink, 0, 100);
+            Say(d.Category == "drink" ? $"You drink a {d.Name}" : $"You eat a {d.Name}");
+        }
+        Pack.Remove(id, 1);
+        if (d.Id is "water" or "mineral_water" or "juice" or "compote") Pack.Add("empty_bottle", 1);
+    }
+
     public void UseMedkit()
     {
-        if (Medkits <= 0) { Say("No medkit"); return; }
+        if (Medkits <= 0) { Say("Nothing to patch yourself up with"); return; }
         if (Health >= 99) { Say("You're fine"); return; }
-        Medkits--;
-        _healing += 60;
-        Say("You patch yourself up");
+        // what fits the wound: a first aid kit for a bad one, a bandage or a plaster for less
+        var id = Best(IsMedical, d => d.Heal, 100 - Health)!;
+        var def = ItemDb.Def(id);
+        Pack.Remove(id, 1);
+        _healing += def.Heal;
+        Say($"You patch yourself up with a {def.Name}");
     }
 
     /// <summary>A bullet or a fall (D47: bandits).</summary>
@@ -79,15 +142,24 @@ public sealed partial class Survival : Node
     public string Take(Loot l)
     {
         var said = new List<string>();
-        int f = Math.Min(l.Food, MaxFood - Food), w = Math.Min(l.Water, MaxWater - Water), m = Math.Min(l.Medkits, MaxMedkits - Medkits);
-        if (f > 0) { Food += f; _lastFood = l.FoodName; said.Add(f == 1 ? l.FoodName : $"{f}× {l.FoodName}"); }
-        if (w > 0) { Water += w; said.Add(w == 1 ? "water" : $"{w}× water"); }
-        if (m > 0) { Medkits += m; said.Add(m == 1 ? "a medkit" : $"{m} medkits"); }
+        // the old counted loot as items: the food by its name, plain water, first aid kits; and any real items
+        var items = new List<ItemStack>(l.Items ?? []);
+        if (l.Food > 0) items.Add(new ItemStack(ItemDb.All.Values.FirstOrDefault(d => d.Name == l.FoodName || d.Plural == l.FoodName)?.Id ?? "beans", l.Food));
+        if (l.Water > 0) items.Add(new ItemStack("water", l.Water));
+        if (l.Medkits > 0) items.Add(new ItemStack("medkit", l.Medkits));
+        bool full = false;
+        var got = new List<ItemStack>();
+        foreach (var it in items)
+        {
+            int n = Pack.Add(it.Id, it.Count);
+            if (n > 0) got.Add(new ItemStack(it.Id, n));
+            if (n < it.Count) full = true;
+        }
+        if (got.Count > 0) said.Add(Inventory.Say(got));
         foreach (var (gun, rounds) in l.Ammo)
             if (_w.Guns.AddAmmo(gun, rounds) is var took and > 0)
                 said.Add($"{took} rounds for the {WeaponDef.All.First(d => d.Id == gun).Name}");
-        bool full = (l.Food > f || l.Water > w || l.Medkits > m);
-        return said.Count == 0 ? (full ? "Nothing you can carry" : "Empty") : "Found " + string.Join(", ", said) + (full ? " (pockets full)" : "");
+        return said.Count == 0 ? (full ? "Nothing you can carry" : "Empty") : "Found " + string.Join(", ", said) + (full ? " (too heavy to take it all)" : "");
     }
 
     private void Fall()
@@ -102,8 +174,8 @@ public sealed partial class Survival : Node
     /// where you fell. The guns and what's loaded in them stay with you (Tom's pick).</summary>
     public Loot PackUp()
     {
-        var loot = new Loot(Food, _lastFood, Water, Medkits, _w.Guns.TakeReserve());
-        Food = Water = Medkits = 0;
+        var loot = new Loot(0, "", 0, 0, _w.Guns.TakeReserve(), Pack.Stacks.ToList());
+        Pack.Stacks.Clear();
         return loot;
     }
 
@@ -118,7 +190,10 @@ public sealed partial class Survival : Node
 }
 
 /// <summary>What one cache holds.</summary>
-public sealed record Loot(int Food, string FoodName, int Water, int Medkits, (string Gun, int Rounds)[] Ammo);
+public sealed record Loot(int Food, string FoodName, int Water, int Medkits, (string Gun, int Rounds)[] Ammo, IReadOnlyList<ItemStack>? Items = null)
+{
+    public int ItemCount => Food + Water + Medkits + (Items?.Sum(s => s.Count) ?? 0);
+}
 
 /// <summary>
 /// Outdoor supply caches (D46, the brief: "OSM points of interest help decide what might be found nearby"). Around the

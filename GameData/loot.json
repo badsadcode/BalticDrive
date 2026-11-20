@@ -1,0 +1,45 @@
+{
+  "_about": "What turns up where (D89). containers: per kind of furniture with a 'loot_<kind>' marker (BadBuilding's NoorFengShui): how many draws (min..max, some may come up empty) and the weighted items with how many of each per draw. rooms: the same container gives a little more of some items in some rooms (the medicine cabinet in a bathroom, a cupboard in a kitchen). Weights are relative; an 'empty' entry is a draw that finds nothing.",
+  "containers": {
+    "drawer": { "draws": [0, 3], "items": [
+      { "item": "empty", "weight": 6 }, { "item": "batteries", "weight": 3, "count": [1, 2] }, { "item": "candle", "weight": 3, "count": [1, 3] },
+      { "item": "matches", "weight": 3 }, { "item": "lighter", "weight": 2 }, { "item": "scissors", "weight": 2 }, { "item": "screwdriver", "weight": 1 },
+      { "item": "thread", "weight": 2 }, { "item": "painkillers", "weight": 2 }, { "item": "plasters", "weight": 2 }, { "item": "bandage", "weight": 1 },
+      { "item": "coins", "weight": 3, "count": [1, 3] }, { "item": "newspaper", "weight": 2 }, { "item": "torch", "weight": 1 }, { "item": "wafer", "weight": 1 },
+      { "item": "duct_tape", "weight": 1 }
+    ] },
+    "wardrobe": { "draws": [1, 3], "items": [
+      { "item": "empty", "weight": 4 }, { "item": "sheet", "weight": 5, "count": [1, 2] }, { "item": "towel", "weight": 4, "count": [1, 2] },
+      { "item": "rag", "weight": 3, "count": [1, 4] }, { "item": "photo_album", "weight": 1 }, { "item": "torch", "weight": 1 }, { "item": "rope", "weight": 1 },
+      { "item": "book", "weight": 1 }
+    ] },
+    "fridge": { "draws": [0, 3], "items": [
+      { "item": "empty", "weight": 6 }, { "item": "pickles", "weight": 3 }, { "item": "jam", "weight": 3 }, { "item": "compote", "weight": 2 },
+      { "item": "juice", "weight": 2 }, { "item": "cola", "weight": 2, "count": [1, 3] }, { "item": "mineral_water", "weight": 2, "count": [1, 2] },
+      { "item": "vodka", "weight": 1 }, { "item": "pate", "weight": 2 }
+    ] },
+    "cupboard": { "draws": [1, 4], "items": [
+      { "item": "empty", "weight": 4 }, { "item": "beans", "weight": 4, "count": [1, 2] }, { "item": "sprats", "weight": 3, "count": [1, 2] },
+      { "item": "luncheon_meat", "weight": 3 }, { "item": "pate", "weight": 2 }, { "item": "crackers", "weight": 3 }, { "item": "rusks", "weight": 3 },
+      { "item": "instant_soup", "weight": 3, "count": [1, 3] }, { "item": "rice", "weight": 2 }, { "item": "jam", "weight": 2 }, { "item": "pickles", "weight": 2 },
+      { "item": "water", "weight": 3, "count": [1, 2] }, { "item": "can_opener", "weight": 2 }, { "item": "kitchen_knife", "weight": 2 },
+      { "item": "saucepan", "weight": 2 }, { "item": "coffee_mug", "weight": 2 }, { "item": "matches", "weight": 2 }, { "item": "empty_bottle", "weight": 2 }
+    ] },
+    "medicine": { "draws": [0, 3], "items": [
+      { "item": "empty", "weight": 5 }, { "item": "bandage", "weight": 4, "count": [1, 2] }, { "item": "plasters", "weight": 4 }, { "item": "painkillers", "weight": 4 },
+      { "item": "disinfectant", "weight": 3 }, { "item": "medkit", "weight": 1 }, { "item": "soap", "weight": 3 }, { "item": "toothbrush", "weight": 2 },
+      { "item": "toilet_paper", "weight": 2, "count": [1, 2] }
+    ] },
+    "shelf": { "draws": [0, 3], "items": [
+      { "item": "empty", "weight": 6 }, { "item": "book", "weight": 5, "count": [1, 2] }, { "item": "newspaper", "weight": 3 }, { "item": "photo_album", "weight": 1 },
+      { "item": "radio", "weight": 1 }, { "item": "candle", "weight": 2 }, { "item": "coffee_mug", "weight": 2 }, { "item": "duct_tape", "weight": 1 },
+      { "item": "nails", "weight": 1 }, { "item": "hammer", "weight": 1 }, { "item": "rope", "weight": 1 }, { "item": "toilet_paper", "weight": 1, "count": [1, 4] }
+    ] }
+  },
+  "rooms": {
+    "kitchen": { "beans": 2, "water": 2, "can_opener": 2 },
+    "bathroom": { "bandage": 2, "disinfectant": 2, "toilet_paper": 2 },
+    "storage": { "duct_tape": 3, "nails": 3, "hammer": 3, "rope": 3, "water": 2, "beans": 2 },
+    "bedroom": { "photo_album": 2, "painkillers": 2 }
+  }
+}

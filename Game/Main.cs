@@ -233,7 +233,7 @@ public partial class Main : Node3D
 			Bar(0, "health", b.Health, new Color(0.85f, 0.22f, 0.2f));
 			Bar(1, "food", b.Hunger, new Color(0.9f, 0.6f, 0.2f));
 			Bar(2, "water", b.Thirst, new Color(0.25f, 0.55f, 0.95f));
-			_bars.DrawString(font, new Vector2(0, 74), $"carrying: food {b.Food}, water {b.Water}, medkits {b.Medkits} (H)", HorizontalAlignment.Left, 220, 13, new Color(1, 1, 1, 0.8f));
+			_bars.DrawString(font, new Vector2(-70, 74), $"{b.Pack.Weight:0.0}/{BalticDrive.OnFoot.Survival.MaxCarry:0} kg · food {b.Food} · drink {b.Water} · med {b.Medkits} · Tab", HorizontalAlignment.Right, 280, 13, new Color(1, 1, 1, 0.8f));
 		};
 		_ui.AddChild(_bars);
 		_prompt = new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false };
@@ -242,6 +242,27 @@ public partial class Main : Node3D
 		_prompt.AddThemeFontSizeOverride("font_size", 18);
 		_prompt.AddThemeColorOverride("font_shadow_color", Colors.Black);
 		_ui.AddChild(_prompt);
+		_inventory = new UI.InventoryScreen();
+		_ui.AddChild(_inventory);
+	}
+
+	private UI.InventoryScreen? _inventory;
+	public UI.InventoryScreen? InventoryWindow => _inventory;
+	private Items.ContainerSpot? _spot;
+	private Func<OnFoot.Walker, (Vector2, bool)>? _parkedAutopilot;
+
+	/// <summary>Opens the inventory window (D89): on a container if one is given, else on your pack alone. The walker
+	/// stands still while it's open.</summary>
+	public void OpenInventory(Items.ContainerSpot? spot)
+	{
+		if (_walker == null || _inventory == null || _inventory.IsOpen) return;
+		Items.Inventory? other = spot == null ? null : Items.Containers.Get(MapName, spot.Id, spot.LootKind, spot.Room);
+		_parkedAutopilot = _walker.Autopilot;
+		_walker.Autopilot = _ => (Vector2.Zero, false);
+		var w = _walker;
+		_inventory.Open(w.Body.Pack, other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind), BalticDrive.OnFoot.Survival.Usable, id => w.Body.UseItem(id),
+			() => { w.Autopilot = _parkedAutopilot; _parkedAutopilot = null; });
+		Core.Log.Info("Items", spot == null ? $"pack: {Items.Inventory.Say(w.Body.Pack.Stacks)}" : $"{spot.FurnitureKind} ({spot.LootKind}, {spot.Room}): {Items.Inventory.Say(other!.Stacks)}");
 	}
 
 	private float _downTime = -1;
@@ -311,7 +332,7 @@ public partial class Main : Node3D
 		var (fx, _, fz) = WorldOrigin.ToWorld(fell);
 		var loot = _walker.Body.PackUp();
 		var package = _caches.PlacePackage(fell, loot, _walker.CorpseTransform, _walker.CopyPose);
-		if (loot.Food + loot.Water + loot.Medkits + loot.Ammo.Sum(a => a.Rounds) == 0) _caches.Open(package);   // nothing to go back for
+		if (loot.ItemCount + loot.Ammo.Sum(a => a.Rounds) == 0) _caches.Open(package);   // nothing to go back for
 		foreach (var b in _bandits!.All) b.QueueFree();
 		_bandits.Clear();
 		var home = _safehouse;
@@ -475,9 +496,18 @@ public partial class Main : Node3D
 		// wrecks along the way, on foot or driving (D69)
 		if (on) _wrecks?.Update(_walker!.GlobalPosition, now);
 		else if (_car != null && _car.Driving && !Flying) _wrecks?.Update(_car.GlobalPosition, now);
-		if (!on || PlayerDown) { _prompt!.Visible = false; _claim = 0; return; }
+		if (!on || PlayerDown || (_inventory?.IsOpen ?? false)) { _prompt!.Visible = false; _claim = 0; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
+		// furniture to search, indoors (D89)
+		_spot = c == null && _interiors != null && !(_inventory?.IsOpen ?? false) ? _interiors.ContainerInReach(_walker.GlobalPosition, _walker.Yaw) : null;
+		if (_spot != null)
+		{
+			_prompt!.Visible = true;
+			_prompt.Text = $"F: search {Items.Containers.Label(_spot.FurnitureKind)}" + (Items.Containers.Searched(MapName, _spot.Id) ? " (searched)" : "");
+			_bars.QueueRedraw();
+			return;
+		}
 		_prompt!.Visible = c != null;
 		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "F: search the body" : c.Key.StartsWith("death:") ? "F: take your things" : c.Keep ? "F: take the stash" : "F: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
 		else UpdateClaim(now, (float)GetProcessDeltaTime());
@@ -604,6 +634,7 @@ public partial class Main : Node3D
 			if (fk.Pressed)
 			{
 				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _spot != null) { OpenInventory(_spot); GetViewport().SetInputAsHandled(); return; }
 				_fTarget = OnFoot ? NearestCar() : null;
 				if (_fTarget != null) _fHeld = 0;
 				else ToggleOnFoot();
@@ -614,6 +645,12 @@ public partial class Main : Node3D
 				_fHeld = -1;
 				if (_fTarget == _car) ToggleOnFoot(); else ShowNote("A wreck: hold F to strip it for parts");
 			}
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Tab } && OnFoot)
+		{
+			OpenInventory(null);
 			GetViewport().SetInputAsHandled();
 			return;
 		}

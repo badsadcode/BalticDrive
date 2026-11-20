@@ -403,6 +403,35 @@ public partial class Interiors : Node
         return mat;
     }
 
+    /// <summary>The piece of furniture you could search (D89): one with a loot marker, on your storey of the interior
+    /// you're in, its footprint within reach (0.9 m) and roughly ahead of you.</summary>
+    public Items.ContainerSpot? ContainerInReach(Vector3 at, float yaw)
+    {
+        if (Inside is not { } l) return null;
+        var m = l.Model;
+        var p = l.ToBuilding(at);
+        var (u, v) = m.Frame.Local(new NVec2(p.X, p.Z));
+        int storey = m.StoreyAt(p.Y + 0.3f);
+        var fwd = new Vector3(-MathF.Sin(yaw), 0, -MathF.Cos(yaw));
+        Items.ContainerSpot? best = null; float bestD = 0.9f;
+        foreach (var f in m.Furniture)
+        {
+            if (m.StoreyAt(f.Floor + 0.1f) != storey) continue;
+            var marker = m.Markers.FirstOrDefault(k => k.Id == f.Id + ".loot");
+            if (marker == null) continue;
+            float du = MathF.Max(0, MathF.Max(f.Min.X - u, u - f.Max.X)), dv = MathF.Max(0, MathF.Max(f.Min.Y - v, v - f.Max.Y));
+            float d = MathF.Sqrt(du * du + dv * dv);
+            if (d > bestD) continue;
+            var c = l.ToScene(m.Frame.P((f.Min.X + f.Max.X) * 0.5f, f.Floor + 0.5f, (f.Min.Y + f.Max.Y) * 0.5f));
+            var to = (c - at) with { Y = 0 };
+            if (to.LengthSquared() > 0.04f && to.Normalized().Dot(fwd) < 0.2f) continue;
+            string? room = m.Rooms.FirstOrDefault(r => r.Id == f.Room)?.Kind;
+            best = new Items.ContainerSpot(marker.Id, marker.Kind["loot_".Length..], f.Kind, room, c);
+            bestD = d;
+        }
+        return best;
+    }
+
     /// <summary>For F9 dumps and the HUD: where you are.</summary>
     public string Describe()
     {
