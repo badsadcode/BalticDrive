@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using BalticDrive.Map;
 using BalticDrive.World;
+using BalticDrive.Core;
 using Godot;
 
 namespace BalticDrive.OnFoot;
@@ -24,7 +25,7 @@ namespace BalticDrive.OnFoot;
 /// </summary>
 public sealed partial class Bandit : CharacterBody3D, IHittable
 {
-    public enum Mode { Patrol, Investigate, Engage, Dead }
+    public enum Mode { Patrol, Investigate, Engage, Down, Dead }
     public Mode State { get; private set; } = Mode.Patrol;
     public float Health = 90;
     public readonly WeaponDef Gun;
@@ -104,7 +105,14 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     {
         if (State == Mode.Dead) return null;
         float head = (h.Point.Y - GlobalPosition.Y) / (_crouch ? 1.15f : 1.8f);
-        bool headshot = head > 0.86f;
+        bool headshot = State == Mode.Down ? _ragdoll?.Head is { } hb && hb.GlobalPosition.DistanceTo(h.Point) < 0.16f : head > 0.86f;
+        if (State == Mode.Down)
+        {
+            // lying in the street (D80): the shot lands on the ragdoll
+            Health -= h.Damage * (headshot ? 2.5f : 1f);
+            if (Health <= 0) { Die(h); return headshot ? "bandit down (head)" : "bandit down"; }
+            return headshot ? "bandit, head" : "bandit, hit";
+        }
         Health -= h.Damage * (headshot ? 2.5f : 1f);
         _flinch = 0.4f;
         _settle = 0;
@@ -116,9 +124,15 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         return headshot ? "bandit, head" : "bandit, hit";
     }
 
-    private void Die(BulletHit h)
+    private void Die(BulletHit h) => Die(h.Velocity, h.Point, h.Velocity.Normalized() * 45f, Vector3.Zero);
+
+    /// <summary>Down for good: pushed <paramref name="from"/> a direction (the bullet's or the car's), the ragdoll
+    /// kicked at <paramref name="at"/> and the whole body given <paramref name="bodyVelocity"/>.</summary>
+    private void Die(Vector3 from, Vector3 at, Vector3 kick, Vector3 bodyVelocity)
     {
+        bool wasDown = State == Mode.Down;
         State = Mode.Dead;
+        if (_ragdoll != null) _ragdoll.Sim.Influence = 1f;
         CollisionLayer = 0;
         CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings;
         // the animation keeps running (switching it off, or freezing it, drops the body into its T-pose): standing
@@ -128,14 +142,106 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _fall = 0;
         _flash.LightEnergy = 0;
         // the body tips away from the shot
-        var away = new Vector3(h.Velocity.X, 0, h.Velocity.Z).Normalized();
+        var away = new Vector3(from.X, 0, from.Z).Normalized();
         // up x away: the head goes away from the shot (D55: away x up had tipped every body toward the shooter)
         _fallAxis = Vector3.Up.Cross(away).Normalized();
         // a ragdoll (D56): pushed by the bullet, harder than the bullet's own momentum (8 g at 800 m/s barely moves
         // 70 kg) so the hit reads; the animation's last pose is where it starts
-        _ragdoll?.Start(h.Velocity.Normalized() * 45f, h.Point);
+        // (already lying in a running ragdoll after a car: it simply stays down)
+        if (!wasDown) _ragdoll?.Start(kick, at, bodyVelocity);
         _field.Died(this);
     }
+
+    // ---- hit by the car (D80) ----------------------------------------------------------------------------------------
+    // Tom: "a knockdown, ragdoll for a moment, then they get up if alive; little damage so running people over isn't
+    // the easy way to win". The car itself never collides with people (they'd be walls to it); each bandit checks
+    // whether the car's body has reached it.
+    private float _downFor, _downTime, _getUp;
+
+    /// <summary>Knocked down if the moving car's body has reached this bandit (checked every physics step).</summary>
+    private void CheckCar()
+    {
+        if (State is Mode.Dead or Mode.Down || _field.Car is not { } car || !IsInstanceValid(car)) return;
+        var v = car.LinearVelocity;
+        float speed = v.Length();
+        // looked for a step ahead: the bandit's own capsule stops the car (a kinematic body is a wall to it), so the
+        // hit has to be noticed just before the car reaches it, and the capsule is switched off at once
+        float dt = (float)GetPhysicsProcessDeltaTime();
+        if (speed < 2.5f || !car.Touches(GlobalPosition + Vector3.Up * 0.9f - v * dt * 2f, 0.45f)) return;
+        // little damage (a 50 km/h hit takes 13 of 90, a 90 km/h one 25), more if they were already hurt
+        float damage = Mathf.Clamp((speed - 2.5f) * 1.1f, 2f, 30f);
+        Health -= damage;
+        KnockCount++;
+        car.HitPerson(speed);
+        Ballistics.Play3D(this, GlobalPosition + Vector3.Up * 0.8f, "hit_soft", 4, 90);
+        // the legs are swept (kicked at the bumper's height), the body takes a share of the car's speed and a lift
+        var flat = v with { Y = 0 };
+        var bodyVelocity = flat * 0.55f + Vector3.Up * MathF.Min(1f + speed * 0.12f, 4.5f);
+        var kick = flat.Normalized() * MathF.Min(speed * 5f, 160f);
+        var at = GlobalPosition + Vector3.Up * 0.45f;
+        Log.Info("Bandits", $"hit by the car at {speed * 3.6f:0} km/h: {damage:0} damage, {Math.Max(0, Health):0} left");
+        if (Health <= 0) { Die(v, at, kick, bodyVelocity); return; }
+        State = Mode.Down;
+        _downFor = 0;
+        _downTime = 2.5f + (float)_rng.NextDouble() * 2f + (speed > 15 ? 1.5f : 0);
+        _getUp = 0;
+        _crouch = false;
+        _burstLeft = 0;
+        CollisionLayer = 0;
+        CollisionMask = 0;
+        if (_hold != null) _hold.Active = false;
+        _flash.LightEnergy = 0;
+        _lastSeen = car.GlobalPosition;
+        _awareness = 1;
+        if (_ragdoll != null) { _ragdoll.Sim.Influence = 1f; _ragdoll.Start(kick, at, bodyVelocity); }
+    }
+
+    /// <summary>Lying in the ragdoll, then getting up: the body blends from where it lies into a crouch over 0.8 s,
+    /// picks the gun up, and comes back angry.</summary>
+    private void Down(float dt)
+    {
+        _downFor += dt;
+        // the animation underneath is a crouch, so that's what the ragdoll blends into when they get up
+        if (_tree != null) CharacterRig.Animate(_tree, Vector2.Zero, 1f, 0f);
+        _crouchBlend = 1f;
+        if (_getUp <= 0)
+        {
+            // the gun lies on the ground next to them
+            _holder.GlobalPosition = _holder.GlobalPosition.Lerp(BodyAt + Vector3.Down * 0.1f + Vector3.Right * 0.5f, dt * 6);
+            _holder.Rotation = _holder.Rotation.Lerp(new Vector3(0, _holder.Rotation.Y, MathF.PI / 2), dt * 6);
+            var hips = _ragdoll?.Hips;
+            bool settled = hips == null || hips.LinearVelocity.Length() < 0.6f;
+            if (_downFor < _downTime || (!settled && _downFor < _downTime + 3f)) return;
+            // stand where the hips lie, on the ground under them, facing the one who hit them
+            var p = BodyAt;
+            var q = PhysicsRayQueryParameters3D.Create(p + Vector3.Up * 1.0f, p + Vector3.Down * 3f, Bodies.Ground | Bodies.Roads);
+            var hit = GetWorld3D().DirectSpaceState.IntersectRay(q);
+            GlobalPosition = hit.Count > 0 ? (Vector3)hit["position"] : p with { Y = p.Y - 0.15f };
+            var face = _lastSeen - GlobalPosition;
+            if (new Vector2(face.X, face.Z).LengthSquared() > 0.01f) _yaw = MathF.Atan2(-face.X, -face.Z);
+            Rotation = new Vector3(0, _yaw, 0);
+            _getUp = 0.0001f;
+        }
+        _getUp += dt;
+        float t = Mathf.Clamp(_getUp / 0.8f, 0f, 1f);
+        if (_ragdoll != null) _ragdoll.Sim.Influence = 1f - t * t * (3f - 2f * t);
+        if (t < 1f) return;
+        _ragdoll?.Stop();
+        if (_ragdoll != null) _ragdoll.Sim.Influence = 1f;
+        CollisionLayer = Bodies.Characters;
+        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters;
+        if (_hold != null) _hold.Active = true;
+        Velocity = Vector3.Zero;
+        _flinch = 0.8f;      // still dazed: no shooting for a moment
+        _settle = 0;
+        State = Mode.Investigate;
+        Engage();            // and angry
+        Log.Info("Bandits", $"got up after {_downFor:0.0} s, {Health:0} health");
+    }
+
+    /// <summary>Self-tests: knocked down right now, and how many times the car has hit this one.</summary>
+    public bool IsDown => State == Mode.Down;
+    public int KnockCount;
     private Vector3 _fallAxis = Vector3.Right;
     private Ragdoll? _ragdoll;
     /// <summary>The floating origin moved: a running ragdoll is moved with it (D56).</summary>
@@ -148,7 +254,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     /// <summary>Gunfire heard (the player's or a mate's).</summary>
     public void Heard(Vector3 at, float distance)
     {
-        if (State is Mode.Dead or Mode.Engage) return;
+        if (State is Mode.Dead or Mode.Engage or Mode.Down) return;
         _lastSeen = at;
         _awareness = MathF.Max(_awareness, distance < 40 ? 0.8f : 0.4f);
         State = Mode.Investigate;
@@ -167,7 +273,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     /// <summary>Called by the field when a mate starts shooting: come and help.</summary>
     public void MateEngaged(Vector3 enemy)
     {
-        if (State is Mode.Dead or Mode.Engage) return;
+        if (State is Mode.Dead or Mode.Engage or Mode.Down) return;
         _lastSeen = enemy;
         _awareness = 1;
         Engage();
@@ -247,6 +353,9 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     {
         float dt = (float)delta;
         var target = _field.Current;
+        if (State == Mode.Dead) { Fall(dt); return; }
+        CheckCar();
+        if (State == Mode.Down) { Down(dt); return; }
         if (State == Mode.Dead) { Fall(dt); return; }
 
         _think -= dt;

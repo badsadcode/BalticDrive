@@ -123,8 +123,7 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
   (a zip of the dumps folder from a menu, later perhaps an upload to a place Tom chooses). "I really don't want to
   visit all the Baltic countries myself."
   Ideas from Tom (18 Nov), queued:
-  - Hitting bandits with the car: a knockdown (ragdoll for a moment, then they get up if alive), little damage so
-    running people over isn't the easy way to win.
+  - DONE (D80): hitting bandits with the car: a knockdown, they get up if alive, little damage.
   - Car damage and repair, Project Zomboid depth: engine, battery, wheels, windshield, windows, doors, hood, trunk,
     suspension, brakes, seats; each part with its condition, effects on driving, parts found as loot, repairs.
     Needs a design pass with Tom first (how deep, which parts matter, what repair needs).

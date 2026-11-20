@@ -70,6 +70,7 @@ public sealed class Ragdoll
                 JointRotation = new Vector3(0, 0, MathF.PI / 2),
             };
             pb.Set("bone_name", name);
+            pb.SetMeta("surface", "flesh");   // bullets that land on a body lying down (D80)
             if (name != "Hips")
             {
                 pb.Set("joint_constraints/swing_span", swing);
@@ -127,12 +128,18 @@ public sealed class Ragdoll
 
     /// <summary>Lets go: the bodies take the pose the skeleton is in and fall, pushed by <paramref name="impulse"/>
     /// (N·s, world) at the body nearest <paramref name="at"/>.</summary>
-    public void Start(Vector3 impulse, Vector3 at)
+    public void Start(Vector3 impulse, Vector3 at) => Start(impulse, at, Vector3.Zero);
+
+    /// <summary>As <see cref="Start(Vector3, Vector3)"/>, and every body also given <paramref name="bodyVelocity"/>
+    /// (a car's hit moves the whole person, not one bone; D80).</summary>
+    public void Start(Vector3 impulse, Vector3 at, Vector3 bodyVelocity)
     {
         if (Running) return;
         Running = true;
         Sim.Active = true;
         Sim.PhysicalBonesStartSimulation();
+        if (bodyVelocity.LengthSquared() > 1e-6f)
+            foreach (var b in _bones.Values) b.ApplyCentralImpulse(bodyVelocity * b.Mass);
         if (impulse.LengthSquared() < 1e-6f) return;
         var hit = _bones.Values.OrderBy(b => b.GlobalPosition.DistanceSquaredTo(at)).First();
         hit.ApplyCentralImpulse(impulse);

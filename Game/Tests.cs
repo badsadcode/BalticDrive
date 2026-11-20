@@ -738,6 +738,112 @@ public sealed class Tests
     private Transform3D _cpStart;
     private bool _cpWornLogged;
 
+    private double _knockTime = -1, _knockHitAt = -1;
+    private OnFoot.Bandit? _knockA, _knockB;
+    private bool _knockOut;
+
+    /// <summary>--autotest=knockdown (D80): two bandits on the road 40 m ahead, one healthy and one nearly dead; the car
+    /// drives into the first at ~45 km/h and brakes; it should fly, lie a few seconds and get up angry. Then the car
+    /// backs up and drives into the second, which should stay down. Photographed from the car and then on foot.</summary>
+    private void KnockdownTest(double delta)
+    {
+        if (_main.Car is not { } car || _main.Bandits is not { } field || _main.World is not { } map) return;
+        Vector3 Ground(Vector3 at) { var (x, _, z) = WorldOrigin.ToWorld(at); return WorldOrigin.ToLocal(x, map.Height(x, z), z); }
+        if (_knockTime < 0)
+        {
+            if (_settledFor < 2.5) return;
+            _knockTime = 0;
+            var fwd = (-car.GlobalTransform.Basis.Z with { Y = 0 }).Normalized();
+            var side = fwd.Cross(Vector3.Up);
+            _knockA = field.SpawnOne(Ground(car.GlobalPosition + fwd * 24));
+            Log.Info("Test", $"knockdown: a bandit 24 m ahead; hood {car.Parts["hood"].Health:0.00}");
+            car.Autopilot = c =>
+            {
+                // phases: 0 at A, 1 stop and watch A, 2 at B, 3 stop
+                if (_kPhase is 1 or 3) return MathF.Abs(c.Speed) > 0.5f ? (0f, 1f, 0f) : (0f, 0f, 0f);
+                var target = _kPhase == 0 ? _knockA! : _knockB!;
+                var to = target.GlobalPosition - c.GlobalPosition;
+                var f = -c.GlobalTransform.Basis.Z;
+                float steer = Mathf.Clamp(f.Cross(to.Normalized()).Y * 0.8f, -0.35f, 0.35f);
+                return (MathF.Abs(c.Speed) < 12.5f ? 1f : 0f, 0f, steer);
+            };
+            return;
+        }
+        double before = _knockTime;
+        _knockTime += delta;
+        double t = _knockTime - _kPhaseAt, tb = before - _kPhaseAt;
+        bool At(double x) => tb < x && t >= x;
+        void Phase(int p) { _kPhase = p; _kPhaseAt = _knockTime; Log.Info("Test", $"knockdown: phase {p} at {_knockTime:0.0} s"); }
+        switch (_kPhase)
+        {
+            case 0:
+                if (_knockTime < 7 && (int)before != (int)_knockTime) Shot($"knock_run_{(int)_knockTime}");
+                if (_knockA!.KnockCount > 0)
+                {
+                    Log.Info("Test", $"knockdown: A hit, state {_knockA.State}, health {_knockA.Health:0}; hood {car.Parts["hood"].Health:0.00}");
+                    Phase(1);
+                }
+                break;
+            case 1:
+                if (At(0.15)) Shot("knock_0_15s");
+                if (At(0.5)) Shot("knock_0_5s");
+                if (At(1.2)) { Shot("knock_1_2s"); Log.Info("Test", $"knockdown: A at 1.2 s: body {_knockA!.BodyAt.DistanceTo(_knockA.GlobalPosition):0.0} m from the feet, state {_knockA.State}"); }
+                if (t > 1.5 && !_knockOut && MathF.Abs(car.Speed) < 1f)
+                {
+                    _knockOut = _main.ToggleOnFoot();
+                    if (_knockOut && _main.Walker is { } w0)
+                    {
+                        // watch from 5 m beside the body, across the road from the car
+                        var body = _knockA!.BodyAt;
+                        var away = (body - car.GlobalPosition) with { Y = 0 };
+                        var spot = Ground(body + away.Normalized().Cross(Vector3.Up) * 5f + away.Normalized() * 2f);
+                        w0.GlobalPosition = spot + Vector3.Up * 0.3f;
+                        Log.Info("Test", $"knockdown: out of the car at {t:0.0} s, watching from 5 m");
+                    }
+                }
+                if (_knockOut && _main.Walker is { } w)
+                {
+                    w.SetView(false);
+                    w.Face(_knockA!.BodyAt);
+                    foreach (var x in new[] { 3.0, 4.0, 5.0, 5.5, 6.0, 6.5, 7.5 })
+                        if (At(x)) { Shot($"knock_{(int)(x * 10)}"); Log.Info("Test", $"knockdown: A at {x:0.0} s: {_knockA.State}, health {_knockA.Health:0}, {w.GlobalPosition.DistanceTo(_knockA.BodyAt):0.0} m from you"); }
+                }
+                if (At(9))
+                {
+                    Log.Info("Test", $"knockdown: A after 9 s: {_knockA!.State} (should be up), health {_knockA.Health:0}");
+                    if (_knockOut && _main.ToggleOnFoot()) _knockOut = false;
+                    var fwd = (-car.GlobalTransform.Basis.Z with { Y = 0 }).Normalized();
+                    _knockB = field.SpawnOne(Ground(car.GlobalPosition + fwd * 35));
+                    _knockB.Health = 8;
+                    Phase(2);
+                }
+                break;
+            case 2:
+                if (_knockB!.KnockCount > 0)
+                {
+                    Log.Info("Test", $"knockdown: B hit, state {_knockB.State} (should be Dead), killed {field.Killed}");
+                    Phase(3);
+                }
+                if (t > 25) { Log.Error("Test", "knockdown: never reached B"); _main.GetTree().Quit(); }
+                break;
+            case 3:
+                if (At(0.3)) Shot("knock_b_0_3s");
+                if (At(1.0)) Shot("knock_b_1s");
+                if (At(4))
+                {
+                    Log.Info("Test", $"knockdown: B after 4 s: {_knockB!.State}; A {_knockA!.State} {_knockA.Health:0}; hood {car.Parts["hood"].Health:0.00}, windshield {car.Parts["windshield"].Health:0.00}; done");
+                    car.Autopilot = null;
+                    _main.GetTree().Quit();
+                }
+                break;
+        }
+        if ((int)(before / 3) != (int)(_knockTime / 3))
+            Log.Info("Test", $"knockdown: {_knockTime:0} s: {car.Speed * 3.6f:0} km/h, A {_knockA!.GlobalPosition.DistanceTo(car.GlobalPosition):0} m {_knockA.State}, B {(_knockB == null ? "-" : $"{_knockB.GlobalPosition.DistanceTo(car.GlobalPosition):0} m {_knockB.State}")}");
+        if (_knockTime > 70) { Log.Error("Test", "knockdown: timed out"); _main.GetTree().Quit(); }
+    }
+    private int _kPhase;
+    private double _kPhaseAt;
+
     private bool _ragdollTest;
     private double _ragTime = -1;
     private OnFoot.Bandit? _ragBandit;
@@ -1355,6 +1461,7 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "carparts") { CarPartsTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "workshop") { WorkshopTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "wrecks") { WrecksTest(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "knockdown") { KnockdownTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {

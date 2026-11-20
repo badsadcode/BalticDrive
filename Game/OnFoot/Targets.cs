@@ -30,6 +30,7 @@ public static class Hits
         for (var n = collider as Node; n != null; n = n.GetParent())
         {
             if (n is IHittable t) return t.Hit(h);
+            if (n is PhysicalBone3D) continue;   // a ragdoll's bone: the person it belongs to is further up (D80)
             if (n is RigidBody3D rb) { rb.ApplyImpulse(h.Velocity * h.Mass * Push, h.Point - rb.GlobalPosition); return null; }
             if (n is CollisionObject3D) break;   // a static body: nothing more to find above it
         }

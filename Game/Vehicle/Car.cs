@@ -235,6 +235,25 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     private float _cough;
     private CpuParticles3D? _smoke;
 
+    /// <summary>Has the car's body reached a point (a person's middle)? Its box grown by <paramref name="margin"/>
+    /// (D80: the car never collides with people, they'd be walls to it, so each one asks).</summary>
+    public bool Touches(Vector3 p, float margin)
+    {
+        var l = ToLocal(p) - _bodyCentre;
+        return MathF.Abs(l.X) <= _bodyHalf.X + margin && MathF.Abs(l.Z) <= _bodyHalf.Z + margin
+            && l.Y > -_bodyHalf.Y - 1.2f && l.Y < _bodyHalf.Y + 0.4f;
+    }
+
+    /// <summary>A person hit at <paramref name="speed"/> m/s (D80): a dent in the hood, the windshield too at speed
+    /// (they come over the bonnet), and the car loses a little of its speed.</summary>
+    public void HitPerson(float speed)
+    {
+        Break(Parts["hood"], speed * 0.5f);
+        if (speed > 12f) Break(Parts["windshield"], (speed - 12f) * 1.5f);
+        LinearVelocity *= 1f - MathF.Min(0.08f, 70f / (Mass + 70f));
+        _skipImpact = Math.Max(_skipImpact, 2);   // not a crash of its own
+    }
+
     /// <summary>A crash: a sudden change of velocity over 5 m/s wears the parts at the end that hit (D67).</summary>
     private void Impacts(float dt)
     {

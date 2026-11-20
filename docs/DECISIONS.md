@@ -1212,3 +1212,20 @@ Looked at: the square from the street, from the air and along Marszałkowska.
 * **Shift+F7** switches BadBuilding's "brutalist" preset on and off (and turns BadBuilding on): the Brutalist Warsaw
   that never was. `--preset=brutalist` on the command line. Plain F7 still swaps classic and BadBuilding.
 Looked at: Ksawerów and Plac Konstytucji with the preset.
+
+## D80 — Knocked down by the car (20 Nov)
+
+Tom (18 Nov): "a knockdown, ragdoll for a moment, then they get up if alive; little damage so running people over
+isn't the easy way to win".
+* The car never collides with people (a kinematic capsule is a wall to it). Each bandit checks every physics step
+  whether the moving car's body (its box, grown 0.45 m, looked at two steps ahead) is about to reach it; above
+  2.5 m/s that's a hit and the capsule is switched off at once.
+* Damage is small: (speed − 2.5 m/s) × 1.1, 2 to 30. A 45 km/h hit takes 11 of 90 health, 90 km/h about 25. A
+  bandit already hurt can die from it.
+* The ragdoll starts with the whole body given 55 % of the car's speed plus a lift, and the legs kicked at bumper
+  height. Lying 2.5–4.5 s (1.5 s more after a fast hit, longer while still sliding), then they stand where the hips
+  lie: the ragdoll's influence fades over 0.8 s into a crouch, they pick the gun up, are dazed 0.8 s, and engage.
+* Shots now hit bodies lying down (ragdoll bones are flesh, and lead to their owner), including the dead.
+* The car: the hood wears a little per hit, the windshield too above 43 km/h, and it loses up to 8 % of its speed.
+Self-test `--autotest=knockdown --start=68600,639300`: hit at 45 km/h, lay 4.5 s, got up and engaged; a second
+bandit on 8 health died from the hit.
