@@ -1424,3 +1424,14 @@ shrine) keeps the classic mesh, and synagogues and other religions too. A church
 and at most 20 m: the importer's 16 m guess, and mapped heights that count the tower, would stretch the walls. Checked
 at Ostrów Mazowiecka: a modern church with its tower and cross on Małkińska, a white one on Pasterska (its outline too
 ragged for a tower), a little red-brick neo-Gothic church with a dark spire near Pałapus.
+
+## D96 — How a car is made for the game (Tom, 21 Nov)
+Tom will make the cars himself: Noor's concept art (own designs that resemble the classics, e.g. a Polonez-like
+hatchback, not copies; no real badges), Meshy's low-poly segmented models (commercial use under his subscription,
+~16k triangles), cleanup in Blender, one GLB per car. `docs/VEHICLE_ASSETS.md` is the contract: Noor Interchange space
+(metres, nose to glTF +Z, origin on the ground at the centre), separate named objects pivoted where they turn (doors
+at the hinge, hood, trunk, wheels at the hub), glass, seats, engine and battery as real pieces matching `CarParts`
+(D67), a `Paint` material the game tints. The game will open doors, hood and trunk, make the trunk, rear seat and
+glovebox containers (D89), and highlight or remove the real parts in the workshop. The spec lacks vehicle part names
+and a `container` marker: proposed for Noor Interchange v0.6, object names carry it meanwhile (the spec's fallback).
+Waiting for: Tom's first car in `data/inbox`.
