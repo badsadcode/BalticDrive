@@ -1454,3 +1454,18 @@ changes at 50/70/90 km/h, full lock at 40/60, a handbrake turn at 50) in central
 no flips. The route drive (`--autotest=drive --dest`) covers the same distance with the old grip and the new
 (1.45 / 1.44 km in 120 s, 2.8 s off road both: the test's autopilot clips something on that route either way).
 Not yet: Tom's feel in his own hands; per-car settings (weight, power, grip, sound) for his own cars (D96).
+
+## D98 — Every car drives its own way, from data (Tom: "a little bit too slidey… settings for different cars", 21 Nov)
+`GameData/cars.json` holds how each car drives, `Vehicle.CarSpec` reads it: mass, the engine's pull, top speed, which
+wheels drive (front, rear, all: the pull is shared by the driven wheels only), tyre grip front and rear, steering
+lock, brakes, springs and dampers, the centre of mass moved up or down, the anti-roll helper's strength (D97) and
+where the engine sits (for the lids, D96). A car takes the first entry whose `models` match its model's file name,
+else the default; `--carspec=id` picks one; `--grip` and `--antiroll` still tune. Entries now:
+* **sedan** (the default, and Synty's taxi, police car, medium car): 1,300 kg, front drive, 180 km/h, grip 1.75/1.6
+  (a little more than D97's 1.45/1.35: Tom found that slidey);
+* **pickup**: 1,850 kg, rear drive, 160 km/h, grip 1.65/1.5, centre of mass 10 cm higher;
+* **muscle** (muscle and sports cars): 1,450 kg, rear drive, 12.5 kN, 210 km/h, a looser rear (1.75/1.55);
+* **van** (ambulances, vans, buses): 2,400 kg, rear drive, 145 km/h, high centre of mass, stronger anti-roll;
+* **small_classic**, waiting for Tom's Maluch-like car: 600 kg, rear engine and rear drive, 2.6 kN, 105 km/h.
+Tests: `--autotest=tip` in central Warsaw: the sedan's worst roll 6°, the pickup's 14° (it leans more, as it should),
+no flips; the route drive the same distance as before, with no damage this time.

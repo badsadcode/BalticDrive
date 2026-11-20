@@ -17,13 +17,12 @@ namespace BalticDrive.Vehicle;
 /// </summary>
 public partial class Car : VehicleBody3D, OnFoot.IHittable
 {
-    private const float TopSpeed = 50f;           // m/s (180 km/h)
+    /// <summary>How this car drives (D98): weight, pull, top speed, drive, grip, steering, brakes, springs, anti-roll.
+    /// From GameData/cars.json by the model's file name; <c>--carspec=id</c> picks one.</summary>
+    public CarSpec Spec { get; private set; } = CarSpec.Fallback;
     /// <summary>Tyre grip (D97): the wheels' friction slip, a friction coefficient (lateral force up to grip × load).
     /// About 1.4 g of cornering: the tyres slide before a car this tall would roll (it used to be 3.3, ~3 g).</summary>
-    private static readonly float GripFront = Grip(1.45f), GripRear = Grip(1.35f);
-    /// <summary>Tuning and tests: <c>--grip=K</c> scales the grip, <c>--antiroll=0</c> turns the helper off.</summary>
-    private static float Grip(float g) => g * (Main.Args.TryGetValue("grip", out var k) && float.TryParse(k, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f) ? f : 1f);
-    private static readonly bool AntiRoll = Main.Args.GetValueOrDefault("antiroll", "1") != "0";
+
     /// <summary>The arcade anti-roll bars (D97): torque per radian of roll and per rad/s of roll rate, per kg.</summary>
     private const float RollStiffness = 22f, RollDamping = 5f, MaxRollRate = 2.2f;
     // VehicleBody3D drives towards +Z for positive engine force; the car's nose is -Z.
@@ -325,7 +324,9 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
     public override void _Ready()
     {
-        Mass = 1500f;
+        Spec = Main.Args.TryGetValue("carspec", out var cs) ? CarSpec.ById(cs) : CarSpec.For(Model);
+        Mass = Spec.Mass;
+        Core.Log.Info("Car", $"{Model.GetFile()}: drives as '{Spec.Id}' ({Spec.Mass:0} kg, {Spec.Drive} drive, grip {Spec.GripFront:0.00}/{Spec.GripRear:0.00})");
         CollisionLayer = Bodies.Vehicles;
         CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Props | Bodies.Vehicles;
         CenterOfMassMode = CenterOfMassModeEnum.Custom;
@@ -476,7 +477,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         float low = MathF.Max(body.Position.Y, radius * 0.9f), mid = body.Position.Y + body.Size.Y * 0.55f, top = body.End.Y;
         AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(body.Size.X, mid - low, body.Size.Z) }, Position = new Vector3(bc.X, (low + mid) * 0.5f, bc.Z) });
         AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(body.Size.X * 0.85f, top - mid, body.Size.Z * 0.55f) }, Position = new Vector3(bc.X, (mid + top) * 0.5f, bc.Z) });
-        CenterOfMass = new Vector3(bc.X, low - 0.05f, bc.Z); // low, near the axles: arcade-stable against roll-over
+        CenterOfMass = new Vector3(bc.X, low - 0.05f + Spec.ComY, bc.Z); // low, near the axles: arcade-stable against roll-over
         _bodyLength = body.Size.Z;
         _bodyCentre = bc; _bodyHalf = body.Size * 0.5f; _waist = mid; _wheelRadius = radius;   // for the parts (D67)
 
@@ -488,11 +489,11 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             var w = new VehicleWheel3D
             {
                 // the wheel hangs `rest` below its mount; mount it so the hub sits about where the model has it
-                Position = new Vector3(p.X, p.Y + rest - 0.08f, p.Z), UseAsSteering = front, UseAsTraction = true,
+                Position = new Vector3(p.X, p.Y + rest - 0.08f, p.Z), UseAsSteering = front, UseAsTraction = front ? Spec.FrontDriven : Spec.RearDriven,
                 WheelRadius = radius, WheelRestLength = rest, SuspensionTravel = 0.22f,
-                SuspensionStiffness = 32f, SuspensionMaxForce = 24000f,
-                DampingCompression = 2.8f, DampingRelaxation = 3.8f,
-                WheelFrictionSlip = front ? GripFront : GripRear, WheelRollInfluence = 0.015f,
+                SuspensionStiffness = Spec.Suspension, SuspensionMaxForce = 16f * Spec.Mass,
+                DampingCompression = Spec.DampCompression, DampingRelaxation = Spec.DampRebound,
+                WheelFrictionSlip = front ? Spec.GripFront : Spec.GripRear, WheelRollInfluence = 0.015f,
             };
             AddChild(w);
             _wheels[i] = w;
@@ -644,7 +645,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         UpdateSmoke();
 
         // steering: quick at parking speed, calm at speed
-        float maxSteer = Mathf.Lerp(0.6f, 0.05f, MapContext.Smooth(0f, 28f, absSpeed));
+        float maxSteer = Mathf.Lerp(Spec.Steer, 0.05f, MapContext.Smooth(0f, 28f, absSpeed));
         float target = steerIn * maxSteer;
         float rate = MathF.Abs(target) < MathF.Abs(_steer) ? 4.5f : 2.6f;
         _steer = Mathf.MoveToward(_steer, target, rate * dt * (0.25f + maxSteer));
@@ -652,23 +653,23 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         float pull = (Parts.Flat(0) ? 0.035f : 0f) - (Parts.Flat(1) ? 0.035f : 0f);
         Steering = _steer + pull * Mathf.Clamp(absSpeed / 8f, 0, 1);
 
-        float top = TopSpeed * (OnRoad ? 1f : 0.55f);
+        float top = Spec.TopSpeed * (OnRoad ? 1f : 0.55f);
         float force = 0f, brake = 0f;
         Throttle = Driving ? throttle : 0f;
         if (throttle > 0.02f)
         {
-            if (Speed < -1.0f) brake = 40f * throttle;
-            else force = 9000f * throttle * Mathf.Clamp(1f - Speed / top, 0f, 1f) * (Speed < 8f ? 1.2f : 1f);
+            if (Speed < -1.0f) brake = Spec.Brakes * 0.9f * throttle;
+            else force = Spec.Power * throttle * Mathf.Clamp(1f - Speed / top, 0f, 1f) * (Speed < 8f ? 1.2f : 1f);
         }
         if (brakeIn > 0.02f)
         {
-            if (Speed > 1.2f) { brake = 45f * brakeIn; force = 0f; }
-            else force = -3500f * brakeIn * Mathf.Clamp(1f + Speed / 9f, 0f, 1f);
+            if (Speed > 1.2f) { brake = Spec.Brakes * brakeIn; force = 0f; }
+            else force = -Spec.Power * 0.4f * brakeIn * Mathf.Clamp(1f + Speed / 9f, 0f, 1f);
         }
         if (throttle < 0.02f && brakeIn < 0.02f)
         {
             brake = 1.8f;
-            if (absSpeed < 1.2f) brake = 45f;  // a stopped car stays put on a slope
+            if (absSpeed < 1.2f) brake = Spec.Brakes;  // a stopped car stays put on a slope
         }
         if (handbrake) { force = 0; brake = MathF.Max(brake, 4f); }
         if (!Parts.EngineRuns || _cough < 0) force = 0;
@@ -679,15 +680,17 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         {
             var w = _wheels[i];
             bool rear = i >= 2;
-            w.EngineForce = force * 0.25f * DriveSign;
+            // the pull shared by the driven wheels (D98: front, rear or all)
+            int driven = (Spec.FrontDriven ? 2 : 0) + (Spec.RearDriven ? 2 : 0);
+            w.EngineForce = (rear ? Spec.RearDriven : Spec.FrontDriven) ? force / driven * DriveSign : 0f;
             w.Brake = handbrake && rear ? 70f : brake * (rear ? 0.75f : 1f) * (brake > 2f ? Parts.Brakes(rear) : 1f);
-            w.WheelFrictionSlip = (rear ? GripRear : GripFront) * grip * (handbrake && rear ? 0.45f : 1f) * Parts.Grip(i);
+            w.WheelFrictionSlip = (rear ? Spec.GripRear : Spec.GripFront) * grip * (handbrake && rear ? 0.45f : 1f) * Parts.Grip(i);
             // a flat runs on its rim; worn suspension is soft, low and bouncy
             w.WheelRadius = Parts.Flat(i) ? _wheelRadius * 0.82f : _wheelRadius;
             float s = Parts.Suspension(rear);
-            w.SuspensionStiffness = 32f * (0.45f + 0.55f * s);
-            w.DampingCompression = 2.8f * (0.35f + 0.65f * s);
-            w.DampingRelaxation = 3.8f * (0.35f + 0.65f * s);
+            w.SuspensionStiffness = Spec.Suspension * (0.45f + 0.55f * s);
+            w.DampingCompression = Spec.DampCompression * (0.35f + 0.65f * s);
+            w.DampingRelaxation = Spec.DampRebound * (0.35f + 0.65f * s);
             w.WheelRestLength = 0.25f * (0.7f + 0.3f * s);
         }
 
@@ -708,14 +711,14 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     /// </summary>
     private void Stabilise(int contacts)
     {
-        if (contacts == 0 || !AntiRoll) return;
+        if (contacts == 0 || Spec.AntiRoll <= 0) return;
         var b = GlobalTransform.Basis;
         var fwd = -b.Z;
         // the roll: how far the car's up leans sideways, about its own length
         float side = b.X.Dot(Vector3.Up);                  // sin of the roll (0 upright)
         if (b.Y.Y < 0.26f) return;                         // already over (past ~75°): let it fall
         float rate = AngularVelocity.Dot(fwd);
-        float k = Mass * (contacts >= 2 ? 1f : 0.5f);
+        float k = Mass * Spec.AntiRoll * (contacts >= 2 ? 1f : 0.5f);
         // turning about fwd (= −Z) by +a lowers X's y by a, so +side needs a positive torque to come back
         float torque = side * RollStiffness * k - rate * RollDamping * k;
         ApplyTorque(fwd * torque);

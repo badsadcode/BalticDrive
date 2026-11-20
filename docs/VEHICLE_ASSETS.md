@@ -46,6 +46,11 @@ every car), `Glass`, `Chrome`, `Rubber`, `Interior`, `Lights`. About 15–40k tr
 glTF 2.0 → **glTF Binary**; Include: Custom Properties on; Transform: +Y Up; Geometry: Apply Modifiers;
 **no Draco compression** (Godot can't read it); no animations (the game opens things itself).
 
+## How it drives
+Each car's handling is a few lines in `GameData/cars.json` (D98): weight, engine pull, top speed, front/rear/all-wheel
+drive, grip front and rear, steering, brakes, springs, the centre of mass, the anti-roll strength, where the engine is.
+A new car gets an entry whose `models` matches part of its file name (`small_classic` is waiting for the Maluch).
+
 ## What the game does with it
 * Doors, hood and trunk swing from their hinges (F at the part).
 * The trunk (about 50 kg), the rear seat (30 kg) and a glovebox (3 kg) are containers in the inventory window (D89);
