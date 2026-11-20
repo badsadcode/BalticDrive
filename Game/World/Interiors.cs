@@ -119,8 +119,28 @@ public partial class Interiors : Node
         { LoadReach = rf; DropReach = rf * 2; }
     }
 
+    private readonly Queue<(ArrayMesh Mesh, BB.Interior.InteriorModel Model, (string Role, Vector3[] V, Vector3[] N, Vector2[] Uv) S)> _uploads = new();
+
+    /// <summary>Adds queued surfaces until a few milliseconds are spent.</summary>
+    private void Upload()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (_uploads.Count > 0 && sw.Elapsed.TotalMilliseconds < 4.0)
+        {
+            var (mesh, m, (role, v, n, uv)) = _uploads.Dequeue();
+            var arrays = new Godot.Collections.Array();
+            arrays.Resize((int)Mesh.ArrayType.Max);
+            arrays[(int)Mesh.ArrayType.Vertex] = v;
+            arrays[(int)Mesh.ArrayType.Normal] = n;
+            arrays[(int)Mesh.ArrayType.TexUV] = uv;
+            mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+            mesh.SurfaceSetMaterial(mesh.GetSurfaceCount() - 1, Material(m, role));
+        }
+    }
+
     public override void _PhysicsProcess(double delta)
     {
+        Upload();
         while (_done.TryDequeue(out var d))
         {
             _pending.Remove(d.E.Shell.Id);
@@ -265,17 +285,10 @@ public partial class Interiors : Node
         AddChild(node);
         WorldOrigin.Anchor(node, e.X, e.Z);
 
+        // the surfaces go up a few at a time over the next frames (D86: a furnished block is ~80k triangles, and uploading
+        // it at once stalled a frame for ~50 ms); the walls' physics is there at once
         var mesh = new ArrayMesh();
-        foreach (var (role, v, n, uv) in prep.Surfaces)
-        {
-            var arrays = new Godot.Collections.Array();
-            arrays.Resize((int)Mesh.ArrayType.Max);
-            arrays[(int)Mesh.ArrayType.Vertex] = v;
-            arrays[(int)Mesh.ArrayType.Normal] = n;
-            arrays[(int)Mesh.ArrayType.TexUV] = uv;
-            mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-            mesh.SurfaceSetMaterial(mesh.GetSurfaceCount() - 1, Material(m, role));
-        }
+        foreach (var srf in prep.Surfaces) _uploads.Enqueue((mesh, m, srf));
         // double-sided shadows: the walls, floors and ceilings keep the sun out except through the windows
         node.AddChild(new MeshInstance3D { Mesh = mesh, Name = "Rooms", CastShadow = GeometryInstance3D.ShadowCastingSetting.DoubleSided });
 

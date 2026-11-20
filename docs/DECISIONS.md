@@ -1283,3 +1283,10 @@ step". The walker now steps up ledges up to 0.42 m without jumping (a kerb, a do
 by something upright but clear that much higher, the body is lifted onto it (`Walker.StepUp`). With BadBuilding D37's
 wider landing, side ramps and thin jambs, the self-test walked in from 3.5 m to the side (`--interior-angle=M`) in
 about 2 s in a PRL block and a contemporary one; the loggia in front of a stairwell is gone.
+
+## D86 — Furnished flats (BadBuilding D38, NoorFengShui, 20 Nov)
+Every flat is furnished when its block is planned (beds, wardrobes, sofas facing TVs, kitchens with sinks under the
+windows...), with physics and loot markers (not used by the game yet). A 15-storey block is ~77k triangles and ~3,000
+boxes: planned in ~0.3 s on a worker; its surfaces are uploaded a few per frame (4 ms each), and the collision shape
+still costs ~30 ms once, about 20 m before you reach the door. The self-test starts the walker on free floor. Known: the
+self-test's third-person shot in a Skaryszew bedroom comes out black (not investigated; first-person views are fine).

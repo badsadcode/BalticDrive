@@ -1800,7 +1800,20 @@ public sealed class Tests
         void Put(Vector3 at, Vector3 look) { w.GlobalPosition = at; w.Velocity = Vector3.Zero; w.Face(look); }
         BadBuilding.Interior.Room? RoomOf(string kind, int st) => mdl.Rooms.FirstOrDefault(r => r.Kind == kind && r.Storey == st && r.Flat?.EndsWith("/c0/L") == true)
                                                               ?? mdl.Rooms.FirstOrDefault(r => r.Kind == kind && r.Storey == st);
-        Vector3 Centre(BadBuilding.Interior.Room r, float up = 0) { var q = r.Rects[0]; return P((q.Min.X + q.Max.X) * 0.5f, r.Floor + up, (q.Min.Y + q.Max.Y) * 0.5f); }
+        // a room's free floor nearest its middle (clear of furniture by 0.45 m: the walker never starts inside a table)
+        bool Clear(float u, float v, int st) => !mdl.Furniture.Any(f => mdl.StoreyAt(f.Floor + 0.1f) == st && u > f.Min.X - 0.45f && u < f.Max.X + 0.45f && v > f.Min.Y - 0.45f && v < f.Max.Y + 0.45f);
+        Vector3 Centre(BadBuilding.Interior.Room r, float up = 0)
+        {
+            var q = r.Rects[0];
+            float cu = (q.Min.X + q.Max.X) * 0.5f, cv = (q.Min.Y + q.Max.Y) * 0.5f, bu = cu, bv = cv, best = float.MaxValue;
+            for (float u = q.Min.X + 0.5f; u <= q.Max.X - 0.5f; u += 0.1f)
+                for (float v = q.Min.Y + 0.5f; v <= q.Max.Y - 0.5f; v += 0.1f)
+                {
+                    float d = (u - cu) * (u - cu) + (v - cv) * (v - cv);
+                    if (d < best && Clear(u, v, r.Storey)) { best = d; bu = u; bv = v; }
+                }
+            return P(bu, r.Floor + up, bv);
+        }
         // a room's outer wall with windows in it (to look at): the middle of the nearest such wall, at eye height
         Vector3 WindowWall(BadBuilding.Interior.Room r)
         {
