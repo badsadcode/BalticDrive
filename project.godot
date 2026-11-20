@@ -54,6 +54,22 @@ wetness={
 "type": "float",
 "value": 0.0
 }
+open_door0={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+open_door1={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+open_door2={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+open_door3={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 sky_tint={
 "type": "vec3",
 "value": Vector3(1, 1, 1)

@@ -155,6 +155,8 @@ Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Mil
     graph → floor plans, stairs, doors, validation, gameplay markup) on the OSM footprint, levels and type. Clones
     beside the project (read-only). Proposal in the chat of 14 Nov: exterior from the footprint for every building,
     interiors generated on demand from the OSM id when the player comes close.
+    FIRST CUT DONE (D81, BadBuilding D33): staircase blocks you can walk into, stairs on foot, windows from the facade.
+    Next: corridor blocks and point towers, kamienica, shops downstairs, balconies, furniture, loot and bandits inside.
   - Interiors under a height map (Tom, 14 Nov): metro stations, basements, bunkers, caves as underground models
     reached through small openings or doors (OSM has every Warsaw metro station, entrance and line); the
     cut-and-cover tunnels (D26) are the same trick at ground level.

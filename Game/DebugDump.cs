@@ -56,6 +56,7 @@ public static class DebugDump
         sb.AppendLine($"Frame: {Engine.GetFramesPerSecond()} fps  {F(Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000, 2)} ms process  " +
                       $"{Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame)} draw calls  {F(Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576, 0)} MB video");
         sb.AppendLine($"Driving: {(main.Flying ? "no (free camera)" : "yes")}");
+        if (main.Interiors is { } ints) sb.AppendLine($"Interiors: {ints.Describe()}");
         if (main.Car is { } car)
         {
             var (x, y, z) = WorldOrigin.ToWorld(car.GlobalPosition);

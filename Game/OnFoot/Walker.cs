@@ -194,7 +194,7 @@ public partial class Walker : CharacterBody3D, IHittable
         _leanRoom = LeanReach;
         if (MathF.Abs(Lean) > 0.01f)
         {
-            var q = PhysicsRayQueryParameters3D.Create(from, from + right * MathF.Sign(Lean) * (LeanReach + 0.18f), Bodies.Buildings | Bodies.Ground | Bodies.Props | Bodies.Vehicles);
+            var q = PhysicsRayQueryParameters3D.Create(from, from + right * MathF.Sign(Lean) * (LeanReach + 0.18f), Bodies.Buildings | Bodies.Ground | Bodies.Props | Bodies.Vehicles | Bodies.Interior);
             q.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
             var hit = GetWorld3D().DirectSpaceState.IntersectRay(q);
             if (hit.Count > 0) _leanRoom = MathF.Max(0, ((Vector3)hit["position"]).DistanceTo(from) - 0.18f);
@@ -208,7 +208,7 @@ public partial class Walker : CharacterBody3D, IHittable
     public override void _Ready()
     {
         CollisionLayer = Bodies.Characters;
-        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props;
+        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Interior;
         FloorMaxAngle = Mathf.DegToRad(50);
         FloorSnapLength = 0.4f;
         AddChild(new CollisionShape3D
@@ -221,7 +221,7 @@ public partial class Walker : CharacterBody3D, IHittable
         BuildModel();
         _pivot = new Node3D { Name = "CameraPivot", Position = new Vector3(0, 1.55f, 0), TopLevel = true };
         AddChild(_pivot);
-        _arm = new SpringArm3D { SpringLength = 3.4f, Margin = 0.25f, CollisionMask = Bodies.Ground | Bodies.Buildings | Bodies.Roads, Position = new Vector3(0.45f, 0, 0) };
+        _arm = new SpringArm3D { SpringLength = 3.4f, Margin = 0.25f, CollisionMask = Bodies.Ground | Bodies.Buildings | Bodies.Roads | Bodies.Interior, Position = new Vector3(0.45f, 0, 0) };
         _arm.AddExcludedObject(GetRid());
         _pivot.AddChild(_arm);
         _tp = new Camera3D { Name = "ThirdPerson", Fov = 70, Far = 20000 };
@@ -353,6 +353,21 @@ public partial class Walker : CharacterBody3D, IHittable
         CollisionLayer = 0;
         if (Input.MouseMode == Input.MouseModeEnum.Captured) Input.MouseMode = Input.MouseModeEnum.Visible;
     }
+
+    /// <summary>Inside a building (D81): the building's solid mass stops counting for the body and the camera, its
+    /// interior's walls take over.</summary>
+    public bool Indoors
+    {
+        get => _indoors;
+        set
+        {
+            if (_indoors == value) return;
+            _indoors = value;
+            if (value) { CollisionMask &= ~Bodies.Buildings; _arm.CollisionMask &= ~Bodies.Buildings; }
+            else { CollisionMask |= Bodies.Buildings; _arm.CollisionMask |= Bodies.Buildings; }
+        }
+    }
+    private bool _indoors;
 
     public void SetView(bool firstPerson)
     {

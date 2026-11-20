@@ -193,6 +193,8 @@ public partial class Main : Node3D
 	private Label? _prompt;
 	private OnFoot.BanditField? _bandits;
 	public OnFoot.BanditField? Bandits => _bandits;
+	public World.Interiors? Interiors => _interiors;
+	private World.Interiors? _interiors;
 	private OnFoot.Leads? _leads;
 	public OnFoot.Leads? Leads => _leads;
 	private ColorRect? _hurt;
@@ -374,6 +376,7 @@ public partial class Main : Node3D
 		{
 			_caches = new OnFoot.CacheField(_world); AddChild(_caches); BuildSurvivalHud();
 			_bandits = new OnFoot.BanditField(_world, _caches); AddChild(_bandits);
+			_interiors = new World.Interiors(this); AddChild(_interiors);   // walk into blocks of flats (D81)
 			_wrecks = new Vehicle.WreckField(_world); AddChild(_wrecks);   // cars to strip (D69)
 			// a reason to roam (D54): notes and radios name stashes across the map
 			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);

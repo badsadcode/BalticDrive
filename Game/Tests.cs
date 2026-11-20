@@ -1462,6 +1462,7 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "workshop") { WorkshopTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "wrecks") { WrecksTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "knockdown") { KnockdownTest(delta); return; }
+        if (Main.Args.GetValueOrDefault("autotest", "") == "interior") { InteriorTest(delta); return; }
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
@@ -1734,6 +1735,196 @@ public sealed class Tests
         if (Map.BadBuildingAdapter.Enabled) Log.Info("Test", Map.BadBuildingAdapter.Stats());
         Log.Info("Test", "done");
         _main.GetTree().Quit(0);
+    }
+
+    // ---- --autotest=interior (D81) -----------------------------------------------------------------------------
+    private double _iTime = -1, _iPhaseAt;
+    private int _iPhase;
+    private string? _iId;
+    private BadBuilding.Interior.InteriorModel? _iModel;
+    private float _iY0;
+
+    /// <summary>--autotest=interior (D81): out of the car, to the door of the nearest block of flats that has an
+    /// interior; walk in, look round the landing, a living room, climb a storey on foot, look out of a top-floor window,
+    /// third person in a flat, and walk back out. Photographed at each step; the climb and the indoor/outdoor switch
+    /// are logged.</summary>
+    private void InteriorTest(double delta)
+    {
+        if (_main.Car is not { } car || _main.Interiors is not { } ints) return;
+        if (_iTime < 0)
+        {
+            if (_settledFor < 2.5) return;
+            if (!_main.OnFoot && !_main.ToggleOnFoot()) return;
+            var w0 = _main.Walker!;
+            var (wx, _, wz) = WorldOrigin.ToWorld(w0.GlobalPosition);
+            // the nearest shell that makes an interior
+            foreach (var (sh, x, z) in World.Interiors.NearestShells(wx, wz, 40))
+            {
+                var m = BadBuilding.Interior.InteriorGenerator.Generate(sh, out var why);
+                if (m == null) { Log.Info("Test", $"interior: {sh.Id} ({sh.Style}, {sh.Levels} storeys) has none: {why}"); continue; }
+                _iId = sh.Id; _iModel = m;
+                var e = m.Entrances[0];
+                var door = WorldOrigin.ToLocal(x + e.Position.X, e.Position.Y, z + e.Position.Z);
+                var o = new Vector3(e.Out.X, 0, e.Out.Z);
+                w0.GlobalPosition = door + o * 5f + Vector3.Up * 0.5f;
+                w0.Velocity = Vector3.Zero;
+                w0.Face(door + Vector3.Up * 1.4f);
+                w0.SetView(false);
+                Log.Info("Test", $"interior: {sh.Id}, {sh.Style}, {m.Levels} storeys, {m.Entrances.Count} staircases, {m.Rooms.Count} rooms, " +
+                    $"{World.Interiors.Known} shells known; {Math.Sqrt((x - wx) * (x - wx) + (z - wz) * (z - wz)):0} m away");
+                break;
+            }
+            if (_iModel == null) { Log.Error("Test", $"interior: no block of flats with an interior near the start ({World.Interiors.Known} shells known)"); _main.GetTree().Quit(); return; }
+            _iTime = 0;
+            return;
+        }
+        double before = _iTime;
+        _iTime += delta;
+        double t = _iTime - _iPhaseAt, tb = before - _iPhaseAt;
+        bool At(double x) => tb < x && t >= x;
+        var w = _main.Walker!;
+        var mdl = _iModel!;
+        var loaded = ints.All.FirstOrDefault(l => l.Id == _iId);
+        void Phase(int p) { _iPhase = p; _iPhaseAt = _iTime; w.Autopilot = null; Log.Info("Test", $"interior: phase {p} at {_iTime:0.0} s; {ints.Describe()}"); }
+        // building space and back (needs the loaded node)
+        Vector3 P(float u, float y, float v) { var b = mdl.Frame.P(u, y, v); return loaded!.ToScene(b); }
+        (float U, float V, float Y) Here() { var b = loaded!.ToBuilding(w.GlobalPosition); var (u, v) = mdl.Frame.Local(new System.Numerics.Vector2(b.X, b.Z)); return (u, v, b.Y); }
+        float e0 = mdl.Frame.Local(new System.Numerics.Vector2(mdl.Entrances[0].Position.X, mdl.Entrances[0].Position.Z)).U;
+        float F(int st) => mdl.Floor + st * mdl.StoreyHeight;
+        void Put(Vector3 at, Vector3 look) { w.GlobalPosition = at; w.Velocity = Vector3.Zero; w.Face(look); }
+        BadBuilding.Interior.Room? RoomOf(string kind, int st) => mdl.Rooms.FirstOrDefault(r => r.Kind == kind && r.Storey == st && r.Flat?.EndsWith("/c0/L") == true)
+                                                              ?? mdl.Rooms.FirstOrDefault(r => r.Kind == kind && r.Storey == st);
+        Vector3 Centre(BadBuilding.Interior.Room r, float up = 0) { var q = r.Rects[0]; return P((q.Min.X + q.Max.X) * 0.5f, r.Floor + up, (q.Min.Y + q.Max.Y) * 0.5f); }
+        // a room's outer wall with windows in it (to look at): the middle of the nearest such wall, at eye height
+        Vector3 WindowWall(BadBuilding.Interior.Room r)
+        {
+            var q = r.Rects[0];
+            float uMid = (q.Min.X + q.Max.X) * 0.5f, vMid = (q.Min.Y + q.Max.Y) * 0.5f, y0 = r.Floor, y1 = r.Floor + 2.6f;
+            float uLo = mdl.Footprint.Min(p => mdl.Frame.Local(p).U), uHi = mdl.Footprint.Max(p => mdl.Frame.Local(p).U), depth = mdl.Footprint.Max(p => mdl.Frame.Local(p).V);
+            foreach (var o in mdl.Openings)
+            {
+                if (o.Kind is "door" or "shut" || o.Y1 < y0 || o.Y0 > y1) continue;
+                bool alongU = o.Side < 2;
+                float lo = alongU ? q.Min.X : q.Min.Y, hi = alongU ? q.Max.X : q.Max.Y;
+                if (o.A1 < lo || o.A0 > hi) continue;
+                bool touches = o.Side switch { 0 => q.Min.Y < 0.5f, 1 => q.Max.Y > depth - 0.5f, 2 => q.Min.X < uLo + 0.5f, _ => q.Max.X > uHi - 0.5f };
+                if (!touches) continue;
+                float a = (MathF.Max(o.A0, lo) + MathF.Min(o.A1, hi)) * 0.5f;
+                return o.Side switch { 0 => P(a, y0 + 1.3f, 0), 1 => P(a, y0 + 1.3f, depth), 2 => P(uLo, y0 + 1.3f, a), _ => P(uHi, y0 + 1.3f, a) };
+            }
+            return Centre(r, 1.3f) + new Vector3(mdl.Frame.AxisV.X, 0, mdl.Frame.AxisV.Z) * 6f;
+        }
+
+        switch (_iPhase)
+        {
+            case 0:   // at the door, waiting for the interior to load
+                if (loaded == null) { if (t > 15) { Log.Error("Test", "interior: never loaded"); _main.GetTree().Quit(); } break; }
+                if (t < 1.5) break;
+                Shot("int_0_door");
+                Phase(1);
+                w.Autopilot = _ => (new Vector2(0, 1), false);
+                break;
+            case 1:   // walk in
+            {
+                var h = Here();
+                w.Face(P(e0, F(0) + 1.5f, 3f));
+                if ((int)(tb * 2) != (int)(t * 2)) Log.Info("Test", $"interior: walking in: v {h.V:0.0} m, height {h.Y - F(0):0.00} above the floor, indoors {w.Indoors}");
+                if (h.V > 0.9f)
+                {
+                    Log.Info("Test", $"interior: on the landing after {t:0.0} s, indoors {w.Indoors}, room {ints.Room?.Kind}");
+                    w.Autopilot = _ => (Vector2.Zero, false);
+                    Phase(2);
+                }
+                else if (t > 10) { Log.Error("Test", $"interior: stuck at the door, v {h.V:0.0}, height {h.Y - F(0):0.00}"); Shot("int_stuck"); Phase(2); }
+                break;
+            }
+            case 2:   // the landing: the door to the left flat, then up the stairwell
+                if (At(0.3)) { Put(P(e0 + 0.6f, F(0), 0.9f), P(e0 - 1.45f, F(0) + 1.4f, 0.95f)); w.SetView(true); }
+                if (At(1.0)) Shot("int_1_landing");
+                if (At(1.3)) Put(P(e0 + 0.4f, F(0), 0.8f), P(e0 - 0.4f, F(0) + 2.6f, 4.6f));
+                if (At(2.0)) Shot("int_2_stairs");
+                if (At(2.3) && RoomOf("living", 0) is { } lr) { var ww = WindowWall(lr); var back = Centre(lr) + (Centre(lr) - (ww with { Y = Centre(lr).Y })).Normalized() * 1.2f; Put(back + Vector3.Up * 0.1f, ww); }
+                if (At(3.0)) { Shot("int_3_living"); Log.Info("Test", $"interior: living room: {ints.Describe()}"); }
+                // from the hall into the living room, through its door
+                if (At(3.3) && RoomOf("hall", 0) is { } hr && RoomOf("living", 0) is { } lv2)
+                {
+                    var q = hr.Rects[0];
+                    var at = P((q.Min.X + q.Max.X) * 0.5f, hr.Floor + 0.1f, q.Max.Y - 1.6f);
+                    Put(at, Centre(lv2, 1.2f));
+                }
+                if (At(4.0)) Shot("int_4_hall");
+                if (At(4.3))
+                {
+                    // the climb, on foot: from the landing, up the left flight
+                    Put(P(e0 - 0.7f, F(0) + 0.1f, 1.0f), P(e0 - 0.7f, F(0) + 1.6f, 4f));
+                    _iY0 = Here().Y;
+                    Phase(3);
+                    w.Autopilot = _ => (new Vector2(0, 1), false);
+                }
+                break;
+            case 3:   // up the first flight to the half landing
+            {
+                var h = Here();
+                w.Face(P(e0 - 0.7f, h.Y + 1.2f, 5f));
+                if (h.V > 4.15f || t > 6)
+                {
+                    Log.Info("Test", $"interior: half landing: rose {h.Y - _iY0:0.00} m (should be ~{mdl.StoreyHeight / 2:0.0}) in {t:0.0} s, v {h.V:0.0}");
+                    Phase(4);
+                    w.Autopilot = _ => (new Vector2(0, 1), false);
+                }
+                break;
+            }
+            case 4:   // across to the right
+            {
+                var h = Here();
+                w.Face(P(e0 + 2f, h.Y + 1.4f, 4.5f));
+                if (h.U > e0 + 0.65f || t > 4) { Phase(5); w.Autopilot = _ => (new Vector2(0, 1), false); }
+                break;
+            }
+            case 5:   // up the second flight to the next floor
+            {
+                var h = Here();
+                w.Face(P(e0 + 0.7f, h.Y + 1.0f, -2f));
+                if (At(0.8)) Shot("int_5_climbing");
+                if (h.V < 1.1f || t > 6)
+                {
+                    Log.Info("Test", $"interior: next floor: rose {h.Y - _iY0:0.00} m (storey {mdl.StoreyHeight:0.00}), storey {mdl.StoreyAt(h.Y + 0.3f)}, {ints.Describe()}");
+                    Phase(6);
+                }
+                break;
+            }
+            case 6:   // top floor window, third person in a flat
+                if (At(0.3) && RoomOf("living", mdl.Levels - 1) is { } top) { var ww = WindowWall(top); var back = Centre(top) + (Centre(top) - (ww with { Y = Centre(top).Y })).Normalized() * 1.5f; Put(back + Vector3.Up * 0.1f, ww - Vector3.Up * 0.5f); w.SetView(true); }
+                if (At(1.0)) Shot("int_6_top_window");
+                if (At(1.3) && (RoomOf("bedroom", 1) ?? RoomOf("living", 1)) is { } bed) { Put(Centre(bed) + Vector3.Up * 0.1f, Centre(bed, 1.2f) + new Vector3(mdl.Frame.AxisU.X, 0, mdl.Frame.AxisU.Z) * 5f); w.SetView(false); }
+                if (At(2.2)) Shot("int_7_third_person");
+                if (At(2.5) && RoomOf("kitchen", 0) is { } kit) { Put(Centre(kit) + Vector3.Up * 0.1f, Centre(kit, 1.2f) - new Vector3(mdl.Frame.AxisV.X, 0, mdl.Frame.AxisV.Z) * 5f); w.SetView(true); }
+                if (At(3.2)) Shot("int_8_kitchen");
+                if (At(3.5))
+                {
+                    // and out again
+                    Put(P(e0, F(0) + 0.1f, 1.0f), P(e0, F(0) + 1.4f, -6f));
+                    w.SetView(false);
+                    Phase(7);
+                    w.Autopilot = _ => (new Vector2(0, 1), false);
+                }
+                break;
+            case 7:
+            {
+                var h = Here();
+                w.Face(P(e0, F(0) + 1.4f, -8f));
+                if (h.V < -3.5f || t > 8)
+                {
+                    Log.Info("Test", $"interior: back out at v {h.V:0.0} after {t:0.0} s, indoors {w.Indoors}; {ints.Describe()}");
+                    w.Autopilot = null;
+                    Shot("int_9_outside");
+                    Log.Info("Test", "interior: done");
+                    _main.GetTree().Quit();
+                }
+                break;
+            }
+        }
+        if (_iTime > 90) { Log.Error("Test", "interior: timed out"); _main.GetTree().Quit(); }
     }
 
     private void Shot(string name)

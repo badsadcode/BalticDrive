@@ -35,6 +35,8 @@ public static class BadBuildingAdapter
     private const float KindTimber = 0.82f, KindBoards = 0.69f;
     /// <summary>Board-marked concrete (D79, BadBuilding's brutalism).</summary>
     private const float KindBoardConcrete = 0.75f;
+    /// <summary>A door: the shader hides it while the building's interior is loaded (D81).</summary>
+    private const float KindDoor = 0.84f;
     /// <summary>A preset for BadBuilding's style choice (D79): null, or "brutalist" (Shift+F7, --preset=brutalist).</summary>
     public static string? Preset;
     private const float Context = 40f;
@@ -148,6 +150,9 @@ public static class BadBuildingAdapter
         catch (Exception) { Interlocked.Increment(ref _failed); return false; }
         if (built.Modules.Count == 0) { Interlocked.Increment(ref _failed); return false; }
 
+        // blocks of flats you can walk into (D81): the interior is planned later, when someone comes to the door
+        if (lod == 0 && BB.Interior.Shell.Of(built) is { } shell) World.Interiors.Register(shell, ctx.Ox + ox, ctx.Oz + oz);
+
         // bake: every module drawn at this level of detail, coloured by its material role
         var mesh = geo.Buildings;
         int lodBit = lod == 0 ? 1 : 2;
@@ -239,6 +244,7 @@ public static class BadBuildingAdapter
             "boards" => KindBoards,
             "brick" or "chimney" => KindBrick,
             "roller" => KindRoller,
+            "door" => KindDoor,
             _ => KindPlain,
         };
         // linear albedo, slightly lifted: the building shader darkens walls by its grime and noise terms

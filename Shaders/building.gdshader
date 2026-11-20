@@ -10,10 +10,17 @@ render_mode cull_back, diffuse_burley;
 #include "res://Shaders/common.gdshaderinc"
 
 global uniform float wetness;
+// entrance doors standing open (D81): a building's interior is loaded, its street doors (vertex alpha 0.84) vanish
+// within w metres of xyz (scene-local)
+global uniform vec4 open_door0;
+global uniform vec4 open_door1;
+global uniform vec4 open_door2;
+global uniform vec4 open_door3;
 // the skyline's copy of a building the near cells draw themselves: hidden within this distance (D32; 0 = never)
 uniform float near_cut = 0.0;
 
 varying vec3 wpos;
+varying vec3 lpos;
 
 float hash(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -31,12 +38,15 @@ float vnoise(vec2 p) {
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	lpos = wpos;
 	wpos.xz += world_offset; // patterns stay fixed to the ground when the origin moves
 }
 
 void fragment() {
 	if (near_cut > 0.0 && length(VERTEX) < near_cut) discard;
 	float kind = COLOR.a;
+	if (abs(kind - 0.84) < 0.006 && (distance(lpos, open_door0.xyz) < open_door0.w || distance(lpos, open_door1.xyz) < open_door1.w
+		|| distance(lpos, open_door2.xyz) < open_door2.w || distance(lpos, open_door3.xyz) < open_door3.w)) discard;
 	vec3 tint = COLOR.rgb;
 	float dist = length(VERTEX);
 	float fade = clamp(1.0 - dist / 140.0, 0.0, 1.0);

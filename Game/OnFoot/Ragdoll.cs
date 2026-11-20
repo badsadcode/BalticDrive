@@ -64,7 +64,7 @@ public sealed class Ragdoll
             {
                 Name = name, Mass = mass, Friction = 0.9f, Bounce = 0f,
                 LinearDamp = 0.15f, AngularDamp = 1.2f,
-                CollisionLayer = Bodies.Ragdoll, CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Props | Bodies.Vehicles,
+                CollisionLayer = Bodies.Ragdoll, CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Props | Bodies.Vehicles | Bodies.Interior,
                 JointType = name == "Hips" ? PhysicalBone3D.JointTypeEnum.None : PhysicalBone3D.JointTypeEnum.Cone,
                 // the cone's axis is the joint's X; the bone runs along its own Y
                 JointRotation = new Vector3(0, 0, MathF.PI / 2),

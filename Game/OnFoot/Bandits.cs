@@ -68,7 +68,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     public override void _Ready()
     {
         CollisionLayer = Bodies.Characters;
-        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters;
+        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters | Bodies.Interior;
         FloorMaxAngle = Mathf.DegToRad(50);
         FloorSnapLength = 0.4f;
         SetMeta("surface", "flesh");
@@ -229,7 +229,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         _ragdoll?.Stop();
         if (_ragdoll != null) _ragdoll.Sim.Influence = 1f;
         CollisionLayer = Bodies.Characters;
-        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters;
+        CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters | Bodies.Interior;
         if (_hold != null) _hold.Active = true;
         Velocity = Vector3.Zero;
         _flinch = 0.8f;      // still dazed: no shooting for a moment
@@ -321,7 +321,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     /// <summary>Nothing in the way between two points (the player's own body doesn't count).</summary>
     private bool Clear(Vector3 a, Vector3 b, Rid ignore = default)
     {
-        var q = PhysicsRayQueryParameters3D.Create(a, b, Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props);
+        var q = PhysicsRayQueryParameters3D.Create(a, b, Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Interior);
         q.Exclude = ignore.IsValid ? new Godot.Collections.Array<Rid> { GetRid(), ignore } : new Godot.Collections.Array<Rid> { GetRid() };
         return GetWorld3D().DirectSpaceState.IntersectRay(q).Count == 0;
     }

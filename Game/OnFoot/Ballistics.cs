@@ -61,7 +61,7 @@ public sealed partial class Ballistics : Node
         var space = GetViewport().World3D.DirectSpaceState;
         _q ??= new PhysicsRayQueryParameters3D
         {
-            CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters | Bodies.Ragdoll,
+            CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Vehicles | Bodies.Props | Bodies.Characters | Bodies.Ragdoll | Bodies.Interior,
         };
         for (int i = _bullets.Count - 1; i >= 0; i--)
         {

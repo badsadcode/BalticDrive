@@ -1229,3 +1229,26 @@ isn't the easy way to win".
 * The car: the hood wears a little per hit, the windshield too above 43 km/h, and it loses up to 8 % of its speed.
 Self-test `--autotest=knockdown --start=68600,639300`: hit at 45 km/h, lay 4.5 s, got up and engaged; a second
 bandit on 8 health died from the hit.
+
+## D81 — Walking into blocks of flats (BadBuilding D33, 20 Nov)
+Tom: "Interiors". BadBuilding plans interiors for staircase blocks (D33); the game uses them:
+* The map's workers keep a shell (`BB.Interior.Shell`) for every block of flats they build in the near ring
+  (`World.Interiors.Register`, forgotten beyond 800 m).
+* On foot, any shell within 22 m of its outline is planned on a worker thread (7–10 ms), its mesh and collision
+  arrays prepared there too, and added as one mesh and one concave shape on a new layer, `Bodies.Interior` (128),
+  anchored where the building stands (4–21 ms on the main thread; the first one 37 ms, warm-up). Dropped beyond 45 m.
+* While it is loaded its street doors are open: the adapter gives door quads their own kind (vertex alpha 0.84) and
+  `building.gdshader` discards them within 1.5 m of up to four open doors (global uniforms `open_door0..3`).
+* Inside the outline or in a doorway, `Walker.Indoors` switches the building's solid mass off for the body and the
+  camera; the interior's walls, floors and stairs hold you. Bullets, bandits, ragdolls and the lean check see the
+  interior layer too.
+* Light: the interior casts double-sided shadows, so the sun comes in only through the windows; screen-space AO blacks
+  out the sky's light in a 2.6 m room, so every surface glows faintly with its own colour as much as the daylight
+  outside allows (ceilings a little more).
+* F9 dumps say which building, storey and room you're in; `--interior-dump=DIR` writes each plan as JSON;
+  `--interior-reach=M` for tests.
+* Only with BadBuilding's buildings on (F7 / `--buildings=bb`).
+Self-test `--autotest=interior --start=68600,639300 --buildings=bb`: out of the car, to the door of a 9-storey PRL
+block, walked in (indoors after 1.7 s), up a flight (1.43 m) and the next (2.97 m of a 3.07 m storey) on foot, living
+room and top-floor windows looked out of, and back out (indoors off). Around the start all 11 blocks within 300 m got
+interiors (1–3 staircases, 4–17 storeys). Not yet: shops, balconies, furniture, loot or bandits indoors, locked doors.
