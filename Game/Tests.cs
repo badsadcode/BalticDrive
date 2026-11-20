@@ -1745,6 +1745,7 @@ public sealed class Tests
     private float _iY0;
     private List<double[]>? _iCams;
     private List<string>? _iLook;
+    private string? _iSafeBackup, _iFlat;
     private BadBuilding.Interior.BalconySite? _iBal;
 
     /// <summary>--autotest=interior (D81): out of the car, to the door of the nearest block of flats that has an
@@ -1842,6 +1843,8 @@ public sealed class Tests
                 if (t < 1.5) break;
                 // --cams="x,y,z,yaw,pitch;..." (world metres, degrees, from F9 dumps' Camera line): stand where the
                 // first-person camera was and photograph, then stop
+                // --interior-safehouse: claim a flat, die far away, wake up in it (D88), then stop
+                if (Main.Args.ContainsKey("interior-safehouse")) { Phase(12); break; }
                 // --look=sofa,nightstand,...: photograph a piece of each kind from in front of it (D87), then stop
                 if (Main.Args.TryGetValue("look", out var look))
                 {
@@ -1981,6 +1984,53 @@ public sealed class Tests
                     w.Autopilot = _ => (new Vector2(0, 1), false);
                 }
                 break;
+            case 12:
+            {
+                string file = ProjectSettings.GlobalizePath("user://safehouses.json");
+                if (At(0.1))
+                {
+                    // keep Tom's own safehouse: back it up, restore it at the end
+                    _iSafeBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
+                    OnFoot.Safehouse.Clear(Main.MapName);
+                    var lv = RoomOf("living", Math.Min(3, mdl.Levels - 1)) ?? RoomOf("living", 1);
+                    _iFlat = lv?.Flat;
+                    if (lv != null) { Put(Centre(lv) + Vector3.Up * 0.1f, Centre(lv, 1.4f) + new Vector3(mdl.Frame.AxisV.X, 0, mdl.Frame.AxisV.Z) * 5f); w.SetView(true); }
+                }
+                if (At(1.0)) { Shot("safe_0_prompt"); _main.TestClaim = true; }
+                if (At(3.6))
+                {
+                    _main.TestClaim = false;
+                    var sh = _main.SafehouseAt;
+                    Log.Info("Test", $"safehouse: claimed {(sh is { } x ? $"{x.Address}, flat {x.Flat}, at height {x.Y:0.0}" : "nothing")} (wanted {_iFlat})");
+                    Shot("safe_1_claimed");
+                    // as if far away: no interiors loaded, the walker 300 m off, shot dead
+                    _main.Interiors!.DropAll();
+                    var far = w.GlobalPosition + new Vector3(300, 0, 0);
+                    var (fx, _, fz) = WorldOrigin.ToWorld(far);
+                    w.Indoors = false;
+                    w.GlobalPosition = WorldOrigin.ToLocal(fx, _main.World!.Height(fx, fz) + 0.5, fz);
+                    w.LastShot = new Vector3(0, 0, -800);
+                    w.Body.Damage(500);
+                }
+                if (At(6.0))
+                {
+                    _main.Respawn();
+                    Log.Info("Test", $"safehouse: woke up; {_main.Interiors!.Describe()}");
+                }
+                if (At(7.5))
+                {
+                    var room = _main.Interiors!.Room;
+                    Log.Info("Test", $"safehouse: after 1.5 s: {_main.Interiors.Describe()}; in the claimed flat: {room?.Flat == _iFlat}; height {w.GlobalPosition.Y:0.0}");
+                    Shot("safe_2_woke");
+                }
+                if (At(8.0))
+                {
+                    if (_iSafeBackup != null) System.IO.File.WriteAllText(file, _iSafeBackup); else OnFoot.Safehouse.Clear(Main.MapName);
+                    Log.Info("Test", "safehouse: done (the old safehouse file restored)");
+                    _main.GetTree().Quit();
+                }
+                break;
+            }
             case 11:
             {
                 int i = (int)(t / 1.5);

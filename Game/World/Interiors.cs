@@ -30,6 +30,38 @@ public partial class Interiors : Node
 
     public static int Known => _shells.Count;
 
+    private static readonly System.Text.Json.JsonSerializerOptions ShellJson = new() { IncludeFields = true };
+
+    /// <summary>A known shell and its origin, by building id (D88: to keep with a flat safehouse).</summary>
+    public static (BB.Interior.Shell Shell, double X, double Z, string Json)? Find(string id) =>
+        _shells.TryGetValue(id, out var e) ? (e.Shell, e.X, e.Z, System.Text.Json.JsonSerializer.Serialize(e.Shell, ShellJson)) : null;
+
+    /// <summary>The interior of a building right now, planned on this thread if it isn't loaded (D88: waking up in a
+    /// flat safehouse far from where you died). The shell comes from the save; it is registered again too.</summary>
+    public Loaded? LoadNow(string shellJson, double x, double z)
+    {
+        BB.Interior.Shell? shell;
+        try { shell = System.Text.Json.JsonSerializer.Deserialize<BB.Interior.Shell>(shellJson, ShellJson); }
+        catch (Exception ex) { Log.Error("Interiors", $"safehouse shell: {ex.Message}"); return null; }
+        if (shell == null) return null;
+        if (_loaded.TryGetValue(shell.Id, out var have)) return have;
+        var entry = new Entry(shell, x, z);
+        _shells[shell.Id] = entry;
+        var m = BB.Interior.InteriorGenerator.Generate(shell, out var why);
+        if (m == null) { Log.Error("Interiors", $"safehouse {shell.Id}: no interior ({why})"); return null; }
+        Build(entry, m, Prepare(m, Catalog));
+        _none.Remove(shell.Id);
+        return _loaded[shell.Id];
+    }
+
+    /// <summary>Self-tests: drop every loaded interior (as if far away).</summary>
+    public void DropAll()
+    {
+        foreach (var l in _loaded.Values) l.Node.QueueFree();
+        _loaded.Clear();
+        Inside = null;
+    }
+
     /// <summary>Self-tests: the known shells nearest a world point, with their origins.</summary>
     public static List<(BB.Interior.Shell Shell, double X, double Z)> NearestShells(double x, double z, int count) =>
         _shells.Values.OrderBy(e => (e.X - x) * (e.X - x) + (e.Z - z) * (e.Z - z)).Take(count).Select(e => (e.Shell, e.X, e.Z)).ToList();

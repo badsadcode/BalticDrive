@@ -1306,3 +1306,20 @@ missing."
   multiplied; "add" made everything white).
 * `Assets/Furniture/README.md` explains adding a model; `tools/prefab_sizes.gd` prints a model's size; the self-test's
   `--look=kind,kind` photographs a piece of each kind from in front.
+
+## D88 — Flat safehouses (Tom, 20 Nov)
+Tom: "currently we have claiming the whole building. Can we select individual flats?" Inside a block of flats you
+hold K in the flat you want ("Hold K: make the flat on the 3rd floor, left your safehouse"; the ground floor is
+parter, as in Poland; a staircase number when the block has several). The save keeps the building's interior id, the
+flat's id, the exact spot and height you claimed it from, the building's origin and its shell as JSON. After dying you
+wake on that spot: the interior is planned and built there and then from the saved shell (`Interiors.LoadNow`), so
+it works however far away you died and whether or not that part of the map is loaded. Houses and buildings without an
+interior keep the whole-building claim from outside (D55).
+Self-test `--autotest=interior --interior-safehouse --start=68567,639452 --buildings=bb`: claimed the 3rd-floor left
+flat, every interior dropped, shot dead 300 m away, woke in the same living room at the same height; the player's own
+`safehouses.json` is backed up and restored by the test.
+Risk: a later change to the interior generator could move walls; the wake-up spot is a position, so it might then be
+inside a wall or a piece of furniture (to handle when the generator gets versioned plans, BadBuilding roadmap).
+Next, by Tom's direction (20 Nov): a Project Zomboid-like survival layer of our own (data-driven items, inventory with
+weight, containers in the furniture, crafting recipes, loot tables). This changes the on-foot brief's "not the plan:
+elaborate crafting"; the brief is to be updated when that work starts.

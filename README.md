@@ -47,7 +47,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=roadscan [--radius=3000]` — lists bends tighter than their road is wide, with a `--views=` line (D57).
 * `--autotest=ragdoll` — a bandit and the walker falling as ragdolls, an origin shift under a body (D56).
 * `--autotest=knockdown --start=68600,639300` — the car knocks a bandit down; it lies, gets up, engages; a hurt one dies (D80).
-* `--autotest=interior --start=68600,639300 --buildings=bb` — into a block of flats: the door, the landing, up the stairs on foot, flats, a top-floor window, and out (D81).
+* `--autotest=interior --start=68600,639300 --buildings=bb` — into a block of flats: the door, the landing, up the stairs on foot, flats, a top-floor window, and out (D81). Options: `--interior-angle=M` (come at the door from the side), `--interior-want=loggia`, `--look=sofa,bed_double` (photograph pieces), `--cams="x,y,z,yaw,pitch;..."` (stand where an F9 dump was taken), `--interior-safehouse` (claim a flat, die, wake in it; D88).
 
 ## Layout
 

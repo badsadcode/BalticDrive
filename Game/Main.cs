@@ -316,19 +316,41 @@ public partial class Main : Node3D
 		_bandits.Clear();
 		var home = _safehouse;
 		var step = home ?? BalticDrive.OnFoot.Homes.Pick(_world, fx, fz, new Random()) ?? new BalticDrive.OnFoot.Doorstep(fx + 40, fz, 0, 0, "");
-		float h = _world.Height(step.X, step.Z);
-		_walker.Revive(WorldOrigin.ToLocal(step.X, h + 0.4, step.Z), step.Yaw);
+		// a flat safehouse (D88): its interior rebuilt here and now, so there's a floor to wake up on
+		if (home is { IsFlat: true } flatHome && _interiors?.LoadNow(flatHome.Shell, flatHome.BX, flatHome.BZ) is { } flatInside)
+		{
+			_walker.Indoors = true;
+			_walker.Revive(WorldOrigin.ToLocal(flatHome.X, flatHome.Y + 0.1, flatHome.Z), flatHome.Yaw);
+			Core.Log.Info("Safehouse", $"woke in flat {flatHome.Flat} of {flatInside.Id}");
+		}
+		else
+		{
+			float h = _world.Height(step.X, step.Z);
+			_walker.Revive(WorldOrigin.ToLocal(step.X, h + 0.4, step.Z), step.Yaw);
+		}
 		_walker.Body.Revive();
 		_downTime = -1;
 		_wakeTime = 0;
 		if (_deathLabel != null) _deathLabel.Visible = false;
 		double dx = fx - step.X, dz = fz - step.Z, km = Math.Sqrt(dx * dx + dz * dz) / 1000;
 		string toward = Compass(dx, dz);
-		string where = home != null ? $"in your safehouse{(home.Value.Address.Length > 0 ? ", " + home.Value.Address : "")}"
+		string where = home is { IsFlat: true } ? $"in {home.Value.Address.Replace("the flat", "your flat")}"
+			: home != null ? $"in your safehouse{(home.Value.Address.Length > 0 ? ", " + home.Value.Address : "")}"
 			: step.Address.Length > 0 ? $"outside {step.Address}" : "outside a block of flats";
 		ShowNote(package.Opened ? $"You wake up {where}." : km < 0.05 ? $"You wake up {where}. Your things are right here."
 			: $"You wake up {where}. Your things are {km:0.0} km {toward}, where you fell: marked on the map (M).", 12);
 		Core.Log.Info("Death", $"woke {where}, {km:0.00} km from the body (package {(package.Opened ? "empty" : "left")})");
+	}
+
+	/// <summary>"the flat on the 4th floor, left" (Polish style: the ground floor is parter, then 1st, 2nd...).</summary>
+	private static string FlatName(BadBuilding.Interior.InteriorModel m, int storey, string flat)
+	{
+		string floor = storey == 0 ? "the ground floor" : $"the {storey}{(storey % 100 is 11 or 12 or 13 ? "th" : (storey % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" })} floor";
+		string side = flat.EndsWith("/L") ? "left" : flat.EndsWith("/R") ? "right" : "";
+		int staircases = m.Entrances.Count;
+		string stair = "";
+		if (staircases > 1 && System.Text.RegularExpressions.Regex.Match(flat, @"/c(\d+)/") is { Success: true } mc) stair = $", staircase {int.Parse(mc.Groups[1].Value) + 1}";
+		return $"the flat on {floor}{(side.Length > 0 ? ", " + side : "")}{stair}";
 	}
 
 	private static string Compass(double dx, double dz)
@@ -344,6 +366,32 @@ public partial class Main : Node3D
 	private bool UpdateClaim(double now, float dt)
 	{
 		if (_walker == null || _world == null) return false;
+		// inside a block of flats (D88): the flat you're standing in, not the whole building
+		if (_interiors?.Inside is { } inside)
+		{
+			_homeHere = null;
+			var room = _interiors.Room;
+			if (room?.Flat is not { } flat || (_safehouse is { } mineF && mineF.Flat == flat)) { _claim = 0; return false; }
+			string name = FlatName(inside.Model, room.Storey, flat);
+			bool holdingF = TestClaim || Input.IsKeyPressed(Key.K);
+			_claim = holdingF ? _claim + dt : 0;
+			_prompt!.Visible = true;
+			_prompt.Text = holdingF ? $"Claiming {name}... {MathF.Min(_claim / 2f, 1):P0}" : $"Hold K: make {name} your safehouse";
+			if (_claim >= 2f && BalticDrive.World.Interiors.Find(inside.Id) is { } found)
+			{
+				var (wx, wy, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
+				var s = new BalticDrive.OnFoot.Doorstep(wx, wz, _walker.Yaw, 0, name)
+				{
+					Building = inside.Id, Flat = flat, Y = (float)wy + 0.05f, BX = found.X, BZ = found.Z, Shell = found.Json,
+				};
+				BalticDrive.OnFoot.Safehouse.Set(MapName, s);
+				_safehouse = s;
+				_claim = 0;
+				ShowNote($"{char.ToUpper(name[0]) + name[1..]} is your safehouse now. You'll wake up here.", 8);
+				Core.Log.Info("Safehouse", $"claimed flat {flat} ({name}) at {wx:0.0},{wy:0.0},{wz:0.0}");
+			}
+			return true;
+		}
 		if (now >= _nextHomeLook)
 		{
 			_nextHomeLook = now + 0.3;

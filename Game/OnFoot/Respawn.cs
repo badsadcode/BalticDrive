@@ -10,7 +10,19 @@ using Godot;
 namespace BalticDrive.OnFoot;
 
 /// <summary>A place outside a building: where you stand (world metres), which way you face, and its address.</summary>
-public readonly record struct Doorstep(double X, double Z, float Yaw, long OsmId, string Address);
+public readonly record struct Doorstep(double X, double Z, float Yaw, long OsmId, string Address)
+{
+    /// <summary>A flat (D88): the building's interior id, the flat's id, the height of the spot you claimed it from,
+    /// the building's origin and its shell as JSON (so the interior can be rebuilt to wake you in it, wherever you
+    /// died). Empty for a whole building claimed from outside.</summary>
+    public string Building { get; init; } = "";
+    public string Flat { get; init; } = "";
+    public float Y { get; init; } = float.NaN;
+    public double BX { get; init; }
+    public double BZ { get; init; }
+    public string Shell { get; init; } = "";
+    public bool IsFlat => Flat.Length > 0;
+}
 
 /// <summary>
 /// Where you wake up (D55, Tom, after Project Zomboid). Without a safehouse: outside a real home (a house or a block of
@@ -107,7 +119,8 @@ public static class Homes
 public static class Safehouse
 {
     private const string FilePath = "user://safehouses.json";
-    private sealed record Entry(double X, double Z, float Yaw, long OsmId, string Address, string Map);
+    private sealed record Entry(double X, double Z, float Yaw, long OsmId, string Address, string Map,
+        string Building = "", string Flat = "", float? Y = null, double BX = 0, double BZ = 0, string Shell = "");
     private sealed record FileShape(List<Entry> Safehouses);
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
 
@@ -119,7 +132,10 @@ public static class Safehouse
             if (!File.Exists(path)) return null;
             var f = JsonSerializer.Deserialize<FileShape>(File.ReadAllText(path), Json);
             var e = f?.Safehouses?.LastOrDefault(s => s.Map == map);
-            return e == null ? null : new Doorstep(e.X, e.Z, e.Yaw, e.OsmId, e.Address);
+            return e == null ? null : new Doorstep(e.X, e.Z, e.Yaw, e.OsmId, e.Address)
+            {
+                Building = e.Building ?? "", Flat = e.Flat ?? "", Y = e.Y ?? float.NaN, BX = e.BX, BZ = e.BZ, Shell = e.Shell ?? "",
+            };
         }
         catch (Exception ex) { Log.Error("Safehouse", ex.Message); return null; }
     }
@@ -131,7 +147,7 @@ public static class Safehouse
             string path = ProjectSettings.GlobalizePath(FilePath);
             var list = File.Exists(path) ? JsonSerializer.Deserialize<FileShape>(File.ReadAllText(path), Json)?.Safehouses ?? new() : new();
             list.RemoveAll(s => s.Map == map);
-            list.Add(new Entry(d.X, d.Z, d.Yaw, d.OsmId, d.Address, map));
+            list.Add(new Entry(d.X, d.Z, d.Yaw, d.OsmId, d.Address, map, d.Building, d.Flat, float.IsNaN(d.Y) ? null : d.Y, d.BX, d.BZ, d.Shell));
             File.WriteAllText(path, JsonSerializer.Serialize(new FileShape(list), Json));
         }
         catch (Exception ex) { Log.Error("Safehouse", ex.Message); }
