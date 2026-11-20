@@ -89,6 +89,7 @@ public static class BadBuildingAdapter
             var ring = Ring(o.B.RX[0], o.B.RZ[0], o.OffX - ox, o.OffZ - oz);
             // another part of the same building: say how high it stands, so a low podium doesn't blind a tower (D70)
             if (b.Group >= 0 && o.B.Group == b.Group) ring = ring with { PartMin = o.B.MinHeight, PartTop = o.B.Height };
+            else ring = ring with { Top = o.B.Height };   // a separate neighbour's height (BadBuilding D31)
             neighbours.Add(ring);
         }
         var streets = new List<BB.Model.StreetLine>();
@@ -122,6 +123,7 @@ public static class BadBuildingAdapter
             StartYear = use.Year,
             Heritage = use.Heritage,
             Architecture = use.Architecture,
+            Material = use.Material,
             Levels = use.Levels,
             Height = b.Height,
             // the roof as the map (or the importer's guess for houses) has it
@@ -130,9 +132,7 @@ public static class BadBuildingAdapter
             MinHeight = b.IsPart && b.MinHeight > 0.05f ? b.MinHeight : null,   // a part in the air (D70)
             // the buildings of one school or kindergarten site share a look (D75: each wing is its own OSM building and
             // drew its own accent colour, purple next to blue): the look stage seeded by a 120 m grid cell
-            StageSeeds = use.Type is "school" or "kindergarten" or "university"
-                ? new Dictionary<string, ulong> { ["look"] = (ulong)BalticDrive.Core.Hash.Of((int)Math.Floor((ctx.Ox + ox) / 120.0), (int)Math.Floor((ctx.Oz + oz) / 120.0), 0, 77) }
-                : new Dictionary<string, ulong>(),
+            StageSeeds = StageSeedsFor(use, ctx.Ox + ox, ctx.Oz + oz),
             Neighbours = neighbours,
             Streets = streets,
             Ground = ground,
@@ -265,7 +265,7 @@ public static class BadBuildingAdapter
     /// ("yes;amenity=school;year=1965") into BadBuilding's request facts. The building value is passed as the type;
     /// an untyped building (yes) takes its type from what it's used for, where that says what kind of building it is.
     /// </summary>
-    public readonly record struct Use(string? Type, int? Year, bool Heritage, string? Architecture, int? Levels)
+    public readonly record struct Use(string? Type, int? Year, bool Heritage, string? Architecture, int? Levels, string? Material = null)
     {
         public static Use Parse(string s)
         {
@@ -298,7 +298,20 @@ public static class BadBuildingAdapter
             int? year = f.TryGetValue("year", out var y) && int.TryParse(y, out int yi) ? yi : null;
             bool heritage = f.ContainsKey("heritage") || f.GetValueOrDefault("historic") is "building" or "yes" or "monument";
             int? levels = f.TryGetValue("building:levels", out var lv) && float.TryParse(lv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf >= 1 ? (int)MathF.Round(lf) : null;
-            return new Use(type, year, heritage, f.GetValueOrDefault("building:architecture"), levels);
+            return new Use(type, year, heritage, f.GetValueOrDefault("building:architecture"), levels, f.GetValueOrDefault("building:material"));
         }
+    }
+
+    /// <summary>Seeds shared by neighbours (D75, D77): a school site's look (120 m cells), and a district (300 m cells)
+    /// for choices a whole quarter should make together, such as whether its big avenue blocks are socialist realism.</summary>
+    private static Dictionary<string, ulong> StageSeedsFor(Use use, double x, double z)
+    {
+        var d = new Dictionary<string, ulong>
+        {
+            ["district"] = (ulong)BalticDrive.Core.Hash.Of((int)Math.Floor(x / 300.0), (int)Math.Floor(z / 300.0), 0, 78),
+        };
+        if (use.Type is "school" or "kindergarten" or "university")
+            d["look"] = (ulong)BalticDrive.Core.Hash.Of((int)Math.Floor(x / 120.0), (int)Math.Floor(z / 120.0), 0, 77);
+        return d;
     }
 }

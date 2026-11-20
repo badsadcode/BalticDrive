@@ -1183,3 +1183,13 @@ school, now one red scheme.
 * **Balcony glass** (`rail_glass`) isn't drawn with the glass shading: in front of a dark room it read as solid
   blue-teal panels, and a block with a balcony on every bay looked like a glass box. It's a light frosted colour.
 * Shop fronts (`shopfront`) draw as glass.
+
+## D77 — More facts for BadBuilding's socialist realism; hidden inner parts (20 Nov 2026)
+
+* The adapter passes the mapped wall material (`building:material`) and every neighbour's height, and a "district"
+  seed (300 m cells) next to the school seed (D75), so a quarter decides its avenue blocks together.
+* `MapData.TidyParts`: a part wholly inside a bigger part of its building and within its height range is hidden
+  (drawn like a ghost copy: it still keeps trees out). On Plac Konstytucji a 6–25 m piece stood inside the block's
+  0–25 m piece.
+Looked at: Marszałkowska by Plac Konstytucji (stone blocks with paired windows, balconies and balustrades).
+Not yet: a blank wall on one overlapping-piece block east of the square.

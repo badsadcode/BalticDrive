@@ -512,6 +512,25 @@ public sealed class MapTile
             }
             if (!covered && best > 0) p.MinHeight = best;
         }
+        // a part that lies wholly inside a bigger part of its building, within its height range, is never seen; drawn,
+        // it stood its own (blank, party) walls in front of the bigger one's (D77: the MDM block on Plac Konstytucji
+        // is mapped as an 8-storey piece with a 6–25 m piece inside it)
+        foreach (int i in parts)
+        {
+            var p = Buildings[i];
+            foreach (int j in parts)
+            {
+                var q = Buildings[j];
+                if (i == j || q.Ghost || q.Group != p.Group) continue;
+                if (q.MinHeight > p.MinHeight + 0.5f || q.Height < p.Height - 0.5f) continue;
+                if ((q.MaxX - q.MinX) * (q.MaxZ - q.MinZ) <= (p.MaxX - p.MinX) * (p.MaxZ - p.MinZ)) continue;
+                // every corner of p (and its centre) inside q
+                var rx = p.RX[0]; var rz = p.RZ[0];
+                bool inside = q.Contains(p.Cx, p.Cz);
+                for (int k = 0; k < rx.Length && inside; k++) inside = q.Contains(rx[k] + (p.Cx - rx[k]) * 0.05f, rz[k] + (p.Cz - rz[k]) * 0.05f);
+                if (inside) { p.Flags |= 1; break; }   // hidden like a ghost copy: not drawn, still keeps trees out
+            }
+        }
     }
 
     /// <summary>Format 8 (D33): the tile's string table, a street name per road record and an OSM id and address per
