@@ -132,7 +132,8 @@ public static class BadBuildingAdapter
             Heritage = use.Heritage,
             Architecture = use.Architecture,
             Material = use.Material is "sandstone" or "stone" ? use.Material : GroupStone(ctx, b) ?? use.Material,
-            Preset = Preset,
+            // the Shift+F7 preset wins; else the region's (D91: Podlasie's wooden houses)
+            Preset = Preset ?? World.Regions.PresetAt(ctx.Ox + ox, ctx.Oz + oz, seed),
             Levels = use.Levels,
             Height = b.Height,
             // the roof as the map (or the importer's guess for houses) has it

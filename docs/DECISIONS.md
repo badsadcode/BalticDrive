@@ -1367,3 +1367,13 @@ would leave the border tiles half-filled in two pack sets, with road heights sol
 * The death self-test now keeps the player's own safehouse file and puts it back (it used to clear it).
 Not yet: the build and the drive across the border (waiting for the elevation); Podlaskie's own look (wooden
 villages, Orthodox churches with OSM evidence, the Tatar mosques, forests): proposed, waiting for Tom's choices.
+
+## D91 — Regions in data: Podlaskie gets Podlasie's wooden houses (BadBuilding D40)
+`GameData/regions.json` lists regions with an outline (longitude/latitude; Geofabrik's boundaries, from OSM) and a
+BadBuilding preset; `World.Regions.PresetAt(x, z, seed)` answers per building: inside, the preset; past the border
+it fades over `blend_km` (12 km: 70 % at the line, none at 12 km), decided by the building's seed, so the villages
+don't change at an administrative line (coherent over exact). The Shift+F7 preset still wins over it.
+Checked in the game with `--preset=podlasie` in Rabędy (on the Mazowsze side, 4 km from the border): the houses
+render with the planks shader, crowns, shutters, the orange sheet roof. The real look waits for the joined map
+(D90: the elevation is still downloading). Next for Podlaskie: Orthodox churches (OSM evidence only), the Tatar
+mosques as landmarks, forests (spruce, Białowieża), storks.
