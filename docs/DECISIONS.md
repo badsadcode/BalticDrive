@@ -1388,3 +1388,11 @@ and the cathedral at Aleja Solidarności now have onions and crosses (the cathed
 its real five domes are not mapped as parts). In the merged data there are 231 orthodox buildings, nearly all in
 Podlaskie, waiting for the joined map (D90). Fixed while doing it: every building has a Group (its own index when it
 has no parts), so "Group < 0" had excluded every church.
+
+## D93 — Mosques through BadBuilding (its D42)
+`BadBuildingAdapter.PlaceOfWorship` (was `OrthodoxChurch`, D92) also takes a church-kind building whose use string says
+`religion=muslim`, or `building=mosque` with no religion. In the merged data: Kruszyniany (historic, 12 × 17 m, the
+long kind) and Bohoniki (historic, 13 × 14 m, the square kind), Białystok's mosque, and in Warsaw the Ochota centre
+and the Wilanów mosque; the last two checked in the game (domes on the halls; Ochota's importer-guessed gabled roof
+stays). A Muslim tomb (ruins) and the Muslim Religious Union's office are left alone. Kruszyniany and Bohoniki will
+be seen when the joined map is built (D90).
