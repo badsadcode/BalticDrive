@@ -88,6 +88,7 @@ public partial class Main : Node3D
 			Args[eq < 0 ? s : s[..eq]] = eq < 0 ? "" : s[(eq + 1)..];
 		}
 		Map.BadBuildingAdapter.Enabled = Args.TryGetValue("buildings", out var bmode) && bmode == "bb";
+		if (Args.TryGetValue("preset", out var preset)) Map.BadBuildingAdapter.Preset = preset;
 		BalticDrive.OnFoot.BanditNav.Enabled = Args.GetValueOrDefault("nav", "1") != "0";
 		// colour variety of the ground (D60): --hue=0 off, 1 the default
 		RenderingServer.GlobalShaderParameterSet("terrain_hue", float.Parse(Args.GetValueOrDefault("hue", "1"), System.Globalization.CultureInfo.InvariantCulture));
@@ -494,6 +495,17 @@ public partial class Main : Node3D
 		{
 			_grass.On = !_grass.On;
 			ShowNote(_grass.On ? "Grass on (G)" : "Grass off (G)");
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F7, ShiftPressed: true } && _world != null)
+		{
+			// the Brutalist Warsaw that never was (D79): BadBuilding's "brutalist" preset on or off (turns BadBuilding on)
+			Map.BadBuildingAdapter.Preset = Map.BadBuildingAdapter.Preset == null ? "brutalist" : null;
+			Map.BadBuildingAdapter.Enabled = true;
+			Map.BadBuildingAdapter.ResetStats();
+			_content.Configure(_world);
+			ShowNote(Map.BadBuildingAdapter.Preset != null ? "Buildings: Brutalist Warsaw" : "Buildings: BadBuilding");
 			GetViewport().SetInputAsHandled();
 			return;
 		}

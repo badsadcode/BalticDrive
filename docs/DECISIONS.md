@@ -1203,3 +1203,12 @@ counts as inside when its centre and 90 % of its corners are. And the block's st
 `building:material=sandstone` tag sits on one piece only, so the other pieces of the same building now get it too,
 and the whole block comes out as one stone MDM front instead of tenement pieces.
 Looked at: the square from the street, from the air and along Marszałkowska.
+
+## D79 — Board-marked concrete, and Brutalist Warsaw on Shift+F7 (BadBuilding D32, 20 Nov 2026)
+
+* **Board-marked concrete** in the building shader (kind 0.75, roles `concrete_board` and `fin`): the imprint of
+  15 cm formwork boards in staggered 2.4 m lengths, each a shade different with a faint grain, darker joints,
+  form-tie holes every 0.6 × 0.9 m, rain streaks from the top, darker near the ground; detail fades by 90 m.
+* **Shift+F7** switches BadBuilding's "brutalist" preset on and off (and turns BadBuilding on): the Brutalist Warsaw
+  that never was. `--preset=brutalist` on the command line. Plain F7 still swaps classic and BadBuilding.
+Looked at: Ksawerów and Plac Konstytucji with the preset.

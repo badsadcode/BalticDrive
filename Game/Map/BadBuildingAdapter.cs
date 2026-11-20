@@ -33,6 +33,10 @@ public static class BadBuildingAdapter
     private const float KindCurtain = 0.635f;
     /// <summary>Weathered wood (D73, BadBuilding's cottages): horizontal planks on walls, vertical boards on gables.</summary>
     private const float KindTimber = 0.82f, KindBoards = 0.69f;
+    /// <summary>Board-marked concrete (D79, BadBuilding's brutalism).</summary>
+    private const float KindBoardConcrete = 0.75f;
+    /// <summary>A preset for BadBuilding's style choice (D79): null, or "brutalist" (Shift+F7, --preset=brutalist).</summary>
+    public static string? Preset;
     private const float Context = 40f;
 
     private static long _count, _ticks, _tris, _failed;
@@ -124,6 +128,7 @@ public static class BadBuildingAdapter
             Heritage = use.Heritage,
             Architecture = use.Architecture,
             Material = use.Material is "sandstone" or "stone" ? use.Material : GroupStone(ctx, b) ?? use.Material,
+            Preset = Preset,
             Levels = use.Levels,
             Height = b.Height,
             // the roof as the map (or the importer's guess for houses) has it
@@ -230,6 +235,7 @@ public static class BadBuildingAdapter
             _ when role.Length == 5 && role.StartsWith("door") && char.IsDigit(role[4]) => KindRibbed,
             "curtain" => KindCurtain,
             "timber" => KindTimber,
+            "concrete_board" or "fin" => KindBoardConcrete,
             "boards" => KindBoards,
             "brick" or "chimney" => KindBrick,
             "roller" => KindRoller,

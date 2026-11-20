@@ -161,6 +161,26 @@ void fragment() {
 		wood *= mix(0.7, 1.0, smoothstep(-0.2, 1.4, UV.y));   // damp and dirt near the ground
 		wall = wood;
 	}
+	// board-marked concrete (D79, brutalism): the imprint of 15 cm formwork boards, each a shade different with a
+	// faint grain, darker joints, a grid of form-tie holes every 0.6 x 0.9 m, rain streaks down from the top
+	float is_bconc = 1.0 - step(0.012, abs(kind - 0.75));
+	if (is_bconc > 0.5) {
+		float bf = clamp(1.0 - dist / 90.0, 0.0, 1.0);
+		float bp = UV.y / 0.15, bid = floor(bp), bfr = fract(bp);
+		float stagger = hash(vec2(bid, 3.1)) * 2.4;
+		float bseg = floor((UV.x + stagger) / 2.4);
+		float shade = 0.88 + 0.2 * hash(vec2(bid, bseg));
+		float grain = 0.94 + 0.12 * vnoise(vec2(UV.x * 3.0, UV.y * 40.0 + bid * 5.0));
+		float joint = smoothstep(0.08, 0.0, min(bfr, 1.0 - bfr));
+		vec3 bc = tint * mix(1.0, shade * grain, bf) * (1.0 - 0.22 * joint * bf);
+		vec2 tie = vec2(fract(UV.x / 0.6), fract(UV.y / 0.9)) - 0.5;
+		bc *= 1.0 - 0.55 * smoothstep(0.035, 0.02, length(tie * vec2(0.6, 0.9))) * bf;
+		// rain streaks from the top edge, and a dark wet band near the ground
+		float streaks = vnoise(vec2(UV.x * 1.7, UV.y * 0.08)) * smoothstep(UV2.y - 6.0, UV2.y, UV.y);
+		bc *= 1.0 - 0.3 * streaks - 0.18 * vnoise(vec2(UV.x * 0.5, UV.y * 0.3));
+		bc *= mix(0.72, 1.0, smoothstep(-0.3, 1.2, UV.y));
+		wall = bc;
+	}
 	float glassy = max(max(glass * window * (1.0 - boarded), is_glass), is_curtain * 0.85);
 	// real glass from BadBuilding: its tint, a faint sky reflection, no grime
 	wall = mix(wall, tint * 0.9 + vec3(0.012, 0.016, 0.02), is_glass);
