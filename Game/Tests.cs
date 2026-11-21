@@ -1760,6 +1760,7 @@ public sealed class Tests
             _drive = false;
         }
         if (Map.BadBuildingAdapter.Enabled) Log.Info("Test", Map.BadBuildingAdapter.Stats());
+        lock (Vehicle.ParkedCars.TruckLog) if (Vehicle.ParkedCars.TruckLog.Count > 0) Log.Info("Test", $"trucks: {Vehicle.ParkedCars.TruckLog.Count} ({Vehicle.ParkedCars.TruckLog.Count(t => t.Yard)} in yards), e.g. {string.Join("; ", Vehicle.ParkedCars.TruckLog.Take(4).Select(t => $"{t.X:0},{t.Z:0}"))}");
         lock (Map.MapMesher.NestLog) if (Map.MapMesher.NestLog.Count > 0) Log.Info("Test", $"stork nests: {Map.MapMesher.NestLog.Count}, e.g. {string.Join("; ", Map.MapMesher.NestLog.Take(6).Select(n => $"{n.X:0},{n.Z:0}"))}");
         Log.Info("Test", "done");
         _main.GetTree().Quit(0);

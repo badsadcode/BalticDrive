@@ -1512,3 +1512,21 @@ straight ahead), the sedan still there 67 m back, taken back; with no runners, "
   being models, their parts remembered; driven-away bays stay empty.
 Checked: a Warsaw courtyard car park (Emilii Plater) in rows of dusty white, beige, red, maroon and blue cars; a
 parked medium car woken, taken and driven, still white; the old sedan left parked and taken back.
+
+## D101 — Trucks (Tom: "Trucks next", 21 Nov)
+Until Tom's own rigs come (D96), two Synty trucks: Gang Warfare's box delivery truck (twin rear axles) and Battle
+Royale's truck with its trailer, plus a burnt-out one.
+* **Drivable:** `Car` now finds a truck's rear wheels (`*_Wheel_rl_01/02`, `rr_01/02`, or one mesh per axle across both
+  sides): the physics wheels stand between the rear axles on the front wheels' track, and every rear wheel mesh hangs on
+  a holder that turns and bounces with its physics wheel at its own hub (`Car._followers`).
+* **Handling** (`cars.json` "truck", D98): 7,500 kg, rear drive, 32 kN, 100 km/h, grip 1.3/1.25, steering lock 0.45,
+  centre of mass 45 cm higher, anti-roll 1.6. Tip test (D97) in Warsaw: worst lean 7–8°, no flips; off road it tops out
+  at 55 km/h (half its road speed), so the faster rounds can't be run in a field.
+* **Where** (`ParkedCars`, D100): in yards (service and unclassified roads with an industrial building within 35 m, about
+  one per 250 m of yard road) and, rarely, abandoned on the shoulder of a trunk, primary or secondary road out of town
+  (no building within 40 m, about one per 2.5 km). They wake into real trucks like the cars.
+* Fixed on the way: road pieces are about 10 m long (the importer densifies roads), and the kerb and truck loops skipped
+  pieces under 14–16 m, so streets got almost no parked cars and there were no trucks; now each piece gives one
+  candidate in its middle, its chance scaled by its length.
+* Gang Warfare's models referenced a material (`Models/extracted/default.material`) the copy tool didn't follow (it is
+  referenced from binary model files); copied by hand, so its van and low cars join the parked mix.

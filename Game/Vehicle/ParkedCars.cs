@@ -33,9 +33,21 @@ public sealed partial class ParkedCars : Node3D
         ("res://Assets/Synty/PolygonCity/Prefabs/Vehicles/SM_Veh_Car_Taxi_01.tscn", 0.8, false),
         ("res://Assets/Synty/PolygonCity/Prefabs/Vehicles/SM_Veh_Car_Police_01.tscn", 0.3, false),
         ("res://Assets/PolygonBattleRoyale/Prefabs/Vehicles/SM_Veh_Car_01.tscn", 2, false),
+        ("res://Assets/Synty/PolygonGangWarfare/Prefabs/Vehicles/SM_Veh_Van_01.tscn", 1, false),
+        ("res://Assets/Synty/PolygonGangWarfare/Prefabs/Vehicles/SM_Veh_LowCar_01.tscn", 0.8, false),
+        ("res://Assets/Synty/PolygonGangWarfare/Prefabs/Vehicles/SM_Veh_LowCar_02.tscn", 0.8, false),
         ("res://Assets/PolygonBattleRoyale/Prefabs/Vehicles/SM_Veh_Car_Destroyed_01.tscn", 1.4, true),
         ("res://Assets/PolygonBattleRoyale/Prefabs/Vehicles/SM_Veh_Light_Car_Destroyed_01.tscn", 0.8, true),
+        // trucks (D101), for truck spots only (weights after TruckFrom)
+        ("res://Assets/Synty/PolygonGangWarfare/Prefabs/Vehicles/SM_Veh_Truck_01.tscn", 3, false),
+        ("res://Assets/PolygonBattleRoyale/Prefabs/Vehicles/SM_Veh_Truck_01.tscn", 1.5, false),
+        ("res://Assets/PolygonBattleRoyale/Prefabs/Vehicles/SM_Veh_Truck_Destroyed_01.tscn", 1, true),
     };
+    /// <summary>Models from this index on are trucks.</summary>
+    private const int TruckFrom = 13;
+
+    /// <summary>Where trucks were placed (self-test log).</summary>
+    public static readonly List<(double X, double Z, bool Yard)> TruckLog = new();
 
     private sealed record Spot(string Id, int Model, double X, double Z, float Yaw, float Grime, int Palette);
 
@@ -207,12 +219,13 @@ public sealed partial class ParkedCars : Node3D
         if (ctx == null || ctx.World != _world) _ctx = ctx = new MapContext(_world);
         ctx.Reset(ox, oz, 0, 0, Cell, Cell, withPoints: false);
         var rng = new Random((int)Hash.Of((int)cx, (int)cz, 9157));
-        double total = Models.Sum(m => m.Weight);
-        int PickModel()
+        int PickFrom(int from, int to)
         {
+            double total = 0;
+            for (int i = from; i < to; i++) total += Models[i].Weight;
             double r = rng.NextDouble() * total;
-            for (int i = 0; i < Models.Length; i++) { if (r < Models[i].Weight) return i; r -= Models[i].Weight; }
-            return 0;
+            for (int i = from; i < to; i++) { if (r < Models[i].Weight) return i; r -= Models[i].Weight; }
+            return from;
         }
         bool Clear(float lx, float lz, float roadGap)
         {
@@ -221,10 +234,10 @@ public sealed partial class ParkedCars : Node3D
                 if (!s.Road.IsRail && !s.Road.IsTram && s.Distance(lx, lz, out _) < s.Hw + roadGap) return false;
             return true;
         }
-        void Add(float lx, float lz, float yaw, string id)
+        void Add(float lx, float lz, float yaw, string id, bool truck = false)
         {
             if (lx < 0 || lz < 0 || lx >= Cell || lz >= Cell) return;   // each car belongs to one square
-            int model = PickModel();
+            int model = truck ? PickFrom(TruckFrom, Models.Length) : PickFrom(0, TruckFrom);
             res.Add(new Spot(id, model, ox + lx, oz + lz, yaw, 0.15f + 0.55f * (float)rng.NextDouble(),
                 Models[model].Burnt ? -1 : PickPaint(Hash.Of(id.GetHashCode(), 5))));
         }
@@ -275,21 +288,55 @@ public sealed partial class ParkedCars : Node3D
             }
         }
 
+        // trucks (D101): in industrial yards along service roads, and now and then abandoned on a main road's shoulder
+        // out of town
+        bool Industrial(float lx, float lz, float r)
+        {
+            foreach (var br in ctx.Buildings)
+                if (br.B.Type == BuildingKind.Industrial && MathF.Abs(br.OffX + br.B.Cx - lx) < r + (br.B.MaxX - br.B.MinX) * 0.5f
+                    && MathF.Abs(br.OffZ + br.B.Cz - lz) < r + (br.B.MaxZ - br.B.MinZ) * 0.5f) return true;
+            return false;
+        }
+        foreach (var s in ctx.Segs)
+        {
+            bool yard = s.Road.Cls is RoadClass.Service or RoadClass.Unclassified;
+            bool main = s.Road.Cls is RoadClass.Trunk or RoadClass.Primary or RoadClass.Secondary;
+            if (!yard && !main || s.Road.IsBridge || s.Road.Layer != 0 || s.Road.IsRail || s.Road.IsTram) continue;
+            float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
+            if (len < 2f) continue;
+            float nx = -dz / len, nz = dx / len;
+            float step = yard ? 15f : 30f;
+            // roads come in pieces of about 10 m: one candidate in the middle of each, its chance scaled by its length
+            {
+                float u = len * 0.5f;
+                float side = Hash.F01(Hash.Of((int)Math.Floor(ox + s.Ax + dx * u / len), (int)Math.Floor(oz + s.Az + dz * u / len), 41)) < 0.5f ? -1f : 1f;
+                float off = s.Hw + (yard ? 1.7f : 2.3f);
+                float lx = s.Ax + dx * u / len + nx * off * side, lz = s.Az + dz * u / len + nz * off * side;
+                var draw = new Random((int)Hash.Of((int)Math.Floor((ox + lx) * 2), (int)Math.Floor((oz + lz) * 2), 43));
+                if (draw.NextDouble() > (yard ? 0.06 : 0.012) * freq * len / step) continue;
+                if (yard ? !Industrial(lx, lz, 35f) : ctx.InBuilding(lx, lz, 40f)) continue;   // a yard by works; a main road out of town
+                if (!Clear(lx, lz, 0.9f)) continue;
+                float yaw = MathF.Atan2(-dx, -dz) + (side < 0 ? 0 : MathF.PI) + (float)(draw.NextDouble() - 0.5) * (yard ? 0.1f : 0.25f);
+                Add(lx, lz, yaw, $"t{(long)Math.Floor((ox + lx) * 2)}_{(long)Math.Floor((oz + lz) * 2)}", truck: true);
+                lock (TruckLog) if (TruckLog.Count < 100) TruckLog.Add((ox + lx, oz + lz, yard));
+            }
+        }
+
         // the kerb of residential streets with houses near
         foreach (var s in ctx.Segs)
         {
             if (s.Road.Cls is not (RoadClass.Residential or RoadClass.Living or RoadClass.Service) || s.Road.IsBridge || s.Road.Layer != 0) continue;
             float dx = s.Bx - s.Ax, dz = s.Bz - s.Az, len = MathF.Sqrt(dx * dx + dz * dz);
-            if (len < 14f) continue;
+            if (len < 2f) continue;
             float nx = -dz / len, nz = dx / len;
-            for (float u = 5f; u < len - 5f; u += 6.5f)
             {
+                float u = len * 0.5f;
                 foreach (float side in new[] { -1f, 1f })
                 {
                     float off = s.Hw + 1.15f;
                     float lx = s.Ax + dx * u / len + nx * off * side, lz = s.Az + dz * u / len + nz * off * side;
                     var kerb = new Random((int)Hash.Of((int)Math.Floor((ox + lx) * 2), (int)Math.Floor((oz + lz) * 2), 37));
-                    if (kerb.NextDouble() > 0.11 * freq) continue;
+                    if (kerb.NextDouble() > 0.11 * freq * len / 6.5f) continue;
                     if (!ctx.InBuilding(lx + nx * side * 12f, lz + nz * side * 12f, 6f)) continue;   // a street with houses on it
                     if (!Clear(lx, lz, 0.75f)) continue;
                     float yaw = MathF.Atan2(-dx, -dz) + (side < 0 ? 0 : MathF.PI) + (float)(kerb.NextDouble() - 0.5) * 0.06f;

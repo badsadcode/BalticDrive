@@ -314,6 +314,9 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
     private readonly VehicleWheel3D[] _wheels = new VehicleWheel3D[4]; // FL, FR, RL, RR
     private Node3D _model = null!, _rearAxle = null!;
+    /// <summary>A truck's rear wheel meshes (D101): each turns and bounces with a physics wheel (2, 3, or -1: the axle
+    /// between them), offset to its own hub.</summary>
+    private readonly List<(Node3D Holder, int Wheel, Vector3 Offset)> _followers = new();
     private Camera3D _cockpit = null!, _chase = null!;
     private readonly SpotLight3D[] _headlights = new SpotLight3D[2];
     private float _steer, _lookYaw, _lookPitch = DefaultPitch, _camYaw, _lookIdle = 99;
@@ -423,6 +426,9 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         string[] synty = { "wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr" };
         var wheelMesh = new MeshInstance3D?[4];
         MeshInstance3D? rearPair = null;
+        // trucks (D101): two rear axles, *_Wheel_rl_01/_02 and rr_01/_02 (or one mesh per axle, both sides)
+        var rearL = new List<MeshInstance3D>(); var rearR = new List<MeshInstance3D>();
+        var rearRx = new System.Text.RegularExpressions.Regex(@"wheel_(rl|rr)_\d+$");
         foreach (var mi in meshes)
         {
             string name = mi.Name.ToString().ToLowerInvariant();
@@ -430,12 +436,24 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             if (name.Contains("frontwheel_l")) wheelMesh[0] = mi;
             if (name.Contains("frontwheel_r")) wheelMesh[1] = mi;
             if (name.Contains("backwheels")) rearPair = mi;
+            if (rearRx.Match(name) is { Success: true } m) (m.Groups[1].Value == "rl" ? rearL : rearR).Add(mi);
+        }
+        // the rear wheels of a truck: the physics wheel between its axles, each axle's meshes following it
+        var rearFollow = new List<(MeshInstance3D Mesh, Vector3 Centre, bool Axle, int Side)>();
+        if (car != null && wheelMesh[2] == null && wheelMesh[3] == null && rearL.Count + rearR.Count > 0)
+        {
+            foreach (var mi in rearL.Concat(rearR))
+            {
+                var a = ToRoot(mi, car) * mi.GetAabb();
+                bool axle = a.Size.X > 1.2f;   // one mesh across both sides
+                rearFollow.Add((mi, a.GetCenter(), axle, axle ? -1 : (rearL.Contains(mi) ? 2 : 3)));
+            }
         }
 
         // Wheel centres in model space and the radius.
         var centres = new Vector3[4];
         float radius = 0.44f;
-        bool found = wheelMesh[0] != null && wheelMesh[1] != null && (rearPair != null || (wheelMesh[2] != null && wheelMesh[3] != null));
+        bool found = wheelMesh[0] != null && wheelMesh[1] != null && (rearPair != null || (wheelMesh[2] != null && wheelMesh[3] != null) || rearFollow.Count > 0);
         if (found && car != null)
         {
             for (int i = 0; i < 4; i++)
@@ -453,6 +471,13 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
                 centres[2] = new Vector3(centres[0].X, c.Y, c.Z);
                 centres[3] = new Vector3(centres[1].X, c.Y, c.Z);
             }
+            if (rearFollow.Count > 0)
+            {
+                // between the rear axles, on the front wheels' track
+                float y = rearFollow.Average(f => f.Centre.Y), z = rearFollow.Average(f => f.Centre.Z);
+                centres[2] = new Vector3(centres[0].X, y, z);
+                centres[3] = new Vector3(centres[1].X, y, z);
+            }
         }
         else
         {
@@ -467,7 +492,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         if (car != null)
             foreach (var mi in meshes)
             {
-                if (Array.IndexOf(wheelMesh, mi) >= 0 || mi == rearPair || mi.Mesh == null) continue;
+                if (Array.IndexOf(wheelMesh, mi) >= 0 || mi == rearPair || mi.Mesh == null || rearFollow.Any(f => f.Mesh == mi)) continue;
                 var a = ToRoot(mi, car) * mi.GetAabb();
                 body = first ? a : body.Merge(a);
                 first = false;
@@ -503,6 +528,17 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         for (int i = 0; i < 4; i++)
             if (wheelMesh[i] is { } mi) Reparent(mi, _wheels[i], centres[i]);
         if (rearPair != null) Reparent(rearPair, _rearAxle, new Vector3(0, centres[2].Y, centres[2].Z));
+        // a truck's rear axles: each mesh on a holder that turns with the physics wheel, at its own hub
+        foreach (var (mi, c, axle, side) in rearFollow)
+        {
+            var holder = new Node3D();
+            AddChild(holder);
+            var hub = axle ? new Vector3(0, c.Y, c.Z) : c;
+            Reparent(mi, holder, hub);
+            var own = turn * hub;
+            var at = axle ? turn * new Vector3(0, centres[2].Y, centres[2].Z) : turn * centres[side];
+            _followers.Add((holder, side, own - at));
+        }
 
         void Reparent(MeshInstance3D mi, Node3D target, Vector3 hub)
         {
@@ -731,6 +767,8 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         float dt = (float)delta;
         var rl = _wheels[2].Transform; var rr = _wheels[3].Transform;
         _rearAxle.Transform = new Transform3D(rl.Basis, (rl.Origin + rr.Origin) * 0.5f);
+        foreach (var (h, i, off) in _followers)
+            h.Transform = i < 0 ? new Transform3D(rl.Basis, (rl.Origin + rr.Origin) * 0.5f + off) : new Transform3D(_wheels[i].Transform.Basis, _wheels[i].Transform.Origin + off);
         _lookIdle += dt;
         if (Driving && _lookIdle > 1.5f && MathF.Abs(Speed) > 3f)
         {

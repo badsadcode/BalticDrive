@@ -27,6 +27,12 @@
       "suspension": 26, "damping": [2.6, 3.6], "com_y": 0.25, "antiroll": 1.3, "engine": "front"
     },
     {
+      "id": "truck", "name": "Lorries and rigs (D101)", "models": ["Truck"],
+      "mass": 7500, "power": 32000, "top_kmh": 100, "drive": "rear",
+      "grip": [1.3, 1.25], "steer": 0.45, "brakes": 140,
+      "suspension": 30, "damping": [3.2, 4.2], "com_y": 0.45, "antiroll": 1.6, "engine": "front"
+    },
+    {
       "id": "small_classic", "name": "Small classic (for Tom's Maluch-like car, D96)", "models": ["Maluch", "Small_Classic"],
       "mass": 600, "power": 2600, "top_kmh": 105, "drive": "rear",
       "grip": [1.5, 1.45], "steer": 0.65, "brakes": 22,
