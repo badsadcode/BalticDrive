@@ -11,7 +11,7 @@ namespace BalticDrive.Items;
 /// many seconds it takes (D107). Inputs and tools are item ids or "tag:x" (any item with tag x).</summary>
 public sealed record Recipe(string Id, string Name, string Category, (string Item, int Count)[] Inputs,
     string[][] Tools, (string Item, int Count)[] Outputs, string About, float Seconds,
-    bool Heat = false, string? Places = null, bool Leftovers = true);
+    bool Heat = false, string? Places = null, bool Leftovers = true, string? Book = null);
 
 /// <summary>
 /// Crafting (D106, D107), Project Zomboid style and our own data: <c>GameData/recipes.json</c>. A recipe can be made when the
@@ -51,7 +51,10 @@ public static class Recipes
                     r.TryGetProperty("seconds", out var sec) ? sec.GetSingle() : 0f,
                     r.TryGetProperty("heat", out var ht) && ht.GetBoolean(),
                     r.TryGetProperty("places", out var pl) ? pl.GetString() : null,
-                    !r.TryGetProperty("leftovers", out var lo) || lo.GetBoolean());
+                    !r.TryGetProperty("leftovers", out var lo) || lo.GetBoolean(),
+                    r.TryGetProperty("book", out var bk) ? bk.GetString() : null);
+                if (rec.Book != null && ItemDb.Get(rec.Book) is not { } bookDef) Log.Error("Recipes", $"{rec.Id}: unknown book '{rec.Book}'");
+                else if (rec.Book != null && !ItemDb.Def(rec.Book).Teaches.Contains(rec.Id)) Log.Error("Recipes", $"{rec.Id}: {rec.Book} doesn't teach it (items.json teaches)");
                 foreach (var id in rec.Inputs.Select(p => p.Item).Concat(tools.SelectMany(t => t)))
                     if (!ItemDb.Known(id)) Log.Error("Recipes", $"{rec.Id}: no item is '{id}'");
                 foreach (var (id, _) in rec.Outputs)
@@ -68,6 +71,7 @@ public static class Recipes
     public static List<string> Missing(Recipe r, Inventory pack)
     {
         var miss = new List<string>();
+        if (!Knowledge.Known(r)) miss.Add($"to learn it from {ItemDb.Say(r.Book!)}");   // D112
         foreach (var (item, n) in r.Inputs)
             if (pack.CountMatching(item) < n) miss.Add(n > 1 ? $"{n} × {ItemDb.Say(item)}" : ItemDb.Say(item));
         foreach (var alts in r.Tools)

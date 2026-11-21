@@ -77,7 +77,72 @@ public sealed class Tests
     private bool _tip, _tipStarted;
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
-    private double _craftT = -1, _genT = -1, _heatT = -1;
+    private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1;
+    private bool _books;
+    private string? _knowBackup;
+    private static string KnowFile => ProjectSettings.GlobalizePath("user://knowledge.json");
+
+    private void RestoreKnowledge()
+    {
+        if (_knowBackup != null) System.IO.File.WriteAllText(KnowFile, _knowBackup);
+        else if (System.IO.File.Exists(KnowFile)) System.IO.File.Delete(KnowFile);
+        Items.Knowledge.Reset();
+    }
+
+    /// <summary>--autotest=books (D112): knowing nothing, kartacze are refused ("learn it from Kuchnia podlaska"); the
+    /// crafting list photographed with its "not learnt yet" part; the cookbook read in 15 s (photographed half-way);
+    /// kartacze and placki made; knowledge read back from the file; a second reading says there's nothing new.
+    /// user://knowledge.json is backed up and restored. True while running.</summary>
+    private bool BooksTest(double delta)
+    {
+        if (_booksT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _booksT = 0;
+            _knowBackup = System.IO.File.Exists(KnowFile) ? System.IO.File.ReadAllText(KnowFile) : null;
+            if (System.IO.File.Exists(KnowFile)) System.IO.File.Delete(KnowFile);
+            Items.Knowledge.Reset();
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _booksT;
+        _booksT += delta;
+        bool At(double t) => before < t && _booksT >= t;
+        var pack = _main.Walker!.Body.Pack;
+        var inv = _main.InventoryWindow!;
+        Items.Recipe R(string id) => Items.Recipes.All.First(x => x.Id == id);
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("book_kuchnia_podlaska", 1), ("potatoes", 3), ("onion", 2), ("luncheon_meat", 1), ("saucepan", 1),
+                         ("kitchen_knife", 1), ("camping_stove", 1), ("gas_canister", 4) })
+                pack.Add(id, n);
+            bool ok = Items.Recipes.Make(R("kartacze"), pack, out var said);
+            Log.Info("Test", $"books: kartacze before reading: {(ok ? "made" : "not made")}: {said}");
+            _main.OpenInventory(null);
+        }
+        if (At(1.6)) inv.ScrollCraftingToEnd();
+        if (At(2)) Shot("books_list");
+        if (At(2.5)) { inv.Use("book_kuchnia_podlaska"); Log.Info("Test", $"books: reading: {inv.Making?.Name}, {inv.Making?.Seconds} s"); }
+        if (At(10)) Shot("books_reading");
+        if (At(18.5))
+        {
+            Log.Info("Test", $"books: after reading: busy {inv.Busy}; kartacze known {Items.Knowledge.Known(R("kartacze"))}, placki known {Items.Knowledge.Known(R("placki"))}, molotov known {Items.Knowledge.Known(R("molotov"))}");
+            Items.Knowledge.Reset();   // read it back from the file
+            Log.Info("Test", $"books: from the file: kartacze known {Items.Knowledge.Known(R("kartacze"))}");
+            foreach (var id in new[] { "placki", "kartacze" })
+            {
+                bool ok = Items.Recipes.Make(R(id), pack, out var said);
+                Log.Info("Test", $"books: {id}: {(ok ? "made" : "not made")}: {said}");
+            }
+            inv.Use("book_kuchnia_podlaska");
+            Log.Info("Test", $"books: read again: busy {inv.Busy}");
+            inv.Refresh();
+        }
+        if (At(19.3)) Shot("books_after");
+        if (At(19.8)) { inv.Close(); RestoreKnowledge(); return false; }
+        return true;
+    }
     private bool _heat;
     private string? _woodBackup;
     private Power.Campfires.Fire? _fire;
@@ -408,6 +473,7 @@ public sealed class Tests
         _craft = Main.Args.GetValueOrDefault("autotest", "").Contains("craft");
         _gen = Main.Args.GetValueOrDefault("autotest", "").Contains("generator");
         _heat = Main.Args.GetValueOrDefault("autotest", "").Contains("heat");
+        _books = Main.Args.GetValueOrDefault("autotest", "").Contains("books");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -1967,6 +2033,11 @@ public sealed class Tests
             if (HeatTest(delta)) return;
             _heat = false;
         }
+        if (_books)
+        {
+            if (BooksTest(delta)) return;
+            _books = false;
+        }
         if (_take)
         {
             if (TakeCarTest(delta)) return;
@@ -2232,6 +2303,8 @@ public sealed class Tests
             foreach (var (id, n) in new[] { ("potatoes", 2), ("onion", 2), ("luncheon_meat", 2), ("saucepan", 1), ("scissors", 1), ("matches", 1), ("camping_stove", 1), ("gas_canister", 3),
                          ("rice", 1), ("mineral_water", 2), ("sheet", 1), ("rag", 2), ("tea", 1), ("coffee_mug", 1), ("instant_soup", 1) })
                 pack.Add(id, n);
+            _knowBackup = System.IO.File.Exists(KnowFile) ? System.IO.File.ReadAllText(KnowFile) : null;
+            foreach (var b in Items.ItemDb.All.Values.Where(d => d.Category == "book")) Items.Knowledge.Learn(b);
             Log.Info("Test", $"craft: pack {Items.Inventory.Say(pack.Stacks)}");
             _main.OpenInventory(null);
         }
@@ -2262,7 +2335,7 @@ public sealed class Tests
             Log.Info("Test", $"craft: pack now {Items.Inventory.Say(pack.Stacks)}");
         }
         if (At(12.8)) Shot("craft_after");
-        if (At(13.2)) { inv.Close(); return false; }
+        if (At(13.2)) { inv.Close(); RestoreKnowledge(); return false; }
         return true;
     }
 

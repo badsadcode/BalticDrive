@@ -82,6 +82,10 @@
     {
      "item": "duct_tape",
      "weight": 1
+    },
+    {
+     "item": "book_pierwsza_pomoc",
+     "weight": 0.15
     }
    ]
   },
@@ -306,6 +310,10 @@
     {
      "item": "tea",
      "weight": 3
+    },
+    {
+     "item": "book_kuchnia_podlaska",
+     "weight": 0.35
     }
    ]
   },
@@ -358,6 +366,10 @@
       1,
       2
      ]
+    },
+    {
+     "item": "book_pierwsza_pomoc",
+     "weight": 0.5
     }
    ]
   },
@@ -454,6 +466,18 @@
       1,
       2
      ]
+    },
+    {
+     "item": "book_poradnik_przetrwania",
+     "weight": 0.3
+    },
+    {
+     "item": "book_kuchnia_podlaska",
+     "weight": 0.25
+    },
+    {
+     "item": "book_pierwsza_pomoc",
+     "weight": 0.25
     }
    ]
   }

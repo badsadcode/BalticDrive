@@ -87,6 +87,9 @@ public partial class InventoryScreen : Control
         _closed?.Invoke();
     }
 
+    /// <summary>Self-tests: the crafting list scrolled to its end.</summary>
+    public void ScrollCraftingToEnd() => _craft.ScrollToEnd();
+
     public void Refresh()
     {
         if (_mine == null) return;
@@ -111,6 +114,16 @@ public partial class InventoryScreen : Control
 
     private void Finish(Recipe r)
     {
+        if (r.Id.StartsWith("read:"))
+        {
+            var book = ItemDb.Get(r.Id[5..]);
+            if (book == null || _mine!.Count(book.Id) == 0) { Flash("The book's gone"); Refresh(); return; }
+            var fresh = Knowledge.Learn(book);
+            Flash(fresh.Count == 0 ? "Nothing new in it" : "You learn: " + string.Join(", ", fresh.Select(x => x.Name)));
+            Note?.Invoke(fresh.Count == 0 ? "Nothing new in it" : "You learn: " + string.Join(", ", fresh.Select(x => x.Name)));
+            Refresh();
+            return;
+        }
         Recipes.Make(r, _mine!, out var said);
         Flash(said);
         Refresh();
@@ -152,7 +165,22 @@ public partial class InventoryScreen : Control
         Refresh();
     }
 
-    public void Use(string id) { _use?.Invoke(id); Refresh(); }
+    public void Use(string id)
+    {
+        // a book (D112): reading takes time, like crafting, and teaches its recipes
+        if (ItemDb.Get(id) is { Category: "book" } book)
+        {
+            if (_other != null) { Flash("Read it with your pack open alone (Tab)"); return; }
+            if (Knowledge.Read(book)) { Flash($"You know everything in {book.Name} already"); return; }
+            Craft(new Recipe("read:" + id, $"Reading {book.Name}", "Books", Array.Empty<(string, int)>(), Array.Empty<string[]>(),
+                Array.Empty<(string, int)>(), "", ReadSeconds));
+            return;
+        }
+        _use?.Invoke(id); Refresh();
+    }
+
+    /// <summary>How long reading a book takes (D112).</summary>
+    public const float ReadSeconds = 15f;
 
     public void TakeAll()
     {
@@ -265,7 +293,7 @@ public partial class ItemRow : HBoxContainer
         AddChild(w);
         if (usable)
         {
-            var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : def.Category == "fuel" ? "Pour" : "Use", CustomMinimumSize = new Vector2(70, 0) };
+            var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : def.Category == "fuel" ? "Pour" : def.Category == "book" ? "Read" : "Use", CustomMinimumSize = new Vector2(70, 0) };
             Skin.Button(b, "button_small");
             b.Pressed += () => _screen.Use(_id);
             AddChild(b);
@@ -311,6 +339,9 @@ public partial class CraftingColumn : PanelContainer
     private readonly InventoryScreen _screen;
     private readonly VBoxContainer _rows;
     private readonly Control _progress;
+    private ScrollContainer? _scroll;
+    /// <summary>Self-tests: the bottom of the list (what's still to learn).</summary>
+    public void ScrollToEnd() { if (_scroll != null) _scroll.ScrollVertical = 100000; }
     private readonly Label _progressText;
     private float _progressK;
     private static readonly Color Have = new(0.65f, 0.85f, 0.6f), Lack = new(0.95f, 0.45f, 0.4f);
@@ -354,6 +385,7 @@ public partial class CraftingColumn : PanelContainer
         v.AddChild(pv);
         var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
         v.AddChild(scroll);
+        _scroll = scroll;
         _rows = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         _rows.AddThemeConstantOverride("separation", 8);
         scroll.AddChild(_rows);
@@ -364,7 +396,7 @@ public partial class CraftingColumn : PanelContainer
     {
         _progress.Visible = true;
         _progressK = k;
-        _progressText.Text = $"Making: {r.Name}   {t:0} / {r.Seconds:0} s   (Esc stops)";
+        _progressText.Text = $"{(r.Id.StartsWith("read:") ? r.Name : "Making: " + r.Name)}   {t:0} / {r.Seconds:0} s   (Esc stops)";
         foreach (var c in _progress.GetChildren()) if (c is Control g && g is not Label) g.QueueRedraw();
     }
 
@@ -373,9 +405,29 @@ public partial class CraftingColumn : PanelContainer
         _progress.Visible = _screen.Busy;
         foreach (var c in _rows.GetChildren()) c.QueueFree();
         // what you can make first, then by category
-        var list = Recipes.All.Select(r => (R: r, Miss: Recipes.Missing(r, pack))).OrderBy(x => x.Miss.Count > 0).ThenBy(x => x.R.Category).ToList();
+        var list = Recipes.All.Select(r => (R: r, Miss: Recipes.Missing(r, pack)))
+            .OrderBy(x => !Knowledge.Known(x.R)).ThenBy(x => x.Miss.Count > 0).ThenBy(x => x.R.Category).ToList();
+        bool headed = false;
         foreach (var (r, miss) in list)
         {
+            if (!Knowledge.Known(r))
+            {
+                // not learnt yet (D112): the name, and the book it's in
+                if (!headed)
+                {
+                    headed = true;
+                    var head = new Label { Text = "Not learnt yet" };
+                    head.AddThemeFontSizeOverride("font_size", 15);
+                    head.AddThemeColorOverride("font_color", new Color(Skin.Text, 0.6f));
+                    _rows.AddChild(head);
+                }
+                var line = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+                line.AddThemeFontSizeOverride("normal_font_size", 13);
+                bool have = pack.Count(r.Book!) > 0;
+                line.Text = $"[color=#{new Color(Skin.Text, 0.5f).ToHtml(true)}]{r.Name}[/color]   [color=#{(have ? Have : new Color(Skin.Text, 0.4f)).ToHtml(false)}]learn it from {ItemDb.Say(r.Book!)}{(have ? " (in your pack: Read)" : "")}[/color]";
+                _rows.AddChild(line);
+                continue;
+            }
             bool can = miss.Count == 0;
             var row = new HBoxContainer();
             row.AddThemeConstantOverride("separation", 8);

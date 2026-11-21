@@ -9,7 +9,7 @@ namespace BalticDrive.Items;
 
 /// <summary>One kind of item (D89), from <c>GameData/items.json</c>.</summary>
 public sealed record ItemDef(string Id, string Name, string Plural, string Category, float Weight, int Stack,
-    float Food, float Drink, float Heal, string[] Tags, string? Leaves)
+    float Food, float Drink, float Heal, string[] Tags, string? Leaves, string[] Teaches)
 {
     public string Count(int n) => n == 1 ? Name : $"{n} {Plural}";
     /// <summary>Does it answer to a recipe's need (D107): its own id, or "tag:x" when it has tag x.</summary>
@@ -62,7 +62,8 @@ public static class ItemDb
                     e.TryGetProperty("category", out var c) ? c.GetString()! : "junk", F("weight"),
                     e.TryGetProperty("stack", out var st) ? st.GetInt32() : 1, F("food"), F("drink"), F("heal"),
                     e.TryGetProperty("tags", out var tg) ? tg.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>(),
-                    e.TryGetProperty("leaves", out var lv) ? lv.GetString() : null);
+                    e.TryGetProperty("leaves", out var lv) ? lv.GetString() : null,
+                    e.TryGetProperty("teaches", out var te) ? te.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>());
             }
             if (doc.RootElement.TryGetProperty("tags", out var tags))
                 foreach (var t in tags.EnumerateObject()) _tagNames[t.Name] = t.Value.GetString()!;

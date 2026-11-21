@@ -86,7 +86,7 @@ public sealed partial class Survival : Node
     }
 
     /// <summary>Can an item be used from the inventory (D89): food, drink, medicine.</summary>
-    public static bool Usable(ItemDef d) => d.Category is "food" or "drink" or "fuel" || d.Category == "medical" && d.Heal > 0;
+    public static bool Usable(ItemDef d) => d.Category is "food" or "drink" or "fuel" or "book" || d.Category == "medical" && d.Heal > 0;
 
     /// <summary>Petrol from the pack (D109): litres offered, litres taken by whatever is in reach (a generator), or -1
     /// when nothing is. Set by the game.</summary>

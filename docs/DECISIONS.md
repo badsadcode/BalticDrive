@@ -1677,3 +1677,23 @@ New items: firewood, axe, camping stove, gas canister, river water (68 now). Sel
 (3 armfuls, then nothing more); a fire built; rice and tea cooked over it; a bottle filled at a pond; river water
 drunk raw (90 -> 82); boiling refused without heat, then done on the stove; the fire burns out and is relit;
 photographed by day, at night and while chopping. `--autotest=craft` now cooks on a camping stove.
+
+
+## D112 — Recipe books
+
+Tom's agreed order, after heat: recipe books. Everyday recipes stay known (rags, bandages, the campfire, boiling
+water, rice, soup, tea, kabanos on rusks); the special ones are taught by books found as loot (`"book"` on the recipe,
+`"teaches"` on the book in items.json, which must agree: the loader says so if not). Three books, our own titles,
+Tom may rename them: **Kuchnia podlaska** (a cookbook: kartacze, and new **placki ziemniaczane**, six potato pancakes
+from two bags of potatoes and an onion, no flour, no oil), **Pierwsza pomoc** (a first-aid booklet: clean bandages,
+and new **vodka for the wounds**, vodka into disinfectant), **Poradnik przetrwania** (a survival handbook: the
+molotov). Loot: the cookbook in kitchen cupboards and on shelves, the booklet in medicine cabinets, drawers and
+shelves, the handbook on shelves. Reading: the book's button is **Read**; 15 s with the same bar as crafting (a hit
+or Esc stops it), from your pack alone (Tab). What you learn (`Items.Knowledge`) is yours for good: not in the pack,
+so dying keeps it, and the book can be passed on or burnt (books are tinder). Kept per world in user://knowledge.json.
+Reading a book you know says so. The crafting list ends with **Not learnt yet**: each recipe with the book it's in,
+in green with "(in your pack: Read)" when you have it. Why show them: you know what to look for; Zomboid hides them,
+we'd rather tease. Self-test `--autotest=books` (user://knowledge.json backed up and restored): kartacze refused
+("learn it from Kuchnia podlaska"); the list photographed; the cookbook read in 15 s (photographed); kartacze and
+placki made; the knowledge read back from the file; a second reading starts nothing. `--autotest=craft` learns every
+book first.
