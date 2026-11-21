@@ -74,7 +74,7 @@ public sealed partial class Survival : Node
             var d = ItemDb.Def(drink);
             Pack.Remove(drink, 1);
             Thirst = Math.Clamp(Thirst + d.Drink, 0, 100); Hunger = Math.Clamp(Hunger + d.Food, 0, 100);
-            Pack.Add(d.Id is "water" or "mineral_water" or "juice" or "compote" ? "empty_bottle" : "", 1);
+            if (d.Leaves != null) Pack.Add(d.Leaves, 1);   // the empty bottle (D107: from the data)
             Say($"You drink a {d.Name}");
         }
         // health: empty stomach or bottle hurts, a looked-after body heals up to 70 by itself, a medkit all the way
@@ -105,7 +105,7 @@ public sealed partial class Survival : Node
             Say(d.Category == "drink" ? $"You drink a {d.Name}" : $"You eat a {d.Name}");
         }
         Pack.Remove(id, 1);
-        if (d.Id is "water" or "mineral_water" or "juice" or "compote") Pack.Add("empty_bottle", 1);
+        if (d.Leaves != null) Pack.Add(d.Leaves, 1);
     }
 
     public void UseMedkit()
@@ -186,7 +186,7 @@ public sealed partial class Survival : Node
         Health = 100; Hunger = MathF.Max(Hunger, 60); Thirst = MathF.Max(Thirst, 60);
     }
 
-    private void Say(string s) => Said?.Invoke(s);
+    public void Say(string s) => Said?.Invoke(s);
 }
 
 /// <summary>What one cache holds.</summary>

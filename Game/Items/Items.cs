@@ -9,9 +9,11 @@ namespace BalticDrive.Items;
 
 /// <summary>One kind of item (D89), from <c>GameData/items.json</c>.</summary>
 public sealed record ItemDef(string Id, string Name, string Plural, string Category, float Weight, int Stack,
-    float Food, float Drink, float Heal)
+    float Food, float Drink, float Heal, string[] Tags, string? Leaves)
 {
     public string Count(int n) => n == 1 ? Name : $"{n} {Plural}";
+    /// <summary>Does it answer to a recipe's need (D107): its own id, or "tag:x" when it has tag x.</summary>
+    public bool Matches(string key) => key.StartsWith("tag:") ? Array.IndexOf(Tags, key[4..]) >= 0 : key == Id;
 }
 
 /// <summary>A pile of one item.</summary>
@@ -26,11 +28,23 @@ public static class ItemDb
 {
     public const string ItemsPath = "res://GameData/items.json", LootPath = "res://GameData/loot.json";
     private static Dictionary<string, ItemDef>? _defs;
+    private static readonly Dictionary<string, string> _tagNames = new();
 
     public static IReadOnlyDictionary<string, ItemDef> All => _defs ??= Load();
 
     public static ItemDef? Get(string id) => All.TryGetValue(id, out var d) ? d : null;
     public static ItemDef Def(string id) => Get(id) ?? throw new KeyError($"no item '{id}' in {ItemsPath}");
+
+    /// <summary>How a recipe's need reads (D107): an item's name, or a tag's ("something to hold water").</summary>
+    public static string Say(string key)
+    {
+        _ = All;
+        if (!key.StartsWith("tag:")) return Get(key)?.Name ?? key;
+        return _tagNames.TryGetValue(key[4..], out var n) ? n : key[4..].Replace('_', ' ');
+    }
+
+    /// <summary>Is there at least one item that answers to this id or tag.</summary>
+    public static bool Known(string key) => key.StartsWith("tag:") ? All.Values.Any(d => d.Matches(key)) : Get(key) != null;
 
     private sealed class KeyError(string m) : Exception(m);
 
@@ -46,9 +60,14 @@ public static class ItemDb
                 float F(string k) => e.TryGetProperty(k, out var v) ? v.GetSingle() : 0f;
                 d[id] = new ItemDef(id, name, e.TryGetProperty("plural", out var pl) ? pl.GetString()! : name + "s",
                     e.TryGetProperty("category", out var c) ? c.GetString()! : "junk", F("weight"),
-                    e.TryGetProperty("stack", out var st) ? st.GetInt32() : 1, F("food"), F("drink"), F("heal"));
+                    e.TryGetProperty("stack", out var st) ? st.GetInt32() : 1, F("food"), F("drink"), F("heal"),
+                    e.TryGetProperty("tags", out var tg) ? tg.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>(),
+                    e.TryGetProperty("leaves", out var lv) ? lv.GetString() : null);
             }
-            Log.Info("Items", $"{d.Count} items");
+            if (doc.RootElement.TryGetProperty("tags", out var tags))
+                foreach (var t in tags.EnumerateObject()) _tagNames[t.Name] = t.Value.GetString()!;
+            foreach (var x in d.Values) if (x.Leaves != null && !d.ContainsKey(x.Leaves)) Log.Error("Items", $"{x.Id} leaves an unknown item '{x.Leaves}'");
+            Log.Info("Items", $"{d.Count} items, {_tagNames.Count} tags");
         }
         catch (Exception ex) { Log.Error("Items", $"{ItemsPath}: {ex.Message}"); }
         return d;
@@ -72,6 +91,27 @@ public sealed class Inventory
     public int Count(string id) => Stacks.Where(s => s.Id == id).Sum(s => s.Count);
     public int CountWhere(Func<ItemDef, bool> f) => Stacks.Where(s => ItemDb.Get(s.Id) is { } d && f(d)).Sum(s => s.Count);
     public bool IsEmpty => Stacks.Count == 0;
+    /// <summary>How many answer to an id or "tag:x" (D107).</summary>
+    public int CountMatching(string key) => CountWhere(d => d.Matches(key));
+
+    /// <summary>Uses up <paramref name="n"/> items answering to an id or tag (D107), in pack order; what they leave
+    /// behind (an empty bottle) goes back in. Returns the ids used.</summary>
+    public List<string> UseUp(string key, int n)
+    {
+        var used = new List<string>();
+        while (n > 0)
+        {
+            int i = Stacks.FindIndex(s => ItemDb.Get(s.Id) is { } d && d.Matches(key));
+            if (i < 0) break;
+            var st = Stacks[i];
+            int k = Math.Min(n, st.Count);
+            Remove(st.Id, k);
+            n -= k;
+            for (int j = 0; j < k; j++) used.Add(st.Id);
+            if (ItemDb.Get(st.Id)?.Leaves is { } left) Add(left, k);
+        }
+        return used;
+    }
 
     /// <summary>How many of an item still fit by weight.</summary>
     public int Room(string id)

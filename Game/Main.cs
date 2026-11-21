@@ -284,6 +284,8 @@ public partial class Main : Node3D
 		_parkedAutopilot = _walker.Autopilot;
 		_walker.Autopilot = _ => (Vector2.Zero, false);
 		var w = _walker;
+		_inventory.Health = () => w.Body.Health;
+		_inventory.Note = s => w.Body.Say(s);
 		_inventory.Open(w.Body.Pack, other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind), BalticDrive.OnFoot.Survival.Usable, id => w.Body.UseItem(id),
 			() => { w.Autopilot = _parkedAutopilot; _parkedAutopilot = null; });
 		Core.Log.Info("Items", spot == null ? $"pack: {Items.Inventory.Say(w.Body.Pack.Stacks)}" : $"{spot.FurnitureKind} ({spot.LootKind}, {spot.Room}): {Items.Inventory.Say(other!.Stacks)}");

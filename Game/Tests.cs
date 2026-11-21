@@ -1910,8 +1910,10 @@ public sealed class Tests
         return true;
     }
 
-    /// <summary>--autotest=craft (D106): ingredients in the pack, the crafting list photographed, kartacze, rags, a
-    /// bandage and rice made, a molotov refused (no vodka). True while running.</summary>
+    /// <summary>--autotest=craft (D106, D107): ingredients in the pack, the crafting list photographed; a bandage made
+    /// in real time (photographed half-way); kartacze started and interrupted by a hit; then rags, rice (water by tag,
+    /// the bottle comes back), herbata (a mug is both the water holder and the cup), kartacze and a molotov (by tag: the
+    /// vodka's alcohol, refused when there's none) made straight away. True while running.</summary>
     private bool CraftTest(double delta)
     {
         if (_craftT < 0)
@@ -1924,30 +1926,48 @@ public sealed class Tests
         double before = _craftT;
         _craftT += delta;
         bool At(double t) => before < t && _craftT >= t;
-        var pack = _main.Walker!.Body.Pack;
+        var body = _main.Walker!.Body;
+        var pack = body.Pack;
+        var inv = _main.InventoryWindow!;
+        Items.Recipe R(string id) => Items.Recipes.All.First(x => x.Id == id);
         if (At(1))
         {
             pack.Stacks.Clear();
-            foreach (var (id, n) in new[] { ("potatoes", 1), ("onion", 2), ("luncheon_meat", 1), ("saucepan", 1), ("kitchen_knife", 1), ("matches", 1),
-                         ("rice", 1), ("water", 2), ("sheet", 1), ("rag", 1), ("empty_bottle", 1), ("instant_soup", 1) })
+            body.Health = 80;
+            foreach (var (id, n) in new[] { ("potatoes", 2), ("onion", 2), ("luncheon_meat", 2), ("saucepan", 1), ("scissors", 1), ("matches", 1),
+                         ("rice", 1), ("mineral_water", 2), ("sheet", 1), ("rag", 2), ("tea", 1), ("coffee_mug", 1), ("instant_soup", 1) })
                 pack.Add(id, n);
             Log.Info("Test", $"craft: pack {Items.Inventory.Say(pack.Stacks)}");
             _main.OpenInventory(null);
         }
         if (At(2)) Shot("craft_list");
-        if (At(2.5))
+        if (At(2.5)) { inv.Craft(R("makeshift_bandage")); Log.Info("Test", $"craft: making {inv.Making?.Id}, {inv.Making?.Seconds} s"); }
+        if (At(5.0)) { Log.Info("Test", $"craft: half-way {inv.Progress:P0}, rags still {pack.Count("rag")}"); Shot("craft_progress"); }
+        if (At(8.0)) Log.Info("Test", $"craft: bandage done: busy {inv.Busy}, bandages {pack.Count("makeshift_bandage")}, rags {pack.Count("rag")}");
+        if (At(8.5)) inv.Craft(R("kartacze"));
+        if (At(11.0))
         {
-            foreach (var id in new[] { "kartacze", "tear_sheet", "makeshift_bandage", "boil_rice", "molotov" })
+            Log.Info("Test", $"craft: kartacze at {inv.Progress:P0}; bandits! (-12 health)");
+            body.Health -= 12;
+        }
+        if (At(11.5))
+            Log.Info("Test", $"craft: after the hit: window open {inv.IsOpen}, busy {inv.Busy}, kartacze {pack.Count("kartacze")}, potatoes {pack.Count("potatoes")}");
+        if (At(12.0))
+        {
+            _main.OpenInventory(null);
+            foreach (var id in new[] { "tear_sheet", "boil_rice", "herbata", "kartacze", "molotov" })
             {
-                var r = Items.Recipes.All.First(x => x.Id == id);
-                bool ok = Items.Recipes.Make(r, pack, out var said);
+                bool ok = Items.Recipes.Make(R(id), pack, out var said);
                 Log.Info("Test", $"craft: {id}: {(ok ? "made" : "not made")}: {said}");
             }
-            _main.InventoryWindow!.Refresh();
+            pack.Add("vodka", 1);
+            bool m = Items.Recipes.Make(R("molotov"), pack, out var said2);
+            Log.Info("Test", $"craft: molotov with vodka: {(m ? "made" : "not made")}: {said2}");
+            inv.Refresh();
             Log.Info("Test", $"craft: pack now {Items.Inventory.Say(pack.Stacks)}");
         }
-        if (At(3.2)) Shot("craft_after");
-        if (At(3.6)) { _main.InventoryWindow!.Close(); return false; }
+        if (At(12.8)) Shot("craft_after");
+        if (At(13.2)) { inv.Close(); return false; }
         return true;
     }
 

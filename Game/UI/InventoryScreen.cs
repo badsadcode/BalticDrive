@@ -25,6 +25,18 @@ public partial class InventoryScreen : Control
 
     public bool IsOpen => Visible;
 
+    // crafting takes time (D107): the world goes on, a hit stops it, nothing is used up until it's done
+    private Recipe? _making;
+    private float _makingT, _lastHealth;
+    /// <summary>Your health, to notice being hurt while making something; and a line on the HUD when the window
+    /// closes on its own. Set by whoever opens the window.</summary>
+    public Func<float>? Health;
+    public Action<string>? Note;
+    public bool Busy => _making != null;
+    public Recipe? Making => _making;
+    /// <summary>0..1 of the thing being made.</summary>
+    public float Progress => _making == null ? 0 : Math.Clamp(_makingT / MathF.Max(0.01f, _making.Seconds), 0, 1);
+
     public InventoryScreen()
     {
         Name = "Inventory";
@@ -69,6 +81,7 @@ public partial class InventoryScreen : Control
     public void Close()
     {
         if (!Visible) return;
+        if (_making != null) { Note?.Invoke($"You stop: {_making.Name.ToLowerInvariant()} left unfinished"); StopMaking(); }
         Visible = false;
         if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
         _closed?.Invoke();
@@ -83,13 +96,49 @@ public partial class InventoryScreen : Control
         if (_other == null) _craft.Fill(_mine);
     }
 
-    /// <summary>Makes a recipe from your pack (D106) and says how it went.</summary>
+    /// <summary>Starts making a recipe from your pack (D106): it takes the recipe's seconds (D107), with a bar; the
+    /// inputs are used up only when it's done.</summary>
     public void Craft(Recipe r)
     {
-        if (_mine == null) return;
-        Recipes.Make(r, _mine, out var said);
+        if (_mine == null || _making != null) return;
+        var miss = Recipes.Missing(r, _mine);
+        if (miss.Count > 0) { Flash("You need " + string.Join(", ", miss)); return; }
+        if (r.Seconds <= 0) { Finish(r); return; }
+        _making = r; _makingT = 0; _lastHealth = Health?.Invoke() ?? 0;
+        Core.Log.Info("Recipes", $"{r.Id}: started, {r.Seconds:0} s");
+        Refresh();
+    }
+
+    private void Finish(Recipe r)
+    {
+        Recipes.Make(r, _mine!, out var said);
         Flash(said);
         Refresh();
+    }
+
+    private void StopMaking() { _making = null; _makingT = 0; if (Visible) Refresh(); }
+
+    public override void _Process(double delta)
+    {
+        if (_making == null || _mine == null) return;
+        // hurt (a hit, not the slow ache of hunger): the work drops from your hands and the window closes
+        float h = Health?.Invoke() ?? 0;
+        if (h < _lastHealth - 0.5f)
+        {
+            Core.Log.Info("Recipes", $"{_making.Id}: interrupted at {Progress:P0} (health {_lastHealth:0} -> {h:0})");
+            var name = _making.Name.ToLowerInvariant();
+            StopMaking();
+            Note?.Invoke($"You're hit! {char.ToUpper(name[0]) + name[1..]} will have to wait");
+            Close();
+            return;
+        }
+        _lastHealth = h;
+        _makingT += (float)delta;
+        _craft.ShowProgress(_making, Progress, _makingT);
+        if (_makingT < _making.Seconds) return;
+        var r = _making;
+        _making = null;
+        Finish(r);   // still has it all? (something may have been eaten meanwhile) Make says so if not
     }
 
     /// <summary>Moves items between the two sides: from the container (<paramref name="fromLeft"/>) or from you.</summary>
@@ -119,6 +168,11 @@ public partial class InventoryScreen : Control
     public override void _Input(InputEvent e)
     {
         if (!Visible || e is not InputEventKey { Pressed: true, Echo: false } k) return;
+        if (_making != null && k.Keycode == Key.Escape)
+        {
+            // Esc while making something: stop making it, keep the window
+            Flash($"Stopped: {_making.Name.ToLowerInvariant()}"); StopMaking(); GetViewport().SetInputAsHandled(); return;
+        }
         if (k.Keycode is Key.Escape or Key.Tab or Key.F) { Close(); GetViewport().SetInputAsHandled(); }
         else if (k.Keycode == Key.E) { TakeAll(); GetViewport().SetInputAsHandled(); }
     }
@@ -256,6 +310,9 @@ public partial class CraftingColumn : PanelContainer
 {
     private readonly InventoryScreen _screen;
     private readonly VBoxContainer _rows;
+    private readonly Control _progress;
+    private readonly Label _progressText;
+    private float _progressK;
     private static readonly Color Have = new(0.65f, 0.85f, 0.6f), Lack = new(0.95f, 0.45f, 0.4f);
 
     public CraftingColumn(InventoryScreen screen)
@@ -270,6 +327,31 @@ public partial class CraftingColumn : PanelContainer
         title.AddThemeFontSizeOverride("font_size", 20);
         title.AddThemeColorOverride("font_color", Skin.Text);
         v.AddChild(title);
+        // what you're making (D107): a gauge from Tom's UI set, tinted in the accent, and the seconds
+        var pv = new VBoxContainer { Visible = false };
+        pv.AddThemeConstantOverride("separation", 2);
+        _progressText = new Label();
+        _progressText.AddThemeFontSizeOverride("font_size", 14);
+        _progressText.AddThemeColorOverride("font_color", Skin.Accent);
+        pv.AddChild(_progressText);
+        var gauge = new Control { CustomMinimumSize = new Vector2(0, 22) };
+        gauge.Draw += () =>
+        {
+            var size = gauge.Size;
+            if (Skin.Box("bars/bar_frame.png") is { } frame && Skin.Box("bars/bar_fill.png", 0, 0, Skin.Accent) is { } fill)
+            {
+                gauge.DrawStyleBox(frame, new Rect2(0, 0, size.X, 22));
+                if (_progressK > 0.01f) gauge.DrawStyleBox(fill, new Rect2(3, 3, MathF.Max(14, (size.X - 6) * _progressK), 16));
+            }
+            else
+            {
+                gauge.DrawRect(new Rect2(0, 6, size.X, 10), new Color(0, 0, 0, 0.45f));
+                gauge.DrawRect(new Rect2(0, 6, size.X * _progressK, 10), Skin.Accent);
+            }
+        };
+        pv.AddChild(gauge);
+        _progress = pv;
+        v.AddChild(pv);
         var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
         v.AddChild(scroll);
         _rows = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -277,8 +359,18 @@ public partial class CraftingColumn : PanelContainer
         scroll.AddChild(_rows);
     }
 
+    /// <summary>The gauge for what's being made (D107).</summary>
+    public void ShowProgress(Recipe r, float k, float t)
+    {
+        _progress.Visible = true;
+        _progressK = k;
+        _progressText.Text = $"Making: {r.Name}   {t:0} / {r.Seconds:0} s   (Esc stops)";
+        foreach (var c in _progress.GetChildren()) if (c is Control g && g is not Label) g.QueueRedraw();
+    }
+
     public void Fill(Inventory pack)
     {
+        _progress.Visible = _screen.Busy;
         foreach (var c in _rows.GetChildren()) c.QueueFree();
         // what you can make first, then by category
         var list = Recipes.All.Select(r => (R: r, Miss: Recipes.Missing(r, pack))).OrderBy(x => x.Miss.Count > 0).ThenBy(x => x.R.Category).ToList();
@@ -297,8 +389,8 @@ public partial class CraftingColumn : PanelContainer
             var uses = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
             uses.AddThemeFontSizeOverride("normal_font_size", 13);
             string Part(string label, bool ok) => $"[color=#{(ok ? Have : Lack).ToHtml(false)}]{label}[/color]";
-            var parts = r.Inputs.Select(p => Part(p.Count > 1 ? $"{p.Count} × {ItemDb.Get(p.Item)?.Name ?? p.Item}" : ItemDb.Get(p.Item)?.Name ?? p.Item, pack.Count(p.Item) >= p.Count)).ToList();
-            var tools = r.Tools.Select(alts => Part(string.Join(" or ", alts.Select(a => ItemDb.Get(a)?.Name ?? a)), alts.Any(a => pack.Count(a) > 0))).ToList();
+            var parts = r.Inputs.Select(p => Part(p.Count > 1 ? $"{p.Count} × {ItemDb.Say(p.Item)}" : ItemDb.Say(p.Item), pack.CountMatching(p.Item) >= p.Count)).ToList();
+            var tools = r.Tools.Select(alts => Part(string.Join(" or ", alts.Select(ItemDb.Say)), alts.Any(a => pack.CountMatching(a) > 0))).ToList();
             uses.Text = (parts.Count > 0 ? "uses " + string.Join(", ", parts) : "") + (tools.Count > 0 ? "  ·  needs " + string.Join(", ", tools) : "")
                 + $"  →  [color=#{Skin.Accent.ToHtml(false)}]{Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count)))}[/color]";
             text.AddChild(uses);
@@ -310,7 +402,7 @@ public partial class CraftingColumn : PanelContainer
                 text.AddChild(about);
             }
             row.AddChild(text);
-            var make = new Button { Text = "Make", Disabled = !can, CustomMinimumSize = new Vector2(76, 34), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            var make = new Button { Text = r.Seconds > 0 ? $"Make  {r.Seconds:0}s" : "Make", Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(100, 34), SizeFlagsVertical = SizeFlags.ShrinkCenter };
             Skin.Button(make, "button_small");
             var rec = r;
             make.Pressed += () => _screen.Craft(rec);

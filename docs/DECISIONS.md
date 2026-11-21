@@ -1592,3 +1592,25 @@ uses and needs (green what you have, red what you lack), what it makes, a line o
 `--autotest=craft`: kartacze, rags, a bandage and rice made from a filled pack; a molotov refused ("You need bottle of
 vodka"). Not yet: crafting time, cooking only by a cooker or a fire (now any lighter will do), skills, recipes found in
 books, using the outputs beyond eating (bandages heal like any medicine; the molotov waits for throwing).
+
+## D107 — Crafting by tags and in real time
+
+Tom (21 Nov 2026, a Project Zomboid fan): a recipe should ask for "something that can contain water", not one
+particular pot; and crafting should take time ("craft a makeshift bandage out of a rag while bandits are coming your
+way. Adds tension."). Our own data and design, not Zomboid's lists.
+**Tags:** items carry `tags` in `GameData/items.json` (clean_water, water_container, cookware, cup, sharp, fire,
+fabric, alcohol, disinfectant, ...; 20 to start, each with a readable name in the file's `tags` table: "something to
+hold water"). A recipe's input or tool is an item id or `tag:x`; any item with the tag will do. A coffee mug is both a
+water holder and a cup; vodka and disinfectant are both strong alcohol. Inputs are taken in pack order.
+**Leaves:** an item says what's left when it's used up (`"leaves": "empty_bottle"` on water, juice, compote, vodka),
+for drinking and crafting alike; the hard-coded bottle list in Survival is gone.
+**Time:** each recipe has `seconds` (bandage 5, rags 4-6, soup 15, tea 20, rice 30, kartacze 60). Make starts a gauge
+in the crafting list (Tom's bar art, in the accent colour); the world goes on meanwhile; nothing is used up until it's
+done; one thing at a time. Esc stops it (the window stays); a hit (health drops by more than 0.5 in a frame, so not
+hunger's slow ache) drops it and closes the window ("You're hit! ... will have to wait"); closing the window leaves it
+unfinished. Why only then: losing half-cut rags to a bandit is too cruel for now; partial progress can come later.
+Self-test `--autotest=craft`: a bandage made in 5 s (photographed half-way, rags untouched until the end), kartacze
+interrupted by a -12 hit (window closed, potatoes kept), then rice (the bottle comes back), herbata, kartacze, and a
+molotov refused for want of strong alcohol and made once there's vodka.
+Next, agreed with Tom: heat sources (a cooker or a campfire instead of any lighter), then recipe books, skills, bigos
+as an evolved recipe, freshness, building.

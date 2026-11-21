@@ -38,7 +38,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--views=x:z:above:yaw:pitch;...` — go to each view, wait for everything to stream in, save a screenshot.
 * `--autotest=fly --speed=40` — fly 6 km at 40 m/s, report frame times and frames without ground collision.
 * `--autotest=drive` — the car keeps to the road for 20 s; reports speed and time off the road.
-* `--autotest=craft` — ingredients in the pack, the crafting list (Tab) photographed, kartacze, rags, a bandage and rice made, a molotov refused (D106).
+* `--autotest=craft` — the crafting list (Tab) photographed; a bandage made in real time (photographed half-way), kartacze interrupted by a hit; rags, rice, herbata, kartacze made by tags; a molotov refused, then made with vodka (D106, D107).
 * `--autotest=takecar` — out of the car, take the nearest wreck if it runs (else why not), drive it, back to the old car (D99). With `--sb.wrecks.runners=1` every wreck runs.
 * Sandbox settings for any run: `--sandbox=apocalypse` (a preset from `GameData/sandbox.json`) or `--sb.loot.abundance=2` (one setting).
 * `--autotest=tip` — double lane changes at 50/70/90 km/h, full-lock turns, a handbrake turn: the worst roll and any flips (D97). `--grip=K` and `--antiroll=0` for tuning.
