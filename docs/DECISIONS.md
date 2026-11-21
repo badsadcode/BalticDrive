@@ -1555,3 +1555,20 @@ them at once, and what the world generates from then on follows them (places alr
 says). Settings now carry a display name and a step in `GameData/sandbox.json`; `Sandbox.PresetValue` and
 `PresetAbout` serve the menu. Fixed on the way: a slider's float step (0.05f is 0.0500000007) snapped 1.0 down to
 0.95; the step is now an exact decimal. `--sandbox-menu` opens it over a views run (to photograph it).
+
+## D104 — The joined map: Mazowsze and Podlaskie as one (D90 done, 21 Nov)
+Podlaskie's elevation came through GUGiK's sheet server after all (D90: the WCS was down): 3,385 sheets, 124 GB
+downloaded and shrunk to the 10 m blocks, 291 minutes. The build: 16,861 tiles (Mazowsze alone 11,482), 1.2 GB in 25
+packs, 22,109 named places, 80 minutes. The game opens `polska` when it's there (the dist build's `map` folder has it
+too; the Mazowsze packs stay). 12,022 km² of the blocks have no elevation: the land across the Belarus and Lithuania
+borders, and Mazowsze's old gaps (D90); no hole seen inside Podlaskie.
+Toured in the game: a 6 km fly over the border zone (median 16.7 ms, 3 frames over 33 ms, no ground gaps); Kruszyniany
+(the green wooden mosque among spruces), Bohoniki (the square one with its lantern), a green cerkiew with dark onions
+in Białowieża, Białowieża's houses by the ponds, the Narew marshes at Pentowo, Tykocin; 94 stork nests round
+Trześcianka. Fixed after the tour:
+* Trześcianka and Soce came out mostly modern houses: their houses are `building=yes` with no height, the importer
+  guesses 6.5 m, and BadBuilding read that as two storeys. `BadBuildingAdapter.GuessedHouseHeight`: a house-sized
+  building (untyped or a house, footprint box under ~420 m²) whose height is exactly one of build.py's guesses (2.8,
+  6.5, 8 m untyped; 4.5, 7.5 m a house) and has no mapped storeys gets no height, and the house style decides. Bigger
+  buildings keep the guess (Warsaw unchanged). Together with BadBuilding D44 the villages are now mostly wooden.
+Not yet: driving across at Zambrów by car (only flown), Białystok's own look.

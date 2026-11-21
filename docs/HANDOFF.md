@@ -58,6 +58,13 @@ and road queries; `TerrainStreamer` (Thornwake's nested LOD rings, worker builds
 draws the ground through `TerrainBuilder`; `MapContentStreamer` meshes roads and buildings in 128 m cells with Dead
 Miles' `MapMesher`; `WorldOrigin` moves the float origin (D3). `Car` is Dead Miles' driving model, trimmed.
 
+**Update 21 Nov (D90–D104):** the map is `polska` now: Mazowsze and Podlaskie built as one from merged extracts
+(`tools/osm_import/merge.py`, README "Several regions in one map"), 16,861 tiles. Regions in data (`GameData/regions.json`:
+presets, tree mixes, named forests); Podlasie's wooden houses, Orthodox churches, Tatar mosques, Catholic churches;
+storks; per-car handling (`GameData/cars.json`), parked cars, trucks, wrecks you can drive; sandbox settings
+(`GameData/sandbox.json`, F10 menu); Tom's UI set (`Assets/UI`). Next regions: whole voivodeships north first
+(region order in memory); GUGiK's WCS may be down: `fetch_gugik.py --empty` then `fill_gugik_sheets.py`.
+
 ## Not done / next
 
 * **Open from Tom (14 Nov, late):** F9 dumps in %APPDATA%\BalticDrive\dumps showing missing parts of classic

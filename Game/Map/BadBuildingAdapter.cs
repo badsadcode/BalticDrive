@@ -68,6 +68,22 @@ public static class BadBuildingAdapter
         && b.Type is BuildingKind.Generic or BuildingKind.Apartments or BuildingKind.Commercial or BuildingKind.Civic
             or BuildingKind.House or BuildingKind.Farm or BuildingKind.Shed or BuildingKind.Industrial;
 
+    /// <summary>
+    /// A house-sized building (untyped or a house, up to 260 m²) whose height is the importer's guess, not the map's
+    /// (D104): build.py gives an untyped building 2.8, 6.5 or 8 m by its size and a house 4.5 or 7.5 m when OSM says
+    /// neither a height nor storeys. Passed on, 6.5 m read as two storeys, and Podlasie's one-storey wooden houses (mapped
+    /// as building=yes, no height) came out as modern two-storey ones. Without it the house style decides.
+    /// </summary>
+    private static bool GuessedHouseHeight(MapBuilding b, Use use)
+    {
+        if (use.Levels != null || b.IsPart) return false;
+        if (b.Type is not (BuildingKind.Generic or BuildingKind.House)) return false;
+        if ((b.MaxX - b.MinX) * (b.MaxZ - b.MinZ) > 260f * 1.6f) return false;   // the box of a 260 m² footprint, roughly
+        float[] guesses = b.Type == BuildingKind.House ? new[] { 4.5f, 7.5f } : new[] { 2.8f, 6.5f, 8.0f };
+        foreach (var g in guesses) if (MathF.Abs(b.Height - g) < 0.05f) return true;
+        return false;
+    }
+
     /// <summary>A place of worship BadBuilding has a style for, mapped as one outline: a church the map calls orthodox
     /// (denomination=…orthodox, Christian: an orthodox synagogue is religion=jewish), a mosque (religion=muslim), or a
     /// Catholic or other Western church or chapel (D95: Christian or no religion said). Synagogues and the rest keep the
@@ -158,7 +174,8 @@ public static class BadBuildingAdapter
             Levels = use.Levels,
             // a church without a mapped height gets the importer's 16 m guess, and a mapped one often counts its tower:
             // let the style decide its walls (D92, D95)
-            Height = b.Type == BuildingKind.Church && (MathF.Abs(b.Height - 16f) < 0.05f || b.Height > 20f) ? null : b.Height,
+            Height = b.Type == BuildingKind.Church && (MathF.Abs(b.Height - 16f) < 0.05f || b.Height > 20f) ? null
+                : GuessedHouseHeight(b, use) ? null : b.Height,
             // the roof as the map (or the importer's guess for houses) has it
             Roof = b.Roof switch { RoofKind.Flat => "flat", RoofKind.Gabled => "gabled", RoofKind.Hipped => "hipped", RoofKind.Pyramidal => "pyramidal", _ => null },
             RoofHeight = b.RoofHeight > 0.2f ? b.RoofHeight : null,
