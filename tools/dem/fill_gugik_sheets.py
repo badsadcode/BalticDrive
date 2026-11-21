@@ -113,34 +113,62 @@ def fetch_bin(s, block, n):
 
 
 class Block:
+    """One 10 m block with holes. Kept lean for a whole country (D110: 3,255 blocks): only a bit-map of its holes
+    (125 KB) stays in memory; the sums are made when a sheet first lands in it and dropped when it's saved, and the
+    heights are read from disk only to save."""
+
     def __init__(self, path, block, n):
         import rasterio
         self.path = path
         with rasterio.open(path) as d:
-            self.a = d.read(1).astype(np.float32)
+            a = d.read(1).astype(np.float32)
             self.profile = d.profile
             b = d.bounds
         self.x0, self.y1 = b.left, b.top
+        self.n = n
         self.cell = block / n
-        self.hole = (self.a == 0) | ~np.isfinite(self.a) | (self.a < -50)
-        self.sum = np.zeros_like(self.a)
-        self.cnt = np.zeros_like(self.a)
+        self._set_hole((a == 0) | ~np.isfinite(a) | (a < -50))
+        self._sum = self._cnt = None
         self.dirty = False
+
+    def _set_hole(self, hole):
+        self._bits = np.packbits(hole)
+        self.missing = int(hole.sum())
+
+    @property
+    def hole(self):
+        return np.unpackbits(self._bits, count=self.n * self.n).reshape(self.n, self.n).astype(bool)
+
+    def add(self, jj, ii, sm, cnt):
+        """Heights summed into hole cells (jj, ii: cell rows and columns)."""
+        m = self.hole[jj, ii]
+        if not m.any():
+            return
+        if self._sum is None:
+            self._sum = np.zeros((self.n, self.n), np.float32)
+            self._cnt = np.zeros((self.n, self.n), np.float32)
+        np.add.at(self._sum, (jj[m], ii[m]), sm[m])
+        np.add.at(self._cnt, (jj[m], ii[m]), cnt[m])
+        self.dirty = True
 
     def save(self):
         import rasterio
-        got = self.hole & (self.cnt > 0)
-        if not got.any():
+        if self._sum is None:
             return 0
-        self.a[got] = self.sum[got] / self.cnt[got]
-        self.hole &= ~got
-        self.sum[:] = 0
-        self.cnt[:] = 0
-        tmp = self.path + ".part"
-        with rasterio.open(tmp, "w", **self.profile) as d:
-            d.write(self.a, 1)
-        os.replace(tmp, self.path)
-        return int(got.sum())
+        hole = self.hole
+        got = hole & (self._cnt > 0)
+        n_got = int(got.sum())
+        if n_got:
+            with rasterio.open(self.path) as d:
+                a = d.read(1).astype(np.float32)
+            a[got] = self._sum[got] / self._cnt[got]
+            tmp = self.path + ".part"
+            with rasterio.open(tmp, "w", **self.profile) as d:
+                d.write(a, 1)
+            os.replace(tmp, self.path)
+            self._set_hole(hole & ~got)
+        self._sum = self._cnt = None
+        return n_got
 
 
 def main():
@@ -164,16 +192,19 @@ def main():
     probes = []
     for (bx, by), path in files.items():
         b = Block(path, block, n)
-        if b.hole.mean() < 0.001:
+        if b.missing < 0.001 * n * n:
             continue
         blocks[(bx, by)] = b
+        if os.path.exists(os.path.join(a.folder, "sheets_wanted.json")) and not a.reindex:
+            continue                   # the saved list will be used: no probes needed
         step = int(a.probe / b.cell)
+        hole = b.hole
         for j in range(step // 2, n, step):
             for i in range(step // 2, n, step):
-                win = b.hole[max(0, j - step // 2): j + step // 2, max(0, i - step // 2): i + step // 2]
+                win = hole[max(0, j - step // 2): j + step // 2, max(0, i - step // 2): i + step // 2]
                 if win.mean() > 0.02:
                     probes.append((bx + (i + 0.5) * b.cell, by + block - (j + 0.5) * b.cell))
-    holes = sum(int(b.hole.sum()) for b in blocks.values())
+    holes = sum(b.missing for b in blocks.values())
     print(f"{len(blocks)} blocks with holes, {holes * (block / n) ** 2 / 1e6:.0f} km2 missing, {len(probes)} index queries",
           flush=True)
 
@@ -250,9 +281,7 @@ def main():
                 cj = ((key[1] + block - ys[sel]) / b.cell).astype(np.int64)
                 ok = (ci >= 0) & (ci < n) & (cj >= 0) & (cj < n)
                 ci, cj, v = ci[ok], cj[ok], vals[sel][ok]
-                m = b.hole[cj, ci]
-                np.add.at(b.sum, (cj[m], ci[m]), v[m])
-                np.add.at(b.cnt, (cj[m], ci[m]), 1)
+                b.add(cj, ci, v.astype(np.float32), np.ones(len(v), np.float32))
                 b.dirty = True
         return len(data), int(len(vals))
 
@@ -269,9 +298,7 @@ def main():
                     if b is None:
                         continue
                     jj, ii = np.divmod(flat, n)
-                    m = b.hole[jj, ii]
-                    b.sum[jj[m], ii[m]] += sm[m]
-                    b.cnt[jj[m], ii[m]] += cnt[m]
+                    b.add(jj, ii, sm, cnt)
                     b.dirty = True
                 done.add(s["url"])
             except Exception as e:
@@ -283,7 +310,7 @@ def main():
                         b.dirty = False
                 open(done_path, "w").write("\n".join(sorted(done)))
                 el = time.time() - t0
-                left = sum(int(b.hole.sum()) for b in blocks.values()) * (block / n) ** 2 / 1e6
+                left = sum(b.missing for b in blocks.values()) * (block / n) ** 2 / 1e6
                 print(f"{k + 1}/{len(todo)} sheets, {got_bytes[0] / 1e9:.1f} GB downloaded, "
                       f"{el / 60:.0f} min, {left:.0f} km2 still missing", flush=True)
     print("done", flush=True)
