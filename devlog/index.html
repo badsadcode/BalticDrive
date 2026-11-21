@@ -132,7 +132,7 @@ footer a { color: var(--sign); }
 
 <main class="wrap">
   <section class="odo" aria-label="Numbers so far">
-    <div><b>11,482</b><span>map tiles of Mazowsze</span></div>
+    <div><b>16,861</b><span>map tiles of Mazowsze and Podlaskie</span></div>
     <div><b>2,601,381</b><span>buildings, every one from OSM</span></div>
     <div><b>561,875</b><span>roads and railways</span></div>
     <div><b>104,961</b><span>junctions, each with its own kerbs</span></div>
@@ -1766,6 +1766,55 @@ footer a { color: var(--sign); }
       </ul>
       <p>No pictures this time. Handling doesn't photograph well, but believe us, it's awesome. 😛</p>
       <ul class="facts"><li>5 kinds of car</li><li>15 numbers each</li><li>0 lines of code per new car</li><li>1 entry waiting for a Maluch</li></ul>
+    </div>
+  </article>
+  <article class="entry">
+    <div class="km"><small>KM</small><strong>47</strong></div>
+    <div>
+      <h2>Podlaskie, for real</h2>
+      <div class="date">21 November 2026, early morning</div>
+      <p>The back door held. GUGiK's sheet server handed over all 3,385 pieces of Podlaskie's ground: 124 GB downloaded,
+        each piece shrunk to our 10 m grid and thrown away, a few hundred megabytes kept. Tom restarted his PC halfway
+        through and nothing was lost; the download picked up where it stopped. Then the build ran for 80 minutes, and
+        the map was no longer just Mazowsze. 16,861 tiles, 22,109 named places, and the border between the two
+        voivodeships is just a line on a map nobody drives by any more. No seam, no wall, no jump.</p>
+      <p>Then a tour, the way you'd show a friend around your holiday region. Kruszyniany first: the green wooden
+        mosque, standing among spruces exactly where the map says. Bohoniki's square one with its lantern. In Białowieża,
+        a green cerkiew with dark onion domes behind the trees, and the village around its ponds. The Narew marshes at
+        Pentowo, winding and wet. Little Tykocin by its river. Around Trześcianka alone, 94 stork nests.</p>
+      <figure class="photo">
+        <img src="img/podlaskie-kruszyniany.webp" alt="A green wooden mosque with an arched porch and pointed windows, a large tree beside it and a chain-link fence, village houses and a block in the distance" loading="lazy">
+        <figcaption>Kruszyniany's mosque, green boards and an arched porch.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/podlaskie-bialowieza-cerkiew.webp" alt="A green Orthodox church with dark onion domes seen between spruces and an autumn tree, a white house in front" loading="lazy">
+        <figcaption>Białowieża: the cerkiew behind the trees.</figcaption>
+      </figure>
+      <p>One thing looked wrong. Trześcianka and Soce, the Land of Open Shutters itself, were full of modern houses with
+        garage doors. The detective work: almost every building there is mapped as a plain "building", with no height, so
+        our importer guesses 6.5 m, and BadBuilding read that as two storeys, which ruled out a cottage. The game now
+        knows a guess when it sees one and leaves the house to decide for itself. In Podlasie that means wooden, most of
+        the time. Now the street through Trześcianka has an ox-blood house with white surrounds, open shutters and a
+        porch, honey-varnished houses down the road, and a few newer brick ones in between, like the real thing.</p>
+      <figure class="photo">
+        <img src="img/podlaskie-trzescianka.webp" alt="A village street: an ox-blood wooden house with white window surrounds, open shutters and a porch, honey-wood houses and barns further along" loading="lazy">
+        <figcaption>Trześcianka, after the fix.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/podlaskie-soce.webp" alt="A long honey-varnished wooden house with white surrounds and shutters under a green roof, a field and a sandy lane, the rest of the village on the horizon" loading="lazy">
+        <figcaption>Soce: a long house with its shutters open.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/podlaskie-narew.webp" alt="Wide green marshes with a winding river and pools, scattered trees, forest at the horizon" loading="lazy">
+        <figcaption>The Narew marshes at Pentowo.</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="img/podlaskie-bialowieza.webp" alt="An aerial view of Białowieża village: houses with red, grey and orange roofs along streets, two ponds, forest all around" loading="lazy">
+        <figcaption>Białowieża from above, the forest all around.</figcaption>
+      </figure>
+      <p>Not yet: driving across the border at Zambrów by car rather than by camera, and Białystok's own look. And the
+        next voivodeship. North, towards the sea.</p>
+      <ul class="facts"><li>16,861 tiles</li><li>22,109 places</li><li>3,385 elevation sheets</li><li>124 GB through the back door</li><li>1 PC restart survived</li><li>94 stork nests round one village</li></ul>
     </div>
   </article>
 </main>
