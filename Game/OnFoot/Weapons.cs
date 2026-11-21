@@ -106,7 +106,7 @@ public partial class Weapons : Node3D
         // panting: faster and bigger, easing off as it ends
         float pant = Mathf.Clamp(Gasp / 1.5f, 0, 1);
         _swayT += dt * (1f + 1.6f * pant);
-        float amp = 0.0034f * (_w.Crouching ? 0.55f : 1f) * (1f + Mathf.Clamp(_w.Speed / 2f, 0, 2.5f)) * (1f + 2.2f * pant) * (1f - 0.88f * _hold);
+        float amp = 0.0034f * (1f - Items.Skills.Bonus("shooting")) * (_w.Crouching ? 0.55f : 1f) * (1f + Mathf.Clamp(_w.Speed / 2f, 0, 2.5f)) * (1f + 2.2f * pant) * (1f - 0.88f * _hold);
         var s = new Vector2(MathF.Sin(_swayT * 0.9f) + 0.35f * MathF.Sin(_swayT * 2.3f + 1f), MathF.Sin(_swayT * 1.8f + 0.5f) * 0.7f + 0.3f * MathF.Sin(_swayT * 0.55f));
         return s * amp;
     }
@@ -473,13 +473,13 @@ public partial class Weapons : Node3D
         // the bullet leaves along the view (where the sights point), with the eye's spread when hip-firing
         var basis = _eye.GlobalTransform.Basis;
         var dir = -basis.Z;
-        float spread = Mathf.Lerp(0.012f, 0.0006f, _aim);
+        float spread = Mathf.Lerp(0.012f, 0.0006f, _aim) * (1f - Items.Skills.Bonus("shooting"));   // D113
         dir = (dir + basis.X * (float)GD.RandRange(-spread, spread) + basis.Y * (float)GD.RandRange(-spread, spread)).Normalized();
         var from = _aim > 0.5f ? _eye.GlobalPosition : _holder.ToGlobal(MuzzleLocal());
         // the shared bullets (D47): what it hits answers back here, for the HUD and the self-tests
         Ballistics.Get(this).Fire(from, dir * d.MuzzleVelocity + _w.Velocity, d.BulletGrams / 1000f, d.Damage, _w.GetRid(), (said, h, surface) =>
         {
-            if (said != null) { ShowHit($"{said}, {h.Range:0} m"); TargetHits++; LastTarget = said; }
+            if (said != null) { ShowHit($"{said}, {h.Range:0} m"); TargetHits++; LastTarget = said; Items.Skills.Add("shooting", 6); }
             Hits++;
             LastHit = $"{surface} at {h.Range:F1} m";
         });

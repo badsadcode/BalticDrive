@@ -11,7 +11,7 @@ namespace BalticDrive.Items;
 /// many seconds it takes (D107). Inputs and tools are item ids or "tag:x" (any item with tag x).</summary>
 public sealed record Recipe(string Id, string Name, string Category, (string Item, int Count)[] Inputs,
     string[][] Tools, (string Item, int Count)[] Outputs, string About, float Seconds,
-    bool Heat = false, string? Places = null, bool Leftovers = true, string? Book = null);
+    bool Heat = false, string? Places = null, bool Leftovers = true, string? Book = null, string? Skill = null);
 
 /// <summary>
 /// Crafting (D106, D107), Project Zomboid style and our own data: <c>GameData/recipes.json</c>. A recipe can be made when the
@@ -36,6 +36,9 @@ public static class Recipes
     /// <summary>What stands in for heat in the lists: "a fire or a camping stove".</summary>
     public const string HeatName = "a fire or a camping stove";
 
+    /// <summary>How long it takes you (D113): its seconds, less with the skill it trains.</summary>
+    public static float SecondsFor(Recipe r) => r.Seconds * Skills.TimeFactor(r.Skill);
+
     private static List<Recipe> Load()
     {
         var list = new List<Recipe>();
@@ -52,7 +55,9 @@ public static class Recipes
                     r.TryGetProperty("heat", out var ht) && ht.GetBoolean(),
                     r.TryGetProperty("places", out var pl) ? pl.GetString() : null,
                     !r.TryGetProperty("leftovers", out var lo) || lo.GetBoolean(),
-                    r.TryGetProperty("book", out var bk) ? bk.GetString() : null);
+                    r.TryGetProperty("book", out var bk) ? bk.GetString() : null,
+                    r.TryGetProperty("skill", out var sk) ? sk.GetString() : null);
+                if (rec.Skill != null && !Skills.All.ContainsKey(rec.Skill)) Log.Error("Recipes", $"{rec.Id}: unknown skill '{rec.Skill}'");
                 if (rec.Book != null && ItemDb.Get(rec.Book) is not { } bookDef) Log.Error("Recipes", $"{rec.Id}: unknown book '{rec.Book}'");
                 else if (rec.Book != null && !ItemDb.Def(rec.Book).Teaches.Contains(rec.Id)) Log.Error("Recipes", $"{rec.Id}: {rec.Book} doesn't teach it (items.json teaches)");
                 foreach (var id in rec.Inputs.Select(p => p.Item).Concat(tools.SelectMany(t => t)))
@@ -112,6 +117,7 @@ public static class Recipes
         }
         said = r.Outputs.Length == 0 ? $"Done: {r.Name.ToLowerInvariant()}" : "You make " + string.Join(" and ", r.Outputs.Select(What));
         if (heat != null) { said += $", over {heat}"; HeatUsed?.Invoke(heat, pack); }
+        Skills.Add(r.Skill, r.Book != null ? 15 : 10);   // practice (D113)
         Log.Info("Recipes", $"{r.Id}: {said}");
         return true;
     }

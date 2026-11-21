@@ -85,7 +85,7 @@ public sealed partial class Workshop : Control
         if (Car == null || _job != null) return false;
         if (fit == null && part.Missing) return false;
         if (fit != null && (!part.Missing || fit.Kind != part.Kind || !Carried.Contains(fit))) return false;
-        _job = (part, fit, JobTime(part.Kind), 0);
+        _job = (part, fit, JobTime(part.Kind) * Items.Skills.TimeFactor("mechanics"), 0);   // D113
         return true;
     }
 
@@ -146,6 +146,7 @@ public sealed partial class Workshop : Control
             Log.Info("Workshop", $"fitted {fit.Name} as {part.Name} at {fit.Condition:0} %");
         }
         Car.PartsChanged();
+        Items.Skills.Add("mechanics", fit == null ? 8 : 12);   // practice (D113)
     }
 
     public override void _Input(InputEvent e)
@@ -227,12 +228,12 @@ public sealed partial class Workshop : Control
         else if (_picked is { } p)
         {
             Line(p.Missing ? $"{p.Name}: missing" : $"{p.Name}: {p.Condition:0} %", Colors.White, 17);
-            if (!p.Missing) Button($"Remove ({JobTime(p.Kind):0} s)", () => StartJob(p));
+            if (!p.Missing) Button($"Remove ({JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics"):0} s)", () => StartJob(p));
             else
             {
                 var fits = Carried.Where(c => c.Kind == p.Kind).Take(3).ToList();
                 if (fits.Count == 0) Line("You carry nothing that fits here.", new Color(0.8f, 0.6f, 0.5f));
-                foreach (var f in fits) Button($"Fit {f.Name.ToLowerInvariant()} ({f.Condition:0} %, {JobTime(p.Kind):0} s)", () => StartJob(p, f));
+                foreach (var f in fits) Button($"Fit {f.Name.ToLowerInvariant()} ({f.Condition:0} %, {JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics"):0} s)", () => StartJob(p, f));
             }
         }
         else Line("Click a part to work on it.", new Color(0.8f, 0.8f, 0.75f));

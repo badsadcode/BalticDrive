@@ -1697,3 +1697,23 @@ we'd rather tease. Self-test `--autotest=books` (user://knowledge.json backed up
 ("learn it from Kuchnia podlaska"); the list photographed; the cookbook read in 15 s (photographed); kartacze and
 placki made; the knowledge read back from the file; a second reading starts nothing. `--autotest=craft` learns every
 book first.
+
+
+## D113 — Skills, learnt by doing
+
+Tom's agreed order, after recipe books. Five skills, levels 0-5 at 50/120/220/360/550 XP (GameData/skills.json, our
+own numbers), each level worth its `per_level` fraction:
+**Cooking** (cooking recipes: 10 XP, 15 from a book recipe): cooking 10% faster a level.
+**First aid** (medical recipes; a bandage or medkit used: 8 XP): healing 10% more a level, medical crafts faster.
+**Woodcraft** (chopping 10 XP, the campfire recipe): chopping 12% faster a level; from level 3 a tree gives an armful
+more. **Mechanics** (a part removed 8 XP, fitted 12): workshop jobs 10% faster a level. **Shooting** (a hit on a
+target or a bandit: 6 XP): aiming sway and hip-fire spread 8% less a level.
+Recipes name the skill they train (`"skill"` in recipes.json) and the Make buttons show the time it takes you. A
+level-up is said on the HUD ("Cooking: level 1. Cooking 10% faster."); the inventory shows the levels under your pack.
+Kept per world in user://skills.json; like recipe books (D112) dying doesn't take them (Zomboid resets skills with a
+new character; our survivor wakes up as the same person). Self-tests practise too, so whenever an autotest runs the
+XP goes to user://skills_selftest.json and the player's file is never touched. Self-test `--autotest=skills`:
+Cooking 0 -> 1 after five pots of rice (30 s -> 27 s, the note and the skills line photographed); a bandage at First
+aid 3 heals 19.9 (15 x 1.3, plus the body's own mending); woodcraft 2 chops in 4.6 s, mechanics 1 fits an engine in
+27 s, shooting 4 sways x 0.68; the XP read back from the file. Not yet: skill-locked recipes (Cooking 2 for bigos?),
+reading skill books faster, a skills page of its own.

@@ -112,7 +112,8 @@ public sealed partial class Survival : Node
         if (d.Category == "medical")
         {
             if (Health >= 99) { Say("You're fine"); return; }
-            _healing += d.Heal;
+            _healing += d.Heal * (1 + Skills.Bonus("first_aid"));   // a practised hand (D113)
+            Skills.Add("first_aid", 8);
             Say($"You patch yourself up with a {d.Name}");
         }
         else
@@ -139,7 +140,8 @@ public sealed partial class Survival : Node
         var id = Best(IsMedical, d => d.Heal, 100 - Health)!;
         var def = ItemDb.Def(id);
         Pack.Remove(id, 1);
-        _healing += def.Heal;
+        _healing += def.Heal * (1 + Skills.Bonus("first_aid"));
+        Skills.Add("first_aid", 8);
         Say($"You patch yourself up with a {def.Name}");
     }
 

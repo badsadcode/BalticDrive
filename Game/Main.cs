@@ -71,6 +71,8 @@ public partial class Main : Node3D
 	public override void _Ready()
 	{
 		Instance = this;
+		// a skill went up (D113): say so
+		Items.Skills.LevelUp += (d, lvl) => ShowNote($"{d.Name}: level {lvl}. {char.ToUpper(Items.Skills.Says(d, lvl)[0])}{Items.Skills.Says(d, lvl)[1..]}.", 6);
 		// sound (D53): buses with a reverb that follows the space, the listener's acoustics, the world's ambience
 		Audio.Buses.Setup();
 		AddChild(new Audio.Acoustics());
@@ -202,6 +204,8 @@ public partial class Main : Node3D
 	private Vector3 _chopFrom;
 	private float _chopHealth;
 	private double _nextWoodLook;
+	/// <summary>Seconds a tree takes you (D113: woodcraft makes it quicker).</summary>
+	private static double ChopTime => Power.Woodland.ChopSeconds * Items.Skills.TimeFactor("woodcraft");
 	private bool _poweredHome;
 
 	private OnFoot.ShootingRange? _range;
@@ -601,7 +605,7 @@ public partial class Main : Node3D
 		if (_chopT >= 0)
 		{
 			_prompt!.Visible = true;
-			_prompt.Text = $"Chopping... {Mathf.Clamp(_chopT / Power.Woodland.ChopSeconds, 0, 1):P0}";
+			_prompt.Text = $"Chopping... {Mathf.Clamp(_chopT / ChopTime, 0, 1):P0}";
 			_bars.QueueRedraw();
 			return;
 		}
@@ -676,7 +680,7 @@ public partial class Main : Node3D
 		bool axe = pack.CountMatching("tag:chopping") > 0, used = Power.Woodland.Used(SaveWorld, Power.Woodland.Key(t));
 		if (!axe && !used) return false;   // no axe: trees are just trees
 		_prompt!.Visible = true;
-		_prompt.Text = used ? "This tree has no more dead wood" : "F: chop firewood (6 s)";
+		_prompt.Text = used ? "This tree has no more dead wood" : $"F: chop firewood ({ChopTime:0} s)";
 		return true;
 	}
 	private Trees.TreePlacement.Tree? _woodLook;
@@ -1069,10 +1073,11 @@ public partial class Main : Node3D
 					thunk.Play();
 					thunk.Finished += thunk.QueueFree;
 				}
-				if (_chopT >= Power.Woodland.ChopSeconds)
+				if (_chopT >= ChopTime)
 				{
 					_chopT = -1;
-					int y = Power.Woodland.Yield(_chopTree), n = _walker.Body.Pack.Add("firewood", y);
+					int y = Power.Woodland.Yield(_chopTree) + (Items.Skills.Level("woodcraft") >= 3 ? 1 : 0), n = _walker.Body.Pack.Add("firewood", y);
+					Items.Skills.Add("woodcraft", 10);
 					Power.Woodland.Use(SaveWorld, Power.Woodland.Key(_chopTree));
 					string got = n == 1 ? "an armful" : $"{n} armfuls";
 					ShowNote(n == y ? $"You chop {got} of firewood" : n > 0 ? $"You chop {y} armfuls; you can carry {got}, the rest stays" : "You chop it, but you can't carry any more", 4);

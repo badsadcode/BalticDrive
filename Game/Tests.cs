@@ -77,7 +77,68 @@ public sealed class Tests
     private bool _tip, _tipStarted;
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
-    private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1;
+    private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1;
+    private bool _skills;
+    private float _skH0;
+
+    /// <summary>--autotest=skills (D113; XP in the scratch file): all at 0; rice boiled five times (on a camping stove)
+    /// takes Cooking to level 1 and the time from 30 to 27 s (the level-up note photographed with the inventory's
+    /// skills line); a bandage at First aid 3 heals 15 x 1.3; woodcraft, mechanics and shooting factors at levels 2, 1
+    /// and 4; the XP read back from the file. True while running.</summary>
+    private bool SkillsTest(double delta)
+    {
+        if (_skillsT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _skillsT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _skillsT;
+        _skillsT += delta;
+        bool At(double t) => before < t && _skillsT >= t;
+        var body = _main.Walker!.Body;
+        var pack = body.Pack;
+        Items.Recipe R(string id) => Items.Recipes.All.First(x => x.Id == id);
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("saucepan", 1), ("camping_stove", 1), ("gas_canister", 6), ("bandage", 2) })
+                pack.Add(id, n);
+            Log.Info("Test", $"skills: start: {Items.Skills.Line()}; boil rice takes {Items.Recipes.SecondsFor(R("boil_rice")):0.0} s");
+            for (int i = 0; i < 5; i++)
+            {
+                pack.Add("rice", 1); pack.Add("water", 1);
+                if (pack.CountMatching("tag:fuel_gas") == 0) pack.Add("gas_canister", 2);
+                bool ok = Items.Recipes.Make(R("boil_rice"), pack, out var said);
+                pack.Remove("cooked_rice", 9);
+                if (!ok) Log.Info("Test", $"skills: rice {i + 1}: {said}");
+            }
+            Log.Info("Test", $"skills: after 5 rice: cooking {Items.Skills.Level("cooking")} ({Items.Skills.Xp("cooking"):0} XP); boil rice takes {Items.Recipes.SecondsFor(R("boil_rice")):0.0} s");
+            _main.OpenInventory(null);
+        }
+        if (At(2)) Shot("skills_levelup");
+        if (At(2.5))
+        {
+            _main.InventoryWindow!.Close();
+            Items.Skills.Add("first_aid", 220);
+            body.Health = 50;
+            _skH0 = body.Health;
+            body.UseItem("bandage");
+        }
+        if (At(5))
+        {
+            Log.Info("Test", $"skills: first aid {Items.Skills.Level("first_aid")}: a bandage healed {body.Health - _skH0:0.0} (15 x {1 + Items.Skills.Bonus("first_aid"):0.00} = {15 * (1 + Items.Skills.Bonus("first_aid")):0.0})");
+            Items.Skills.Add("woodcraft", 120);
+            Items.Skills.Add("mechanics", 50);
+            Items.Skills.Add("shooting", 360);
+            Log.Info("Test", $"skills: woodcraft {Items.Skills.Level("woodcraft")}: chop {Power.Woodland.ChopSeconds * Items.Skills.TimeFactor("woodcraft"):0.00} s; mechanics {Items.Skills.Level("mechanics")}: engine job {Vehicle.Workshop.JobTime(Vehicle.PartKind.Engine) * Items.Skills.TimeFactor("mechanics"):0.0} s; shooting {Items.Skills.Level("shooting")}: sway and spread x {1 - Items.Skills.Bonus("shooting"):0.00}");
+            Items.Skills.Reset();
+            Log.Info("Test", $"skills: from the file: {Items.Skills.Line()}");
+            return false;
+        }
+        return true;
+    }
     private bool _books;
     private string? _knowBackup;
     private static string KnowFile => ProjectSettings.GlobalizePath("user://knowledge.json");
@@ -471,9 +532,18 @@ public sealed class Tests
         _tip = Main.Args.GetValueOrDefault("autotest", "").Contains("tip");
         _take = Main.Args.GetValueOrDefault("autotest", "").Contains("takecar");
         _craft = Main.Args.GetValueOrDefault("autotest", "").Contains("craft");
+        if (Main.Args.ContainsKey("autotest"))
+        {
+            // self-tests practise too (D113): their XP goes to a scratch file, never the player's
+            Items.Skills.FilePath = "user://skills_selftest.json";
+            string sf = ProjectSettings.GlobalizePath(Items.Skills.FilePath);
+            if (System.IO.File.Exists(sf)) System.IO.File.Delete(sf);
+            Items.Skills.Reset();
+        }
         _gen = Main.Args.GetValueOrDefault("autotest", "").Contains("generator");
         _heat = Main.Args.GetValueOrDefault("autotest", "").Contains("heat");
         _books = Main.Args.GetValueOrDefault("autotest", "").Contains("books");
+        _skills = Main.Args.GetValueOrDefault("autotest", "").Contains("skills");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2037,6 +2107,11 @@ public sealed class Tests
         {
             if (BooksTest(delta)) return;
             _books = false;
+        }
+        if (_skills)
+        {
+            if (SkillsTest(delta)) return;
+            _skills = false;
         }
         if (_take)
         {

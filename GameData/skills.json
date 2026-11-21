@@ -1,0 +1,11 @@
+{
+  "_about": "Skills (D113), learnt by doing, Project Zomboid style and our own numbers. Each skill: name, what raises it, what a level does (per_level: the fraction per level; the code knows which effect), and the XP that reaches each level (levels: cumulative, level 1 at the first number). Kept per world in user://skills.json; dying doesn't take them (like recipe books, D112).",
+  "levels": [50, 120, 220, 360, 550],
+  "skills": {
+    "cooking":   { "name": "Cooking",   "per_level": 0.10, "raises": "cooking over heat",                       "effect": "cooking {p} faster" },
+    "first_aid": { "name": "First aid", "per_level": 0.10, "raises": "medical crafting, patching yourself up",   "effect": "bandages heal {p} more, medical crafts {p} faster" },
+    "woodcraft": { "name": "Woodcraft", "per_level": 0.12, "raises": "chopping firewood, building fires",       "effect": "chopping {p} faster; from level 3 a tree gives an armful more" },
+    "mechanics": { "name": "Mechanics", "per_level": 0.10, "raises": "removing and fitting car parts",          "effect": "workshop jobs {p} faster" },
+    "shooting":  { "name": "Shooting",  "per_level": 0.08, "raises": "hitting what you aim at",                 "effect": "{p} less sway and spread" }
+  }
+}

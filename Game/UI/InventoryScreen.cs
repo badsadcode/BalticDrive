@@ -21,7 +21,7 @@ public partial class InventoryScreen : Control
     private readonly ItemColumn _left, _right;
     private readonly CraftingColumn _craft;
     private readonly Button _takeAll;
-    private readonly Label _hint;
+    private readonly Label _hint, _skills;
 
     public bool IsOpen => Visible;
 
@@ -62,6 +62,10 @@ public partial class InventoryScreen : Control
         Skin.Button(_takeAll);
         _takeAll.Pressed += TakeAll;
         _left.Footer.AddChild(_takeAll);
+        _skills = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        _skills.AddThemeFontSizeOverride("font_size", 13);
+        _skills.AddThemeColorOverride("font_color", new Color(Skin.Text, 0.75f));
+        _right.Footer.AddChild(_skills);
         _hint = new Label { Text = "drag, or double-click: move the pile · right-click: move one · Esc closes", HorizontalAlignment = HorizontalAlignment.Center };
         _hint.AddThemeColorOverride("font_color", new Color(1, 1, 1, 0.65f));
         box.AddChild(_hint);
@@ -95,6 +99,7 @@ public partial class InventoryScreen : Control
         if (_mine == null) return;
         if (_other != null) _left.Fill(_other, $"{char.ToUpper(_otherTitle[0]) + _otherTitle[1..]}", $"{_other.Weight:0.0} kg", null);
         _right.Fill(_mine, "You", $"{_mine.Weight:0.0} / {_mine.MaxWeight:0} kg", _usable);
+        _skills.Text = "Skills: " + Skills.Line();
         _takeAll.Disabled = _other == null || _other.IsEmpty;
         if (_other == null) _craft.Fill(_mine);
     }
@@ -107,7 +112,7 @@ public partial class InventoryScreen : Control
         var miss = Recipes.Missing(r, _mine);
         if (miss.Count > 0) { Flash("You need " + string.Join(", ", miss)); return; }
         if (r.Seconds <= 0) { Finish(r); return; }
-        _making = r; _makingT = 0; _lastHealth = Health?.Invoke() ?? 0;
+        _making = r with { Seconds = Recipes.SecondsFor(r) }; _makingT = 0; _lastHealth = Health?.Invoke() ?? 0;   // skill makes it quicker (D113)
         Core.Log.Info("Recipes", $"{r.Id}: started, {r.Seconds:0} s");
         Refresh();
     }
@@ -459,7 +464,7 @@ public partial class CraftingColumn : PanelContainer
                 text.AddChild(about);
             }
             row.AddChild(text);
-            var make = new Button { Text = r.Seconds > 0 ? $"Make  {r.Seconds:0}s" : "Make", Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(100, 34), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            var make = new Button { Text = r.Seconds > 0 ? $"Make  {Recipes.SecondsFor(r):0}s" : "Make", Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(100, 34), SizeFlagsVertical = SizeFlags.ShrinkCenter };
             Skin.Button(make, "button_small");
             var rec = r;
             make.Pressed += () => _screen.Craft(rec);
