@@ -1854,6 +1854,13 @@ public sealed class Tests
         var w = _main.Walker!;
         if (At(6))   // the wrecks have had time to appear around us
         {
+            // no wreck about: walk up to the nearest parked car (D100), which wakes it
+            if (_main.Wrecks?.Live.Any(c => c != _takeOld) != true && _main.Parked?.Nearest(w.GlobalPosition) is { } pc)
+            {
+                w.GlobalPosition = pc + new Vector3(3f, 0.5f, 0);
+                _main.Parked.Update(w.GlobalPosition, true, 0);
+                Log.Info("Test", "takecar: walked up to a parked car");
+            }
             var wreck = _main.Wrecks?.Live.Where(c => c != _takeOld).OrderBy(c => c.GlobalPosition.DistanceTo(w.GlobalPosition)).FirstOrDefault();
             if (wreck == null) { Log.Info("Test", "takecar: no wreck within reach"); return false; }
             Log.Info("Test", $"takecar: nearest wreck {wreck.Name} ({wreck.Model.GetFile()}) {wreck.GlobalPosition.DistanceTo(w.GlobalPosition):0} m away; won't go: {Main.WontGo(wreck) ?? "-"}");

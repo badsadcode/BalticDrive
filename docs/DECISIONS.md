@@ -1489,3 +1489,26 @@ took gets no new one (`WreckField.Take`).
 Self-test `--autotest=takecar`: with every wreck a runner, out of the sedan, the nearest wreck (a rusty small car,
 rear suspension missing) taken and driven 14 m (straight into the bollards across Emilii Plater: the test steers
 straight ahead), the sedan still there 67 m back, taken back; with no runners, "a wheel is missing" and nothing taken.
+
+## D100 — Parked cars in car parks and at kerbs (Tom: "more cars on the streets, on parking lots", 21 Nov)
+`Vehicle.ParkedCars`, generated around the player in 64 m squares (the same cars in the same bays every time):
+* **Car parks** (OSM paved areas that aren't pedestrian or raised): rows of bays along the lot's longest side, 2.6 m
+  wide, 5 m deep, 6 m aisles; a bay has a car about a third of the time; nose in either way.
+* **Kerbs** of residential, living and service streets with buildings within 12 m: a space every 6.5 m, one in nine
+  filled, off the carriageway.
+* How full: the sandbox's new `parked.frequency` (D99; 0 none, 3 packed; `apocalypse` 1.3, `road_trip` 1.6).
+* Light: the Synty model and a box (props layer) to bump into, no physics; the prefabs' own concave colliders removed.
+  At most 140 near you, made three a frame (a big car park in one frame stuttered: 35 frames over 33 ms on the 6 km
+  fly over Warsaw; now 11, against 16 with parked cars off: noise). Built from the walker, the car or the free camera.
+* **Colours**: Synty's cars are all one blue (its colour atlases change only buildings), so `car_paint.gdshader`
+  re-colours just the body paint (texels near the paint's hue, saturated): white and silver most, black, red, maroon,
+  green, beige, yellow, navy, the original blue; dust and rust (`wreck_grime`) over it. A Synty prefab's root is the
+  car body, so meshes are gathered with the root included (`ParkedCars.Meshes`).
+* Models: the City cars (sedan, small, medium, van, muscle, taxi, a police car now and then), Battle Royale's car, and
+  burnt-out shells (one in twelve) that stay scenery. The Gang Warfare van, low cars and truck are copied but left out:
+  their models reference a material their pack doesn't ship.
+* **Waking**: walk within 7 m and the nearest becomes a real car (`WreckField.Adopt`): parts rolled from its id like a
+  wreck's (D99: worn, picked over, sometimes a runner), the same paint; F takes it if it runs. Far ones go back to
+  being models, their parts remembered; driven-away bays stay empty.
+Checked: a Warsaw courtyard car park (Emilii Plater) in rows of dusty white, beige, red, maroon and blue cars; a
+parked medium car woken, taken and driven, still white; the old sedan left parked and taken back.

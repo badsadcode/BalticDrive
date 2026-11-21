@@ -34,14 +34,17 @@ public sealed partial class WreckField : Node3D
     private readonly HashSet<(long, long)> _taken = new();
     /// <summary>Cars the player left behind (D99): kept where they stand, never put away, still in <see cref="Live"/>.</summary>
     private readonly List<Car> _left = new();
+    /// <summary>Parked cars driven away (D100): their bays stay empty this session.</summary>
+    public readonly HashSet<string> TakenParked = new();
     private double _next;
-    public IEnumerable<Car> Live => _live.Values.Concat(_left.Where(IsInstanceValid));
+    public IEnumerable<Car> Live => _live.Values.Concat(_left.Where(IsInstanceValid)).Concat(_adopted.Values.Where(IsInstanceValid)).Distinct();
 
     /// <summary>The player drives this wreck away (D99): it stops being a wreck (no more putting away) and its square
     /// stays empty.</summary>
     public void Take(Car car)
     {
         foreach (var kv in _live.Where(kv => kv.Value == car).ToList()) { _live.Remove(kv.Key); _taken.Add(kv.Key); }
+        foreach (var kv in _adopted.Where(kv => kv.Value == car).ToList()) { _adopted.Remove(kv.Key); TakenParked.Add(kv.Key); }
         _left.Remove(car);
     }
 
@@ -135,8 +138,23 @@ public sealed partial class WreckField : Node3D
         if (_seen.TryGetValue(key, out var kept)) { car.Parts.CopyFrom(kept); _seen[key] = car.Parts; }
         else
         {
-            // sandbox (D99): a runner still drives away (engine, battery, four wheels); the rest worn and picked over
-            bool runner = rng.NextDouble() < Sandbox.Get("wrecks.runners");
+            RollParts(car, rng, 1f);
+            _seen[key] = car.Parts;
+        }
+        Place(car, spot.X, spot.Z, spot.Yaw);
+        car.Grime(0.45f + 0.4f * (float)rng.NextDouble());
+        _live[key] = car;
+        Log.Info("Wrecks", $"a {model.Split('/')[^1].Replace(".tscn", "")} at {spot.X:0},{spot.Z:0}: {car.Parts.All.Count(p => p.Missing)} parts missing");
+    }
+
+    /// <summary>
+    /// An abandoned car's parts (D69, D99): worn, some gone (what scavengers want first most often), windows now and then
+    /// smashed; a runner (the sandbox's share, × <paramref name="runners"/>) keeps engine, battery and wheels fit to drive.
+    /// </summary>
+    public static void RollParts(Car car, Random rng, float runners)
+    {
+        {
+            bool runner = rng.NextDouble() < Sandbox.Get("wrecks.runners") * runners;
             float wear = Sandbox.Get("wrecks.condition"), picked = Sandbox.Get("wrecks.picked_over");
             foreach (var p in car.Parts.All)
             {
@@ -155,9 +173,13 @@ public sealed partial class WreckField : Node3D
                     p.Condition = Math.Max(p.Condition, (float)Math.Round(35 + 45 * rng.NextDouble()));
                 }
             }
-            _seen[key] = car.Parts;
         }
-        float y = _world.Height(spot.X, spot.Z);
+    }
+
+    /// <summary>Stands a parked car at a world spot, sagging onto the corners that have no wheel.</summary>
+    private void Place(Car car, double x, double z, float yaw)
+    {
+        float y = _world.Height(x, z);
         // sagging onto the corners with no wheel: nose or tail down, leaning to the side
         float pitch = 0, roll = 0, sink = 0;
         for (int i = 0; i < 4; i++)
@@ -167,11 +189,41 @@ public sealed partial class WreckField : Node3D
                 roll += i % 2 == 0 ? 0.035f : -0.035f;
                 sink += 0.07f;
             }
-        var basis = new Basis(Vector3.Up, spot.Yaw) * new Basis(Vector3.Right, pitch) * new Basis(Vector3.Back, roll);
-        car.Warp(new Transform3D(basis, WorldOrigin.ToLocal(spot.X, y + 0.05 - sink, spot.Z)));
+        var basis = new Basis(Vector3.Up, yaw) * new Basis(Vector3.Right, pitch) * new Basis(Vector3.Back, roll);
+        car.Warp(new Transform3D(basis, WorldOrigin.ToLocal(x, y + 0.05 - sink, z)));
         car.PartsChanged();
-        car.Grime(0.45f + 0.4f * (float)rng.NextDouble());
-        _live[key] = car;
-        Log.Info("Wrecks", $"a {model.Split('/')[^1].Replace(".tscn", "")} at {spot.X:0},{spot.Z:0}: {car.Parts.All.Count(p => p.Missing)} parts missing");
+    }
+
+    // ---- parked cars woken up (D100) -----------------------------------------------------------------------------
+    private readonly Dictionary<string, Car> _adopted = new();
+    private readonly Dictionary<string, CarParts> _seenParked = new();
+    public bool Adopted(string id) => _adopted.ContainsKey(id);
+
+    /// <summary>A parked car (D100) the player walked up to becomes a real one: its parts rolled from its id (the same
+    /// every time; kept for the session once met), standing where the parked model stood.</summary>
+    public Car Adopt(string id, string model, double x, double z, float yaw, float grime)
+    {
+        var car = new Car { Name = $"Parked_{id}", Model = Car.ChooseModel(model), Map = _world, Parked = true, Driving = false };
+        AddChild(car);
+        if (_seenParked.TryGetValue(id, out var kept)) car.Parts.CopyFrom(kept);
+        else RollParts(car, new Random((int)Hash.Of(id.GetHashCode(), 77, 4711)), 1f);
+        _seenParked[id] = car.Parts;
+        Place(car, x, z, yaw);
+        car.Grime(grime);
+        _adopted[id] = car;
+        return car;
+    }
+
+    /// <summary>Adopted cars far away go back to being parked models (their parts remembered); the one being driven and
+    /// the ones left (<see cref="Leave"/>) stay.</summary>
+    public void PutAwayAdopted(Vector3 at, Func<Car, bool> keep)
+    {
+        foreach (var (id, car) in _adopted.ToList())
+        {
+            if (!IsInstanceValid(car)) { _adopted.Remove(id); continue; }
+            if (keep(car) || _left.Contains(car) || car.GlobalPosition.DistanceTo(at) < Far) continue;
+            _adopted.Remove(id);
+            car.QueueFree();
+        }
     }
 }

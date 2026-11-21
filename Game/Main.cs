@@ -456,6 +456,7 @@ public partial class Main : Node3D
 			_bandits = new OnFoot.BanditField(_world, _caches); AddChild(_bandits);
 			_interiors = new World.Interiors(this); AddChild(_interiors);   // walk into blocks of flats (D81)
 			_wrecks = new Vehicle.WreckField(_world); AddChild(_wrecks);   // cars to strip (D69)
+			_parked = new Vehicle.ParkedCars(_world, _wrecks); AddChild(_parked);   // car parks and kerbs (D100)
 			// a reason to roam (D54): notes and radios name stashes across the map
 			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);
 			_leads.Said += s => ShowNote(s, 12, keep: true);
@@ -505,6 +506,10 @@ public partial class Main : Node3D
 		// wrecks along the way, on foot or driving (D69)
 		if (on) _wrecks?.Update(_walker!.GlobalPosition, now);
 		else if (_car != null && _car.Driving && !Flying) _wrecks?.Update(_car.GlobalPosition, now);
+		// parked cars (D100): built around you; the nearest wakes up when you walk up to it
+		if (on) _parked?.Update(_walker!.GlobalPosition, true, now);
+		else if (_car != null && _car.Driving && !Flying) _parked?.Update(_car.GlobalPosition, false, now);
+		else if (Flying) _parked?.Update(_camera.GlobalPosition with { Y = 0 }, false, now);   // the free camera and test views see them too
 		if (!on || PlayerDown || (_inventory?.IsOpen ?? false)) { _prompt!.Visible = false; _claim = 0; return; }
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
@@ -812,6 +817,8 @@ public partial class Main : Node3D
 	private double _fHeld = -1;
 	private Vehicle.Car? _fTarget;
 	private Vehicle.WreckField? _wrecks;
+	private Vehicle.ParkedCars? _parked;
+	public Vehicle.ParkedCars? Parked => _parked;
 	public Vehicle.WreckField? Wrecks => _wrecks;
 
 	/// <summary>The car (yours or a wreck, D69) the walker stands by, within 4.5 m.</summary>
