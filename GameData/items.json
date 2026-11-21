@@ -62,6 +62,8 @@
     {"id": "hot_tea", "name": "mug of tea", "plural": "mugs of tea", "category": "drink", "weight": 0.35, "stack": 3, "food": 3, "drink": 40},
     {"id": "kabanos_rusks", "name": "kabanos on rusks", "plural": "kabanos on rusks", "category": "food", "weight": 0.4, "stack": 4, "food": 45},
     {"id": "kartacze", "name": "plate of kartacze", "plural": "plates of kartacze", "category": "food", "weight": 0.9, "stack": 2, "food": 80},
-    {"id": "molotov", "name": "molotov cocktail", "plural": "molotov cocktails", "category": "tool", "weight": 0.9, "stack": 3}
+    {"id": "molotov", "name": "molotov cocktail", "plural": "molotov cocktails", "category": "tool", "weight": 0.9, "stack": 3},
+    {"id": "petrol_can", "name": "can of petrol", "plural": "cans of petrol", "category": "fuel", "weight": 4.6, "stack": 1, "tags": ["fuel_petrol", "fuel_liquid"], "leaves": "empty_petrol_can"},
+    {"id": "empty_petrol_can", "name": "empty petrol can", "plural": "empty petrol cans", "category": "junk", "weight": 0.9, "stack": 1}
   ]
 }

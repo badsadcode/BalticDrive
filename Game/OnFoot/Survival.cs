@@ -86,13 +86,29 @@ public sealed partial class Survival : Node
     }
 
     /// <summary>Can an item be used from the inventory (D89): food, drink, medicine.</summary>
-    public static bool Usable(ItemDef d) => d.Category is "food" or "drink" || d.Category == "medical" && d.Heal > 0;
+    public static bool Usable(ItemDef d) => d.Category is "food" or "drink" or "fuel" || d.Category == "medical" && d.Heal > 0;
+
+    /// <summary>Petrol from the pack (D109): litres offered, litres taken by whatever is in reach (a generator), or -1
+    /// when nothing is. Set by the game.</summary>
+    public static Func<float, float>? PourFuel;
 
     /// <summary>Eats, drinks or uses one of an item you carry (the inventory's Use button).</summary>
     public void UseItem(string id)
     {
         var d = ItemDb.Get(id);
         if (d == null || Pack.Count(id) == 0) return;
+        if (d.Category == "fuel")
+        {
+            float took = PourFuel?.Invoke(5f) ?? -1;
+            if (took < 0) { Say("Nothing to pour it into here: stand by a generator"); return; }
+            if (took <= 0.01f) { Say("The tank is full"); return; }
+            // a can holds 5 litres and isn't measured: less than half poured, it's still a can; more, it's used up
+            if (took < 2.5f) { Say($"You top it up with {took:0.0} litres; the can's still mostly full"); return; }
+            Say(took < 4.95f ? $"You pour {took:0.0} litres in; the dregs aren't worth keeping" : "You pour the whole can in");
+            Pack.Remove(id, 1);
+            if (d.Leaves != null) Pack.Add(d.Leaves, 1);
+            return;
+        }
         if (d.Category == "medical")
         {
             if (Health >= 99) { Say("You're fine"); return; }

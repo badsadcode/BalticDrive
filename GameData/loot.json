@@ -426,6 +426,10 @@
     {
      "item": "potatoes",
      "weight": 2
+    },
+    {
+     "item": "petrol_can",
+     "weight": 0.6
     }
    ]
   }
@@ -447,7 +451,8 @@
    "hammer": 3,
    "rope": 3,
    "water": 2,
-   "beans": 2
+   "beans": 2,
+   "petrol_can": 6
   },
   "bedroom": {
    "photo_album": 2,

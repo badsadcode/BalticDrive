@@ -77,7 +77,113 @@ public sealed class Tests
     private bool _tip, _tipStarted;
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
-    private double _craftT = -1;
+    private double _craftT = -1, _genT = -1;
+    private bool _gen;
+    private string? _genBackup;
+    private Power.Generators.Gen? _g;
+    private OnFoot.Bandit? _genBandit;
+    private Vector3 _genFrom;
+    private float _genFuel0;
+
+    /// <summary>--autotest=generator (D109): the generators found near the start; one put down in front of you, empty:
+    /// it won't start; a can of petrol poured in from the pack; started (photographed, and at night with its lamp); a
+    /// bandit 80 m off comes to the noise; fuel burns; switched off, carried 3 s (speed) and put down. user://generators.json
+    /// is backed up and restored. True while running.</summary>
+    private bool GeneratorTest(double delta)
+    {
+        string gf = ProjectSettings.GlobalizePath("user://generators.json");
+        if (_genT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _genT = 0;
+            _genBackup = System.IO.File.Exists(gf) ? System.IO.File.ReadAllText(gf) : null;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _genT;
+        _genT += delta;
+        bool At(double t) => before < t && _genT >= t;
+        var w = _main.Walker!;
+        var gens = _main.Generators!;
+        var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+        if (At(4))
+        {
+            var found = gens.Live.ToList();
+            Log.Info("Test", $"generator: {found.Count} found within {Power.Generators.Near:0} m: " + string.Join("; ", found.Take(6).Select(g => $"{g.Id} {g.Fuel:0.0} L at {g.X:0},{g.Z:0}")));
+            // away from the car first, then one on the verge ahead and to the left, turned to show its panel
+            var (sx, _, sz) = WorldOrigin.ToWorld(w.GlobalPosition + fwd * 7f);
+            w.GlobalPosition = WorldOrigin.ToLocal(sx, _main.World!.Height(sx, sz) + 0.2, sz);
+            var side0 = fwd.Cross(Vector3.Up);
+            _g = gens.PlaceHere(w.GlobalPosition + fwd * 3.5f - side0 * 1.4f, w.Yaw + 0.6f, 0, can: true);
+        }
+        if (At(4.5)) w.SetView(true);
+        if (At(4.7)) Shot("generator_can");
+        if (At(4.8)) w.SetView(false);
+        if (At(5))
+        {
+            // walk up to it: the prompt
+            w.GlobalPosition = _g!.Node!.GlobalPosition - fwd * 1.4f + fwd.Cross(Vector3.Up) * 0.7f + Vector3.Up * 0.2f;
+            var canGen = gens.CanInReach(_g.CanNode!.GlobalPosition + Vector3.Up * 0.3f);
+            bool took = canGen != null && gens.TakeCan(canGen, w.Body.Pack, out _);
+            Log.Info("Test", $"generator: the can beside it: in reach {canGen == _g}, taken {took}, pack petrol {w.Body.Pack.Count("petrol_can")}, can left {_g.Can}");
+        }
+        if (At(5.6))
+        {
+            bool started = gens.Toggle(_g!, out var said);
+            Log.Info("Test", $"generator: empty, start: {started} ({said}); in reach: {gens.InReach(w.GlobalPosition) == _g}; prompt: {Power.Generators.Prompt(_g!, w.Body.Pack.Count("petrol_can"))}");
+            w.Body.UseItem("petrol_can");
+            Log.Info("Test", $"generator: poured, fuel {_g!.Fuel:0.0} L; pack: {Items.Inventory.Say(w.Body.Pack.Stacks.Where(s => s.Id.Contains("petrol")))}");
+            started = gens.Toggle(_g!, out said);
+            _genFuel0 = _g!.Fuel;
+            Log.Info("Test", $"generator: start: {started} ({said}); running node: {_g.Fx != null}");
+            // a bandit 80 m off, round the corner of your view
+            var side = fwd.Cross(Vector3.Up);
+            var (bx, _, bz) = WorldOrigin.ToWorld(_g.Node!.GlobalPosition + side * 80f);
+            _genBandit = _main.Bandits?.SpawnOne(WorldOrigin.ToLocal(bx, _main.World!.Height(bx, bz) + 0.3, bz));
+            _genFrom = _genBandit?.GlobalPosition ?? Vector3.Zero;
+        }
+        if (At(7)) Shot("generator_running");
+        if (At(14))
+        {
+            bool alive = _genBandit != null && GodotObject.IsInstanceValid(_genBandit);
+            float d0 = _genFrom.DistanceTo(_g!.Node!.GlobalPosition), d1 = alive ? _genBandit!.GlobalPosition.DistanceTo(_g.Node.GlobalPosition) : -1;
+            if (!alive) _genBandit = null;
+            Log.Info("Test", $"generator: the bandit: {_genBandit?.State}, {d0:0} m -> {d1:0} m from it; loud: {gens.Loud}; bandit boost {_main.Bandits?.NoiseBoost}");
+            Log.Info("Test", $"generator: fuel {_genFuel0:0.000} -> {_g.Fuel:0.000} L in ~8.4 s (expected {8.4f * Power.Generators.BurnPerSecond:0.000})");
+            if (_genBandit != null) { _main.Bandits?.Remove(_genBandit); _genBandit.QueueFree(); _genBandit = null; }
+            _main.Atmosphere.Hour = 22.5;
+        }
+        if (At(16)) Shot("generator_night");
+        if (At(16.5))
+        {
+            _main.Atmosphere.Hour = 12;
+            gens.Toggle(_g!, out var said);
+            gens.PickUp(_g!);
+            w.Burden = 1;
+            _genFrom = w.GlobalPosition;
+            w.Autopilot = _ => (new Vector2(0, 1), true);   // trying to sprint
+            Log.Info("Test", $"generator: off ({said}), carried: {gens.Carried == _g}");
+        }
+        if (At(17.6)) w.SetView(true);
+        if (At(18)) Shot("generator_carry");
+        if (At(18.2)) w.SetView(false);
+        if (At(19.5))
+        {
+            w.Autopilot = _ => (Vector2.Zero, false);
+            float moved = (w.GlobalPosition - _genFrom).Length();
+            gens.PutDown(w.GlobalPosition, w.Yaw);
+            w.Burden = 0;
+            Log.Info("Test", $"generator: carried {moved:0.0} m in 3 s ({moved / 3f:0.0} m/s, a run is {OnFoot.Walker.RunSpeed}); put down at {_g!.X:0.0},{_g.Z:0.0}, carried now: {gens.Carried != null}");
+        }
+        if (At(20))
+        {
+            w.Autopilot = null;
+            gens.Frozen = true;   // or it saves the test's generators again on the way out
+            if (_genBackup != null) System.IO.File.WriteAllText(gf, _genBackup); else if (System.IO.File.Exists(gf)) System.IO.File.Delete(gf);
+            return false;
+        }
+        return true;
+    }
     private double _takeT = -1;
     private Vehicle.Car? _takeOld, _takeNew;
     private Vector3 _takeFrom;
@@ -123,6 +229,7 @@ public sealed class Tests
         _tip = Main.Args.GetValueOrDefault("autotest", "").Contains("tip");
         _take = Main.Args.GetValueOrDefault("autotest", "").Contains("takecar");
         _craft = Main.Args.GetValueOrDefault("autotest", "").Contains("craft");
+        _gen = Main.Args.GetValueOrDefault("autotest", "").Contains("generator");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -1671,6 +1778,11 @@ public sealed class Tests
         {
             if (CraftTest(delta)) return;
             _craft = false;
+        }
+        if (_gen)
+        {
+            if (GeneratorTest(delta)) return;
+            _gen = false;
         }
         if (_take)
         {

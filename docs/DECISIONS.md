@@ -1626,3 +1626,25 @@ batteries for a radio or a lamp, real solar installations from OSM as rare place
 stoves with a canister, campfires; electric cookers are dead. A sandbox option, "utilities last 0–30 days" (default 0),
 for a Zomboid-style start. Not built yet; folded into the heat-sources step. The cause of the blackout stays Tom's
 and Noor's call.
+
+
+## D109 — Generators: Tom's model, petrol, noise
+
+Tom modelled a portable generator in Blender (Assets/Props/Generator) and a petrol can with Meshy
+(Assets/Props/PetrolCan); "Yes, build it". `Power.Generators`: generated beside farms (about 1 in 7), works (1 in 10),
+sheds (1 in 16) and houses (1 in 30) × the new sandbox setting `generators.frequency`, from the building's OSM id so
+always the same; 1.2 m out from a wall, facing away, not on a road or in water. 45 % are dry, the rest hold up to
+3.5 L; 35 % have a can of petrol beside them. Tank 6 L, a litre every 4 real minutes (the clock may be frozen, so not
+game hours). **F** starts or stops one (a dry one says so and points to Tab); **hold F** lifts it: you carry it at
+2.1 m/s at most, no sprint, no jump, no gun (`Walker.Burden`), and F puts it down; falling or getting in a car drops
+it. Petrol: the new items `petrol_can` (5 L, 4.6 kg, tag fuel_petrol, leaves `empty_petrol_can`) on shelves (more
+in storage rooms) and beside generators (F takes it); in the pack its button is "Pour", into the generator in reach.
+A can isn't measured: less than half poured, it stays a can; more, it's used up (simple, not exact). Running: a lamp
+on the frame (warm, 14 m), a soft exhaust puff, a shiver, and a synthesized four-stroke thrum (placeholder: a
+recording at Assets/Sounds/generator.wav wins). It is heard: every 3 s bandits within 110 m investigate
+(`BanditField.NoiseAt`), and new ones turn up twice as often while a running one is within 200 m. Within 40 m of your
+safehouse it gives it power (a note now; fridges, radio and lit windows later). Moved, filled, started or emptied ones
+are kept in user://generators.json per world. Tom's can is modelled 0.95 m tall; the game scales it to 35 cm.
+Self-test `--autotest=generator` (best with `--place=Trześcianka`; user://generators.json backed up and restored, no
+saving after): the found ones logged; a can taken; an empty one won't start; poured and started; a bandit 80 m off
+investigates; fuel burns 0.035 L in 8.4 s; carried 6 m in 3 s; photographed by day, at night and carried.

@@ -257,7 +257,7 @@ public partial class Weapons : Node3D
         }
         if (e is InputEventMouseButton mb && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
-            if (mb.ButtonIndex == MouseButton.Left) _triggerHeld = mb.Pressed;
+            if (mb.ButtonIndex == MouseButton.Left) _triggerHeld = mb.Pressed && _w.Burden <= 0;   // arms full (D109): no gun
             if (mb.ButtonIndex == MouseButton.Right) Aiming = mb.Pressed;
         }
         if (e is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)

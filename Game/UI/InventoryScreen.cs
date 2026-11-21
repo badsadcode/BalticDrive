@@ -265,7 +265,7 @@ public partial class ItemRow : HBoxContainer
         AddChild(w);
         if (usable)
         {
-            var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : "Use", CustomMinimumSize = new Vector2(70, 0) };
+            var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : def.Category == "fuel" ? "Pour" : "Use", CustomMinimumSize = new Vector2(70, 0) };
             Skin.Button(b, "button_small");
             b.Pressed += () => _screen.Use(_id);
             AddChild(b);

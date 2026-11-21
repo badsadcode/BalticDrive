@@ -25,6 +25,8 @@ public partial class Walker : CharacterBody3D, IHittable
     public bool FirstPerson { get; private set; }
     public bool Crouching { get; private set; }
     public float Speed { get; private set; }
+    /// <summary>Something heavy in your arms (D109: a generator): 1 walks slowly, no running, no jumping, no gun.</summary>
+    public float Burden;
     public float Yaw { get; private set; }
     public Camera3D ActiveCamera => FirstPerson || _aimOverride ? _fp : _tp;
     public Camera3D FirstPersonCamera => _fp;
@@ -439,11 +441,13 @@ public partial class Walker : CharacterBody3D, IHittable
                 (Input.IsKeyPressed(Key.W) ? 1 : 0) - (Input.IsKeyPressed(Key.S) ? 1 : 0));
             sprint = Input.IsKeyPressed(Key.Shift) && Body.CanSprint && !_aimOverride;   // too thirsty or hurt: no sprinting (D46); aiming: Shift holds the breath (D65)
             Crouching = Input.IsKeyPressed(Key.Ctrl);
-            if (Input.IsKeyPressed(Key.Space) && IsOnFloor() && !Crouching) Velocity = Velocity with { Y = JumpSpeed };
+            if (Burden > 0) sprint = false;
+            if (Input.IsKeyPressed(Key.Space) && IsOnFloor() && !Crouching && Burden <= 0) Velocity = Velocity with { Y = JumpSpeed };
         }
         if (move.LengthSquared() > 1) move = move.Normalized();
         bool walk = Autopilot == null && Input.IsKeyPressed(Key.Alt);
         float top = Crouching ? CrouchSpeed : walk ? WalkSpeed : sprint && move.Y > 0.3f ? SprintSpeed : RunSpeed;
+        if (Burden > 0) top = MathF.Min(top, 2.1f);
         // camera-relative: forward is where the camera looks
         var fwd = new Vector3(-MathF.Sin(Yaw), 0, -MathF.Cos(Yaw));
         var right = new Vector3(-fwd.Z, 0, fwd.X);

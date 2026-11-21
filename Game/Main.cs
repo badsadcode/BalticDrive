@@ -186,13 +186,17 @@ public partial class Main : Node3D
 	public FlyCamera Camera => _camera;
 	public Car? Car => _car;
 	public OnFoot.Walker? Walker => _walker;
+	public OnFoot.BanditField? Bandits => _bandits;
+	public Power.Generators? Generators => _generators;
+	private Power.Generators? _generators;
+	private Power.Generators.Gen? _genHere, _canHere;
+	private bool _poweredHome;
 
 	private OnFoot.ShootingRange? _range;
 	private OnFoot.CacheField? _caches;
 	public OnFoot.CacheField? Caches => _caches;
 	private Label? _prompt;
 	private OnFoot.BanditField? _bandits;
-	public OnFoot.BanditField? Bandits => _bandits;
 	public World.Interiors? Interiors => _interiors;
 	private World.Interiors? _interiors;
 	private OnFoot.Leads? _leads;
@@ -483,6 +487,8 @@ public partial class Main : Node3D
 			_interiors = new World.Interiors(this); AddChild(_interiors);   // walk into blocks of flats (D81)
 			_wrecks = new Vehicle.WreckField(_world); AddChild(_wrecks);   // cars to strip (D69)
 			_parked = new Vehicle.ParkedCars(_world, _wrecks); AddChild(_parked);   // car parks and kerbs (D100)
+			_generators = new Power.Generators(_world, SaveWorld); AddChild(_generators);   // portable generators (D109)
+			BalticDrive.OnFoot.Survival.PourFuel = litres => _walker != null && _generators?.InReach(_walker.GlobalPosition) is { } g ? _generators.Pour(g, litres) : -1;
 			// a reason to roam (D54): notes and radios name stashes across the map
 			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);
 			_leads.Said += s => ShowNote(s, 12, keep: true);
@@ -536,7 +542,43 @@ public partial class Main : Node3D
 		if (on) _parked?.Update(_walker!.GlobalPosition, true, now);
 		else if (_car != null && _car.Driving && !Flying) _parked?.Update(_car.GlobalPosition, false, now);
 		else if (Flying) _parked?.Update(_camera.GlobalPosition with { Y = 0 }, false, now);   // the free camera and test views see them too
+		// generators (D109): fuel burns and noise carries wherever you are
+		var genAt = on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : (Vector3?)null;
+		if (genAt is { } ga) _generators?.Update(ga, now, (float)GetProcessDeltaTime());
+		if (_bandits != null) _bandits.NoiseBoost = _generators?.Loud == true ? 2f : 1f;
+		if (_generators?.Carried != null && _walker != null && (PlayerDown || !on)) { _generators.PutDown(_walker.GlobalPosition, _walker.Yaw); _walker.Burden = 0; }   // dropped when you fall or get in a car
+		if (_generators != null && _safehouse is { } sh)
+		{
+			bool p = _generators.PoweredAt(sh.X, sh.Z);
+			if (p && !_poweredHome) ShowNote("The safehouse has power while the generator runs");
+			_poweredHome = p;
+		}
 		if (!on || PlayerDown || (_inventory?.IsOpen ?? false)) { _prompt!.Visible = false; _claim = 0; return; }
+		if (_generators?.Carried != null)
+		{
+			_genHere = null;
+			_prompt!.Visible = true;
+			_prompt.Text = "Carrying the generator · F: put it down";
+			_bars.QueueRedraw();
+			return;
+		}
+		_canHere = _generators?.CanInReach(_walker!.GlobalPosition);
+		if (_canHere != null)
+		{
+			_genHere = null;
+			_prompt!.Visible = true;
+			_prompt.Text = "F: take the can of petrol";
+			_bars.QueueRedraw();
+			return;
+		}
+		_genHere = _generators?.InReach(_walker!.GlobalPosition);
+		if (_genHere != null)
+		{
+			_prompt!.Visible = true;
+			_prompt.Text = _genHold >= 0 ? $"Lifting... {MathF.Min((float)_genHold / 0.6f, 1):P0}" : Power.Generators.Prompt(_genHere, _walker!.Body.Pack.Count("petrol_can"));
+			_bars.QueueRedraw();
+			return;
+		}
 		_caches.Update(_walker!.GlobalPosition, now);
 		var c = _caches.InReach(_walker.GlobalPosition);
 		// furniture to search, indoors (D89)
@@ -680,10 +722,20 @@ public partial class Main : Node3D
 			if (fk.Pressed)
 			{
 				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
+				// generators (D109): put down what you carry; by one, a tap starts or stops it and a hold lifts it
+				if (OnFoot && _generators?.Carried != null) { _generators.PutDown(_walker!.GlobalPosition, _walker.Yaw); _walker.Burden = 0; GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _canHere != null) { _generators!.TakeCan(_canHere, _walker!.Body.Pack, out var took); ShowNote(took, 4); _canHere = null; GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _genHere != null) { _genHold = 0; GetViewport().SetInputAsHandled(); return; }
 				if (OnFoot && _spot != null) { OpenInventory(_spot); GetViewport().SetInputAsHandled(); return; }
 				_fTarget = OnFoot ? NearestCar() : null;
 				if (_fTarget != null) _fHeld = 0;
 				else ToggleOnFoot();
+			}
+			else if (_genHold >= 0)
+			{
+				// a tap: on or off
+				_genHold = -1;
+				if (_genHere != null && _generators!.Toggle(_genHere, out var said)) ShowNote(said, 4); else if (_genHere != null) ShowNote("No petrol in it" + (_walker!.Body.Pack.Count("petrol_can") > 0 ? ": pour some in from your pack (Tab)" : ""), 4);
 			}
 			else if (_fHeld >= 0)
 			{
@@ -846,7 +898,7 @@ public partial class Main : Node3D
 		}
 	}
 
-	private double _fHeld = -1;
+	private double _fHeld = -1, _genHold = -1;
 	private Vehicle.Car? _fTarget;
 	private Vehicle.WreckField? _wrecks;
 	private Vehicle.ParkedCars? _parked;
@@ -888,6 +940,17 @@ public partial class Main : Node3D
 	public override void _Process(double delta)
 	{
 		// holding F by the car: the workshop (D68)
+		if (_genHold >= 0)
+		{
+			_genHold += delta;
+			if (_genHold > 0.6 && _genHere != null && _walker != null)
+			{
+				_genHold = -1;
+				_generators!.PickUp(_genHere);
+				_walker.Burden = 1;
+				ShowNote("You lift the generator: heavy. Slow going, and no hand free for a gun.", 4);
+			}
+		}
 		if (_fHeld >= 0)
 		{
 			_fHeld += delta;

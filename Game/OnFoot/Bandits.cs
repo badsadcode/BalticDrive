@@ -721,6 +721,20 @@ public sealed partial class BanditField : Node3D
         }
     }
 
+    /// <summary>A steady noise (a running generator, D109): everyone within <paramref name="radius"/> comes to look.</summary>
+    public void NoiseAt(Vector3 at, float radius)
+    {
+        foreach (var b in _all)
+        {
+            if (b.Dead) continue;
+            float d = b.GlobalPosition.DistanceTo(at);
+            if (d < radius) b.Heard(at, d);
+        }
+    }
+
+    /// <summary>× how often new ones turn up (2 near a running generator: they come to the noise).</summary>
+    public float NoiseBoost = 1;
+
     /// <summary>One of them has seen the player: the mates within 60 m join in.</summary>
     public void Alert(Bandit who, Vector3 enemy)
     {
@@ -755,7 +769,7 @@ public sealed partial class BanditField : Node3D
         _nextLook = now + 8;
         // a little more often than at first (Tom: "not that many"), but never a horde: at most four alive near you
         // sandbox (D99): how often, and how many at once
-        float often = Sandbox.Get("bandits.frequency");
+        float often = Sandbox.Get("bandits.frequency") * NoiseBoost;
         if (often <= 0) return;
         if (_all.Count(b => !b.Dead && b.GlobalPosition.DistanceTo(at) < 250) >= (int)Sandbox.Get("bandits.max_near")) return;
         if (now - _lastEncounter < 60 / often) return;
