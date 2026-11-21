@@ -19,6 +19,7 @@ public partial class InventoryScreen : Control
     private Action<string>? _use;
     private Action? _closed;
     private readonly ItemColumn _left, _right;
+    private readonly CraftingColumn _craft;
     private readonly Button _takeAll;
     private readonly Label _hint;
 
@@ -41,7 +42,9 @@ public partial class InventoryScreen : Control
         box.AddChild(row);
         _left = new ItemColumn(this, true);
         _right = new ItemColumn(this, false);
+        _craft = new CraftingColumn(this);
         row.AddChild(_left);
+        row.AddChild(_craft);
         row.AddChild(_right);
         _takeAll = new Button { Text = "Take all (E)", CustomMinimumSize = new Vector2(170, 38) };
         Skin.Button(_takeAll);
@@ -57,6 +60,7 @@ public partial class InventoryScreen : Control
     {
         _mine = mine; _other = other; _otherTitle = otherTitle; _usable = usable; _use = use; _closed = closed;
         _left.Visible = other != null;
+        _craft.Visible = other == null;   // your pack alone (Tab): crafting on the left (D106)
         Visible = true;
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Refresh();
@@ -76,6 +80,16 @@ public partial class InventoryScreen : Control
         if (_other != null) _left.Fill(_other, $"{char.ToUpper(_otherTitle[0]) + _otherTitle[1..]}", $"{_other.Weight:0.0} kg", null);
         _right.Fill(_mine, "You", $"{_mine.Weight:0.0} / {_mine.MaxWeight:0} kg", _usable);
         _takeAll.Disabled = _other == null || _other.IsEmpty;
+        if (_other == null) _craft.Fill(_mine);
+    }
+
+    /// <summary>Makes a recipe from your pack (D106) and says how it went.</summary>
+    public void Craft(Recipe r)
+    {
+        if (_mine == null) return;
+        Recipes.Make(r, _mine, out var said);
+        Flash(said);
+        Refresh();
     }
 
     /// <summary>Moves items between the two sides: from the container (<paramref name="fromLeft"/>) or from you.</summary>
@@ -100,7 +114,7 @@ public partial class InventoryScreen : Control
         Refresh();
     }
 
-    private void Flash(string s) { _hint.Text = s; GetTree().CreateTimer(2.0).Timeout += () => _hint.Text = "drag, or double-click: move the pile · right-click: move one · Esc closes"; }
+    public void Flash(string s) { _hint.Text = s; GetTree().CreateTimer(2.0).Timeout += () => _hint.Text = "drag, or double-click: move the pile · right-click: move one · Esc closes"; }
 
     public override void _Input(InputEvent e)
     {
@@ -233,5 +247,75 @@ public partial class ItemRow : HBoxContainer
     public override void _Notification(int what)
     {
         if (what is (int)NotificationMouseEnter or (int)NotificationMouseExit) QueueRedraw();
+    }
+}
+
+/// <summary>The crafting list (D106): every recipe by category, what it uses and needs (what you lack in red), what it
+/// makes, and a Make button when your pack has it all.</summary>
+public partial class CraftingColumn : PanelContainer
+{
+    private readonly InventoryScreen _screen;
+    private readonly VBoxContainer _rows;
+    private static readonly Color Have = new(0.65f, 0.85f, 0.6f), Lack = new(0.95f, 0.45f, 0.4f);
+
+    public CraftingColumn(InventoryScreen screen)
+    {
+        _screen = screen;
+        CustomMinimumSize = new Vector2(460, 480);
+        if (Skin.Box("panels/window_frame.png", 6, 4) is { } frame) AddThemeStyleboxOverride("panel", frame);
+        var v = new VBoxContainer();
+        v.AddThemeConstantOverride("separation", 6);
+        AddChild(v);
+        var title = new Label { Text = "Crafting" };
+        title.AddThemeFontSizeOverride("font_size", 20);
+        title.AddThemeColorOverride("font_color", Skin.Text);
+        v.AddChild(title);
+        var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        v.AddChild(scroll);
+        _rows = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        _rows.AddThemeConstantOverride("separation", 8);
+        scroll.AddChild(_rows);
+    }
+
+    public void Fill(Inventory pack)
+    {
+        foreach (var c in _rows.GetChildren()) c.QueueFree();
+        // what you can make first, then by category
+        var list = Recipes.All.Select(r => (R: r, Miss: Recipes.Missing(r, pack))).OrderBy(x => x.Miss.Count > 0).ThenBy(x => x.R.Category).ToList();
+        foreach (var (r, miss) in list)
+        {
+            bool can = miss.Count == 0;
+            var row = new HBoxContainer();
+            row.AddThemeConstantOverride("separation", 8);
+            var text = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            text.AddThemeConstantOverride("separation", 0);
+            var name = new Label { Text = r.Name };
+            name.AddThemeFontSizeOverride("font_size", 16);
+            name.AddThemeColorOverride("font_color", can ? Skin.Text : new Color(Skin.Text, 0.55f));
+            text.AddChild(name);
+            // uses: each input, green when you have enough; needs: each tool
+            var uses = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+            uses.AddThemeFontSizeOverride("normal_font_size", 13);
+            string Part(string label, bool ok) => $"[color=#{(ok ? Have : Lack).ToHtml(false)}]{label}[/color]";
+            var parts = r.Inputs.Select(p => Part(p.Count > 1 ? $"{p.Count} × {ItemDb.Get(p.Item)?.Name ?? p.Item}" : ItemDb.Get(p.Item)?.Name ?? p.Item, pack.Count(p.Item) >= p.Count)).ToList();
+            var tools = r.Tools.Select(alts => Part(string.Join(" or ", alts.Select(a => ItemDb.Get(a)?.Name ?? a)), alts.Any(a => pack.Count(a) > 0))).ToList();
+            uses.Text = (parts.Count > 0 ? "uses " + string.Join(", ", parts) : "") + (tools.Count > 0 ? "  ·  needs " + string.Join(", ", tools) : "")
+                + $"  →  [color=#{Skin.Accent.ToHtml(false)}]{Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count)))}[/color]";
+            text.AddChild(uses);
+            if (r.About.Length > 0)
+            {
+                var about = new Label { Text = r.About, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+                about.AddThemeFontSizeOverride("font_size", 12);
+                about.AddThemeColorOverride("font_color", new Color(Skin.Text, 0.45f));
+                text.AddChild(about);
+            }
+            row.AddChild(text);
+            var make = new Button { Text = "Make", Disabled = !can, CustomMinimumSize = new Vector2(76, 34), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            Skin.Button(make, "button_small");
+            var rec = r;
+            make.Pressed += () => _screen.Craft(rec);
+            row.AddChild(make);
+            _rows.AddChild(row);
+        }
     }
 }

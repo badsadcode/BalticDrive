@@ -1572,3 +1572,23 @@ Trześcianka. Fixed after the tour:
   6.5, 8 m untyped; 4.5, 7.5 m a house) and has no mapped storeys gets no height, and the house style decides. Bigger
   buildings keep the guess (Warsaw unchanged). Together with BadBuilding D44 the villages are now mostly wooden.
 Not yet: driving across at Zambrów by car (only flown), Białystok's own look.
+
+## D105 — The whole of Poland, building in the background (Tom: "Yes, please", 21 Nov)
+`data/work/poland_chain.sh` (restartable, each step skips what's done): Geofabrik's Poland extract (2.1 GB), stage 1,
+elevation from GUGiK's WCS (back up, slowly) for every block with data, the blocks it can't give written empty
+(`--empty`) and filled from the sheets, then the build as `poland`. The game prefers `poland`, then `polska` (Mazowsze
+and Podlaskie, D104), then `mazowsze`; the older packs stay (Tom: keep everything while there's room).
+
+## D106 — Crafting (Tom: "crafting recipes", the Zomboid layer, 21 Nov)
+`GameData/recipes.json` (data, our own recipes), `Items.Recipes`: inputs used up, tools kept (each a list of
+alternatives, "lighter or matches" is the fire), outputs; a recipe is made from your pack when it has everything and
+what it makes fits the weight. Ten to start: rags from a bed sheet or a towel, a makeshift bandage, a clean bandage
+(rags and disinfectant), boiled rice, hot soup, herbata, kabanos on rusks, **kartacze** (potatoes, an onion, a tin of
+luncheon meat; a saucepan, a knife, a fire: "Wigraszek's are better, but Wigraszek is closed"), and a molotov (for
+when throwing exists). New items: potatoes, onion, tea, makeshift bandage, cooked rice, hot soup, mug of tea, kabanos
+on rusks, kartacze, molotov (61 now); potatoes, onions and tea in kitchen cupboards, fridges and shelves.
+The window: Tab (your pack alone) shows the crafting list on the left, in Tom's UI set: makeable first, what each
+uses and needs (green what you have, red what you lack), what it makes, a line of flavour, a Make button. Self-test
+`--autotest=craft`: kartacze, rags, a bandage and rice made from a filled pack; a molotov refused ("You need bottle of
+vodka"). Not yet: crafting time, cooking only by a cooker or a fire (now any lighter will do), skills, recipes found in
+books, using the outputs beyond eating (bandages heal like any medicine; the molotov waits for throwing).

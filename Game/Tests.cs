@@ -76,7 +76,8 @@ public sealed class Tests
     // --autotest=tip (D97): lane changes and a handbrake turn at speed, the worst roll and the flips
     private bool _tip, _tipStarted;
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
-    private bool _take;
+    private bool _take, _craft;
+    private double _craftT = -1;
     private double _takeT = -1;
     private Vehicle.Car? _takeOld, _takeNew;
     private Vector3 _takeFrom;
@@ -121,6 +122,7 @@ public sealed class Tests
         _drive = Main.Args.GetValueOrDefault("autotest", "").Contains("drive");
         _tip = Main.Args.GetValueOrDefault("autotest", "").Contains("tip");
         _take = Main.Args.GetValueOrDefault("autotest", "").Contains("takecar");
+        _craft = Main.Args.GetValueOrDefault("autotest", "").Contains("craft");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -1665,6 +1667,11 @@ public sealed class Tests
             view.Toggle();
             _map = false;
         }
+        if (_craft)
+        {
+            if (CraftTest(delta)) return;
+            _craft = false;
+        }
         if (_take)
         {
             if (TakeCarTest(delta)) return;
@@ -1900,6 +1907,47 @@ public sealed class Tests
             Log.Info("Test", $"takecar: back in the old car: {_main.Car == _takeOld}; the taken one left parked: {_main.Wrecks?.Live.Contains(_takeNew)}");
             return false;
         }
+        return true;
+    }
+
+    /// <summary>--autotest=craft (D106): ingredients in the pack, the crafting list photographed, kartacze, rags, a
+    /// bandage and rice made, a molotov refused (no vodka). True while running.</summary>
+    private bool CraftTest(double delta)
+    {
+        if (_craftT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _craftT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _craftT;
+        _craftT += delta;
+        bool At(double t) => before < t && _craftT >= t;
+        var pack = _main.Walker!.Body.Pack;
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("potatoes", 1), ("onion", 2), ("luncheon_meat", 1), ("saucepan", 1), ("kitchen_knife", 1), ("matches", 1),
+                         ("rice", 1), ("water", 2), ("sheet", 1), ("rag", 1), ("empty_bottle", 1), ("instant_soup", 1) })
+                pack.Add(id, n);
+            Log.Info("Test", $"craft: pack {Items.Inventory.Say(pack.Stacks)}");
+            _main.OpenInventory(null);
+        }
+        if (At(2)) Shot("craft_list");
+        if (At(2.5))
+        {
+            foreach (var id in new[] { "kartacze", "tear_sheet", "makeshift_bandage", "boil_rice", "molotov" })
+            {
+                var r = Items.Recipes.All.First(x => x.Id == id);
+                bool ok = Items.Recipes.Make(r, pack, out var said);
+                Log.Info("Test", $"craft: {id}: {(ok ? "made" : "not made")}: {said}");
+            }
+            _main.InventoryWindow!.Refresh();
+            Log.Info("Test", $"craft: pack now {Items.Inventory.Say(pack.Stacks)}");
+        }
+        if (At(3.2)) Shot("craft_after");
+        if (At(3.6)) { _main.InventoryWindow!.Close(); return false; }
         return true;
     }
 

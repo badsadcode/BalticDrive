@@ -331,10 +331,10 @@ public partial class Main : Node3D
 	private (BalticDrive.OnFoot.Doorstep Step, string Name)? _homeHere;
 	/// <summary>Self-tests: acts as holding K.</summary>
 	public bool TestClaim;
-	/// <summary>The map packs to open: <c>--map=</c>, else the joined regions (D90: "polska") when they're built, else
-	/// "mazowsze".</summary>
+	/// <summary>The map packs to open: <c>--map=</c>, else the whole of Poland (D105: "poland") when it's built, else
+	/// Mazowsze and Podlaskie (D90: "polska"), else "mazowsze".</summary>
 	public static string MapName => _mapName ??= Args.GetValueOrDefault("map",
-		File.Exists(MapData.IndexPath(MapDirectory(), "polska")) ? "polska" : "mazowsze");
+		new[] { "poland", "polska" }.FirstOrDefault(m => File.Exists(MapData.IndexPath(MapDirectory(), m))) ?? "mazowsze");
 	private static string? _mapName;
 
 	/// <summary>What the player's saves are kept under (safehouse, searched furniture). Every map is cut from the same
