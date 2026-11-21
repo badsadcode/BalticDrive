@@ -1,0 +1,741 @@
+[
+  {
+    "file": "bars/bar_frame.png",
+    "size": [
+      512,
+      48
+    ],
+    "nine_slice": [
+      14,
+      14,
+      14,
+      14
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "bars/bar_fill.png",
+    "size": [
+      512,
+      36
+    ],
+    "nine_slice": [
+      14,
+      10,
+      14,
+      10
+    ],
+    "notes": "Neutral RGB for stat tinting; inner highlight only; render inside housing."
+  },
+  {
+    "file": "bars/bar_fill_glow.png",
+    "size": [
+      512,
+      36
+    ],
+    "nine_slice": [
+      14,
+      10,
+      14,
+      10
+    ],
+    "notes": "Neutral RGB for stat tinting; inner highlight only; render inside housing."
+  },
+  {
+    "file": "bar_icons/icon_health.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "bar_icons/icon_food.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "bar_icons/icon_water.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "bar_icons/icon_weight.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "bar_icons/icon_fuel.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "bar_icons/icon_temperature.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "bar_icons/icon_fatigue.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram; tint RGB in game."
+  },
+  {
+    "file": "panels/window_frame.png",
+    "size": [
+      512,
+      512
+    ],
+    "nine_slice": [
+      28,
+      28,
+      28,
+      28
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/window_title_bar.png",
+    "size": [
+      512,
+      64
+    ],
+    "nine_slice": [
+      20,
+      20,
+      20,
+      20
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/container_frame.png",
+    "size": [
+      512,
+      512
+    ],
+    "nine_slice": [
+      28,
+      28,
+      28,
+      28
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/slot_empty.png",
+    "size": [
+      96,
+      96
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/slot_hover.png",
+    "size": [
+      96,
+      96
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/slot_selected.png",
+    "size": [
+      96,
+      96
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/row_normal.png",
+    "size": [
+      512,
+      56
+    ],
+    "nine_slice": [
+      14,
+      14,
+      14,
+      14
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/row_hover.png",
+    "size": [
+      512,
+      56
+    ],
+    "nine_slice": [
+      14,
+      14,
+      14,
+      14
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/row_selected.png",
+    "size": [
+      512,
+      56
+    ],
+    "nine_slice": [
+      14,
+      14,
+      14,
+      14
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/tooltip.png",
+    "size": [
+      256,
+      128
+    ],
+    "nine_slice": [
+      18,
+      18,
+      18,
+      18
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/note_toast.png",
+    "size": [
+      512,
+      96
+    ],
+    "nine_slice": [
+      18,
+      18,
+      18,
+      18
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "panels/divider.png",
+    "size": [
+      512,
+      8
+    ],
+    "nine_slice": [
+      3,
+      2,
+      3,
+      2
+    ],
+    "notes": "Stretch horizontally."
+  },
+  {
+    "file": "buttons/button_normal.png",
+    "size": [
+      256,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_hover.png",
+    "size": [
+      256,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_pressed.png",
+    "size": [
+      256,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_disabled.png",
+    "size": [
+      256,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_small_normal.png",
+    "size": [
+      128,
+      56
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_small_hover.png",
+    "size": [
+      128,
+      56
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_small_pressed.png",
+    "size": [
+      128,
+      56
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_small_disabled.png",
+    "size": [
+      128,
+      56
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_icon_normal.png",
+    "size": [
+      72,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_icon_hover.png",
+    "size": [
+      72,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_icon_pressed.png",
+    "size": [
+      72,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/button_icon_disabled.png",
+    "size": [
+      72,
+      72
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "buttons/icon_close.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome; tint RGB in game."
+  },
+  {
+    "file": "buttons/icon_settings.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome; tint RGB in game."
+  },
+  {
+    "file": "buttons/icon_back.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome; tint RGB in game."
+  },
+  {
+    "file": "buttons/icon_take_all.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome; tint RGB in game."
+  },
+  {
+    "file": "controls/slider_track.png",
+    "size": [
+      512,
+      24
+    ],
+    "nine_slice": [
+      9,
+      9,
+      9,
+      9
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "controls/slider_fill.png",
+    "size": [
+      512,
+      24
+    ],
+    "nine_slice": [
+      9,
+      8,
+      9,
+      8
+    ],
+    "notes": ""
+  },
+  {
+    "file": "controls/slider_knob_normal.png",
+    "size": [
+      40,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "Fixed-size handle."
+  },
+  {
+    "file": "controls/slider_knob_hover.png",
+    "size": [
+      40,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "Fixed-size handle."
+  },
+  {
+    "file": "controls/checkbox_off.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "Fixed-size hand-ticked box."
+  },
+  {
+    "file": "controls/checkbox_on.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "Fixed-size hand-ticked box."
+  },
+  {
+    "file": "controls/dropdown_normal.png",
+    "size": [
+      384,
+      64
+    ],
+    "nine_slice": [
+      16,
+      16,
+      60,
+      16
+    ],
+    "notes": "Right 60px preserves arrow and divider; minimum height 64px."
+  },
+  {
+    "file": "controls/dropdown_hover.png",
+    "size": [
+      384,
+      64
+    ],
+    "nine_slice": [
+      16,
+      16,
+      60,
+      16
+    ],
+    "notes": "Right 60px preserves arrow and divider; minimum height 64px."
+  },
+  {
+    "file": "controls/tab_active.png",
+    "size": [
+      256,
+      64
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "controls/tab_inactive.png",
+    "size": [
+      256,
+      64
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "controls/scrollbar_track.png",
+    "size": [
+      24,
+      256
+    ],
+    "nine_slice": [
+      9,
+      9,
+      9,
+      9
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "controls/scrollbar_grabber.png",
+    "size": [
+      24,
+      96
+    ],
+    "nine_slice": [
+      9,
+      9,
+      9,
+      9
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "hud/minimap_frame.png",
+    "size": [
+      512,
+      512
+    ],
+    "nine_slice": null,
+    "notes": "Transparent circular opening; fixed aspect ratio; north tick at top."
+  },
+  {
+    "file": "hud/compass_strip.png",
+    "size": [
+      1024,
+      48
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "hud/prompt_key.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": [
+      16,
+      16,
+      16,
+      16
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "hud/speedometer_frame.png",
+    "size": [
+      384,
+      384
+    ],
+    "nine_slice": null,
+    "notes": "Empty dark face; fixed aspect ratio; game draws numbers and needle."
+  },
+  {
+    "file": "hud/crosshair_cross.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": ""
+  },
+  {
+    "file": "hud/crosshair_dot.png",
+    "size": [
+      32,
+      32
+    ],
+    "nine_slice": null,
+    "notes": "Soft off-white dot; fixed size."
+  },
+  {
+    "file": "hud/damage_vignette.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "nine_slice": null,
+    "notes": "Soft edge vignette. Fully transparent middle."
+  },
+  {
+    "file": "screens/death_overlay.png",
+    "size": [
+      1920,
+      1080
+    ],
+    "nine_slice": null,
+    "notes": "Soft edge vignette. Translucent neutral darkening; actual scene desaturation requires a game shader."
+  },
+  {
+    "file": "cursor/cursor_pointer.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "Hotspot [0,0], top-left fingertip/tip. Fixed size."
+  },
+  {
+    "file": "cursor/cursor_grab.png",
+    "size": [
+      48,
+      48
+    ],
+    "nine_slice": null,
+    "notes": "Hotspot [0,0], top-left fingertip/tip. Fixed size."
+  },
+  {
+    "file": "screens/loading_frame.png",
+    "size": [
+      1024,
+      128
+    ],
+    "nine_slice": [
+      28,
+      28,
+      28,
+      28
+    ],
+    "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  }
+]

@@ -223,16 +223,26 @@ public partial class Main : Node3D
 			var b = _walker?.Body;
 			if (b == null) return;
 			var font = ThemeDB.FallbackFont;
-			void Bar(int row, string name, float v, Color col)
+			// D102: Tom's UI set: an icon, the gauge's housing, a tinted fill (glowing when low); else plain rectangles
+			var frame = UI.Skin.Box("bars/bar_frame.png");
+			void Bar(int row, string name, string icon, float v, Color col)
 			{
-				float y = row * 20;
+				float y = row * 22;
+				float k = Mathf.Clamp(v / 100f, 0, 1);
+				if (frame != null && UI.Skin.Box(v < 25 ? "bars/bar_fill_glow.png" : "bars/bar_fill.png", 0, 0, v < 25 ? col.Lightened(0.3f) : col) is { } fill)
+				{
+					if (UI.Skin.Tex($"bar_icons/{icon}.png") is { } ic) _bars.DrawTextureRect(ic, new Rect2(46, y + 1, 18, 18), false, col.Lightened(0.25f));
+					_bars.DrawStyleBox(frame, new Rect2(70, y, 146, 20));
+					if (k > 0.01f) _bars.DrawStyleBox(fill, new Rect2(73, y + 3, MathF.Max(14, 140 * k), 14));
+					return;
+				}
 				_bars.DrawRect(new Rect2(70, y + 4, 140, 10), new Color(0, 0, 0, 0.45f));
-				_bars.DrawRect(new Rect2(70, y + 4, 140 * Mathf.Clamp(v / 100f, 0, 1), 10), v < 25 ? col.Lightened(0.35f) : col);
+				_bars.DrawRect(new Rect2(70, y + 4, 140 * k, 10), v < 25 ? col.Lightened(0.35f) : col);
 				_bars.DrawString(font, new Vector2(0, y + 14), name, HorizontalAlignment.Left, 66, 14, new Color(1, 1, 1, 0.9f));
 			}
-			Bar(0, "health", b.Health, new Color(0.85f, 0.22f, 0.2f));
-			Bar(1, "food", b.Hunger, new Color(0.9f, 0.6f, 0.2f));
-			Bar(2, "water", b.Thirst, new Color(0.25f, 0.55f, 0.95f));
+			Bar(0, "health", "icon_health", b.Health, new Color(0.85f, 0.22f, 0.2f));
+			Bar(1, "food", "icon_food", b.Hunger, new Color(0.9f, 0.6f, 0.2f));
+			Bar(2, "water", "icon_water", b.Thirst, new Color(0.25f, 0.55f, 0.95f));
 			_bars.DrawString(font, new Vector2(-70, 74), $"{b.Pack.Weight:0.0}/{BalticDrive.OnFoot.Survival.MaxCarry:0} kg · food {b.Food} · drink {b.Water} · med {b.Medkits} · Tab", HorizontalAlignment.Right, 280, 13, new Color(1, 1, 1, 0.8f));
 		};
 		_ui.AddChild(_bars);
@@ -916,8 +926,10 @@ public partial class Main : Node3D
 		_noteAt = now;
 		if (_note == null)
 		{
-			_note = new Label { AnchorLeft = 0, AnchorRight = 1, AnchorTop = 1, AnchorBottom = 1, OffsetTop = -70, OffsetBottom = -40, HorizontalAlignment = HorizontalAlignment.Center, GrowVertical = Control.GrowDirection.Begin };
+			_note = new Label { AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 1, AnchorBottom = 1, OffsetTop = -78, OffsetBottom = -40, HorizontalAlignment = HorizontalAlignment.Center, GrowVertical = Control.GrowDirection.Begin, GrowHorizontal = Control.GrowDirection.Both };
 			_note.AddThemeColorOverride("font_shadow_color", Colors.Black);
+			// D102: on the set's message strip
+			if (UI.Skin.Box("panels/note_toast.png", 14, 2) is { } strip) { _note.AddThemeStyleboxOverride("normal", strip); _note.AddThemeColorOverride("font_color", UI.Skin.Text); }
 			_ui.AddChild(_note);
 		}
 		_note.Text = text;

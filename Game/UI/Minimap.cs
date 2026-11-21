@@ -193,8 +193,17 @@ public partial class Minimap : Control
         {
             var (_, _, fwd, _) = _m._here();
             var c = new Vector2(Radius, Radius);
-            DrawArc(c, Radius, 0, MathF.Tau, 96, new Color(0, 0, 0, 0.85f), 5f, true);
-            DrawArc(c, Radius - 3, 0, MathF.Tau, 96, new Color(0.93f, 0.91f, 0.86f, 0.55f), 1.5f, true);
+            // D102: Tom's instrument bezel round the disc; else the drawn rings
+            if (Skin.Tex("hud/minimap_frame.png") is { } bezel)
+            {
+                float r = Radius * 1.075f;
+                DrawTextureRect(bezel, new Rect2(c - new Vector2(r, r), new Vector2(r * 2, r * 2)), false);
+            }
+            else
+            {
+                DrawArc(c, Radius, 0, MathF.Tau, 96, new Color(0, 0, 0, 0.85f), 5f, true);
+                DrawArc(c, Radius - 3, 0, MathF.Tau, 96, new Color(0.93f, 0.91f, 0.86f, 0.55f), 1.5f, true);
+            }
             // north: where -Z sits on the turned disc
             float heading = MathF.Atan2(fwd.X, -fwd.Y);
             var n = c + new Vector2(0, -(Radius - 12)).Rotated(-heading);

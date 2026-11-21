@@ -1530,3 +1530,17 @@ Royale's truck with its trailer, plus a burnt-out one.
   candidate in its middle, its chance scaled by its length.
 * Gang Warfare's models referenced a material (`Models/extracted/default.material`) the copy tool didn't follow (it is
   referenced from binary model files); copied by hand, so its van and low cars join the parked mix.
+
+## D102 — Tom's UI set, first pieces in (Tom: "For now, we can try these", 21 Nov)
+Tom had Codex make the interface art from `docs/UI_ASSETS_BRIEF.md`: `baltic_drive_ui_v1.zip`, 61 pictures and a
+manifest (sizes and nine-slice margins), one family of dark painted panels with thin amber accents and white
+pictograms. Tom's own art, so it lives in the repo (`Assets/UI`, with a README saying so). `UI.Skin` shrinks each 2×
+picture to screen size once and builds `StyleBoxTexture`s from the manifest's margins; every use falls back to the old
+look if a file is missing. In now:
+* the inventory window (D89): the furniture's side on the crate-like `container_frame`, yours on `window_frame`, items
+  on `row_normal` / `row_hover`, "Take all" and Eat / Drink / Use as the set's buttons, titles in its off-white;
+* the health, food and water bars: an icon each, the gauge housing, the fill tinted per stat, glowing below 25 %;
+* the minimap: the instrument bezel round the disc;
+* the message strip under notes ("It won't start…").
+Not yet: the settings (sandbox) menu with the sliders, checkboxes and tabs; the workshop and map screen windows;
+cursors, the keycap prompt, crosshairs, the damage vignette and death overlay; the speedometer.

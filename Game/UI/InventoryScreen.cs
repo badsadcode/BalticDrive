@@ -43,7 +43,8 @@ public partial class InventoryScreen : Control
         _right = new ItemColumn(this, false);
         row.AddChild(_left);
         row.AddChild(_right);
-        _takeAll = new Button { Text = "Take all (E)", CustomMinimumSize = new Vector2(160, 34) };
+        _takeAll = new Button { Text = "Take all (E)", CustomMinimumSize = new Vector2(170, 38) };
+        Skin.Button(_takeAll);
         _takeAll.Pressed += TakeAll;
         _left.Footer.AddChild(_takeAll);
         _hint = new Label { Text = "drag, or double-click: move the pile · right-click: move one · Esc closes", HorizontalAlignment = HorizontalAlignment.Center };
@@ -122,7 +123,9 @@ public partial class ItemColumn : PanelContainer
     {
         _screen = screen; Left = left;
         CustomMinimumSize = new Vector2(420, 480);
-        AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        // D102: Tom's UI set: a crate-like frame for what's in the furniture, the painted-metal window for you
+        if (Skin.Box(left ? "panels/container_frame.png" : "panels/window_frame.png", 6, 4) is { } skin) AddThemeStyleboxOverride("panel", skin);
+        else AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = new Color(0.08f, 0.09f, 0.1f, 0.92f), BorderColor = new Color(1, 1, 1, 0.12f),
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
@@ -136,6 +139,7 @@ public partial class ItemColumn : PanelContainer
         v.AddChild(head);
         _title = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         _title.AddThemeFontSizeOverride("font_size", 20);
+        _title.AddThemeColorOverride("font_color", Skin.Text);
         head.AddChild(_title);
         _weight = new Label();
         head.AddChild(_weight);
@@ -181,7 +185,7 @@ public partial class ItemRow : HBoxContainer
     {
         _screen = screen; _column = column; _id = id; _n = n;
         MouseFilter = MouseFilterEnum.Stop;
-        CustomMinimumSize = new Vector2(0, 30);
+        CustomMinimumSize = new Vector2(0, 32);
         var name = new Label { Text = (n > 1 ? $"{n} × " : "") + (def?.Name ?? id), SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
         name.AddThemeColorOverride("font_color", def?.Category switch
         {
@@ -193,7 +197,8 @@ public partial class ItemRow : HBoxContainer
         AddChild(w);
         if (usable)
         {
-            var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : "Use", CustomMinimumSize = new Vector2(64, 0) };
+            var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : "Use", CustomMinimumSize = new Vector2(70, 0) };
+            Skin.Button(b, "button_small");
             b.Pressed += () => _screen.Use(_id);
             AddChild(b);
         }
@@ -213,9 +218,16 @@ public partial class ItemRow : HBoxContainer
         return new Godot.Collections.Dictionary { ["left"] = _column.Left, ["id"] = _id, ["n"] = n };
     }
 
+    private static StyleBox? _rowNormal, _rowHover;
+
     public override void _Draw()
     {
-        if (GetGlobalRect().HasPoint(GetGlobalMousePosition())) DrawRect(new Rect2(Vector2.Zero, Size), new Color(1, 1, 1, 0.08f));
+        bool hover = GetGlobalRect().HasPoint(GetGlobalMousePosition());
+        // D102: the set's list rows, else a light wash on hover
+        _rowNormal ??= Skin.Box("panels/row_normal.png");
+        _rowHover ??= Skin.Box("panels/row_hover.png");
+        if ((hover ? _rowHover : _rowNormal) is { } row) DrawStyleBox(row, new Rect2(-4, 0, Size.X + 8, Size.Y));
+        else if (hover) DrawRect(new Rect2(Vector2.Zero, Size), new Color(1, 1, 1, 0.08f));
     }
 
     public override void _Notification(int what)
