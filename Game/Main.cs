@@ -254,9 +254,23 @@ public partial class Main : Node3D
 		_ui.AddChild(_prompt);
 		_inventory = new UI.InventoryScreen();
 		_ui.AddChild(_inventory);
+		_sandboxMenu = new UI.SandboxMenu();
+		_ui.AddChild(_sandboxMenu);
 	}
 
 	private UI.InventoryScreen? _inventory;
+	private UI.SandboxMenu? _sandboxMenu;
+	public UI.SandboxMenu? SandboxMenu => _sandboxMenu;
+
+	/// <summary>The sandbox settings (D103, F10): the walker stands still meanwhile.</summary>
+	public void OpenSandboxMenu()
+	{
+		if (_sandboxMenu == null || _sandboxMenu.IsOpen) return;
+		var w = _walker;
+		var parked = w?.Autopilot;
+		if (w != null && OnFoot) w.Autopilot = _ => (Vector2.Zero, false);
+		_sandboxMenu.Open(() => { if (w != null && OnFoot) w.Autopilot = parked; });
+	}
 	public UI.InventoryScreen? InventoryWindow => _inventory;
 	private Items.ContainerSpot? _spot;
 	private Func<OnFoot.Walker, (Vector2, bool)>? _parkedAutopilot;
@@ -583,6 +597,12 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent e)
 	{
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F10 } && _world != null && !(_sandboxMenu?.IsOpen ?? false))
+		{
+			OpenSandboxMenu();
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F9 } && _world != null)
 		{
 			// debug dump (D28): screenshot + everything about this spot, for bug reports
@@ -899,7 +919,7 @@ public partial class Main : Node3D
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
-					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, N radar)   " + (Flying ? "F8: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
+					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, F10 settings, N radar)   " + (Flying ? "F8: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
 						: OnFoot ? "F: get in (hold F: workshop)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim (Shift: hold breath), R reload, T targets, B bandits, H medkit, F crates"
 						: "F: get out   F8: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);

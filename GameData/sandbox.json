@@ -1,15 +1,15 @@
 {
   "_about": "Sandbox settings (D99), Project Zomboid style: how the generated world is stocked and how hard it is. Every spawner reads its numbers here. A preset fills them all; the player's own choices (user://sandbox.json: {\"preset\": \"...\", \"overrides\": {\"key\": value}}) and --sandbox=preset / --sb.key=value on the command line win over it. Multipliers: 1 is the game as designed; 0 turns a thing off.",
   "settings": {
-    "loot.abundance":      { "default": 1.0,  "min": 0,   "max": 4,   "about": "How much is in drawers, cupboards, crates and stashes (× the items rolled)." },
-    "caches.frequency":    { "default": 1.0,  "min": 0,   "max": 3,   "about": "How many places outdoors have a crate (× the chance per place)." },
-    "bandits.frequency":   { "default": 1.0,  "min": 0,   "max": 4,   "about": "How often bandits turn up (× the chance, ÷ the quiet time between encounters). 0: none." },
-    "bandits.max_near":    { "default": 2,    "min": 0,   "max": 8,   "about": "No new bandits while this many are alive within 250 m." },
-    "parked.frequency":    { "default": 1.0,  "min": 0,   "max": 3,   "about": "How full car parks and kerbs are (× the chance a bay has a car: about a third of car-park bays, one kerb space in nine). 0: none." },
-    "wrecks.frequency":    { "default": 1.0,  "min": 0,   "max": 5,   "about": "How many abandoned cars stand around (× the chance per 48 m square)." },
-    "wrecks.runners":      { "default": 0.2,  "min": 0,   "max": 1,   "about": "The share of abandoned cars that still run: engine, battery and four wheels good enough to drive away." },
-    "wrecks.condition":    { "default": 1.0,  "min": 0.2, "max": 2,   "about": "How worn abandoned cars' parts are (× their condition; above 1 better, never above 100 %)." },
-    "wrecks.picked_over":  { "default": 1.0,  "min": 0,   "max": 2,   "about": "How often scavengers took parts before you came (× the chance a part is missing)." }
+    "loot.abundance":      { "name": "Loot", "default": 1.0,  "min": 0,   "max": 4,   "about": "How much is in drawers, cupboards, crates and stashes (× the items rolled)." },
+    "caches.frequency":    { "name": "Outdoor crates", "default": 1.0,  "min": 0,   "max": 3,   "about": "How many places outdoors have a crate (× the chance per place)." },
+    "bandits.frequency":   { "name": "Bandits", "default": 1.0,  "min": 0,   "max": 4,   "about": "How often bandits turn up (× the chance, ÷ the quiet time between encounters). 0: none." },
+    "bandits.max_near":    { "name": "Bandits at once", "step": 1, "default": 2,    "min": 0,   "max": 8,   "about": "No new bandits while this many are alive within 250 m." },
+    "parked.frequency":    { "name": "Parked cars", "default": 1.0,  "min": 0,   "max": 3,   "about": "How full car parks and kerbs are (× the chance a bay has a car: about a third of car-park bays, one kerb space in nine). 0: none." },
+    "wrecks.frequency":    { "name": "Abandoned cars", "default": 1.0,  "min": 0,   "max": 5,   "about": "How many abandoned cars stand around (× the chance per 48 m square)." },
+    "wrecks.runners":      { "name": "Cars that still run", "default": 0.2,  "min": 0,   "max": 1,   "about": "The share of abandoned cars that still run: engine, battery and four wheels good enough to drive away." },
+    "wrecks.condition":    { "name": "Car condition", "default": 1.0,  "min": 0.2, "max": 2,   "about": "How worn abandoned cars' parts are (× their condition; above 1 better, never above 100 %)." },
+    "wrecks.picked_over":  { "name": "Parts already taken", "default": 1.0,  "min": 0,   "max": 2,   "about": "How often scavengers took parts before you came (× the chance a part is missing)." }
   },
   "presets": {
     "baltic_drive": { "about": "The game as designed." },

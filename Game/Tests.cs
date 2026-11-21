@@ -1483,6 +1483,8 @@ public sealed class Tests
         if (Main.Args.GetValueOrDefault("autotest", "") == "roadscan") { if (_settledFor > 1) { RoadScan(); _main.GetTree().Quit(); } return; }
         if (_view < _views.Count && _views.Count > 0)
         {
+            // --sandbox-menu: the settings menu open over the views, to photograph it (D103)
+            if (Main.Args.ContainsKey("sandbox-menu") && !(_main.SandboxMenu?.IsOpen ?? true)) _main.OpenSandboxMenu();
             if (_view >= 0 && _settledFor < 1.5) return;
             if (_view >= 0) { Log.Info("Test", $"view {_view}: far buildings {_main.Content.Far?.Buildings ?? 0}"); Shot($"view{_view:00}"); if (Main.Args.ContainsKey("dump")) Log.Info("Test", "dump: " + DebugDump.Take(_main)); }
             _view++;

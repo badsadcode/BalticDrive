@@ -1544,3 +1544,14 @@ look if a file is missing. In now:
 * the message strip under notes ("It won't start…").
 Not yet: the settings (sandbox) menu with the sliders, checkboxes and tabs; the workshop and map screen windows;
 cursors, the keycap prompt, crosshairs, the damage vignette and death overlay; the speedometer.
+
+## D103 — The sandbox settings menu (F10) (Tom: "Yes, the menu", 21 Nov)
+`UI.SandboxMenu`, opened with F10 (in the HUD's key hints), closed with F10 or Esc; the walker stands still meanwhile.
+Project Zomboid style, dressed in Tom's UI set (D102): the window frame and title bar; the preset in a dropdown with its
+one-line description; the settings in groups ("Finding things", "Bandits", "Cars"), each with a slider (Tom's groove,
+fill and knob), its value in words ("off", "×1.5", "45 %", "2") and its description; Reset to preset, Cancel, Save.
+Save writes the preset and only the settings changed from it (`Sandbox.Save`, `user://sandbox.json`); the game reads
+them at once, and what the world generates from then on follows them (places already met keep theirs, as the menu
+says). Settings now carry a display name and a step in `GameData/sandbox.json`; `Sandbox.PresetValue` and
+`PresetAbout` serve the menu. Fixed on the way: a slider's float step (0.05f is 0.0500000007) snapped 1.0 down to
+0.95; the step is now an exact decimal. `--sandbox-menu` opens it over a views run (to photograph it).

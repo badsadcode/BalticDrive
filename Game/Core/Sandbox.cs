@@ -17,7 +17,7 @@ public static class Sandbox
 {
     public const string DataPath = "res://GameData/sandbox.json", UserPath = "user://sandbox.json";
 
-    public sealed record Setting(string Key, float Default, float Min, float Max, string About);
+    public sealed record Setting(string Key, string Name, float Default, float Min, float Max, float Step, string About);
 
     private static Dictionary<string, Setting>? _settings;
     private static Dictionary<string, float> _values = new();
@@ -25,6 +25,14 @@ public static class Sandbox
     public static string Preset { get; private set; } = "baltic_drive";
     public static IReadOnlyDictionary<string, Setting> Settings { get { Load(); return _settings!; } }
     public static IReadOnlyCollection<string> Presets { get { Load(); return _presets.Keys; } }
+
+    /// <summary>A preset's description and its value for a setting (the setting's default when the preset doesn't say).</summary>
+    public static string PresetAbout(string preset) { Load(); return _presets.TryGetValue(preset, out var p) ? p.About : ""; }
+    public static float PresetValue(string preset, string key)
+    {
+        Load();
+        return _presets.TryGetValue(preset, out var p) && p.Values.TryGetValue(key, out var v) ? v : _settings!.TryGetValue(key, out var s) ? s.Default : 1f;
+    }
 
     /// <summary>A setting's value (its default if unknown to the preset and the player).</summary>
     public static float Get(string key)
@@ -47,8 +55,9 @@ public static class Sandbox
             foreach (var p in root.GetProperty("settings").EnumerateObject())
             {
                 var e = p.Value;
-                _settings[p.Name] = new Setting(p.Name, (float)e.GetProperty("default").GetDouble(), (float)e.GetProperty("min").GetDouble(),
-                    (float)e.GetProperty("max").GetDouble(), e.TryGetProperty("about", out var a) ? a.GetString() ?? "" : "");
+                _settings[p.Name] = new Setting(p.Name, e.TryGetProperty("name", out var nm) ? nm.GetString() ?? p.Name : p.Name,
+                    (float)e.GetProperty("default").GetDouble(), (float)e.GetProperty("min").GetDouble(), (float)e.GetProperty("max").GetDouble(),
+                    e.TryGetProperty("step", out var st) ? (float)st.GetDouble() : 0.05f, e.TryGetProperty("about", out var a) ? a.GetString() ?? "" : "");
             }
             foreach (var p in root.GetProperty("presets").EnumerateObject())
             {
