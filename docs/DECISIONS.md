@@ -1614,3 +1614,15 @@ interrupted by a -12 hit (window closed, potatoes kept), then rice (the bottle c
 molotov refused for want of strong alcohol and made once there's vodka.
 Next, agreed with Tom: heat sources (a cooker or a campfire instead of any lighter), then recipe books, skills, bigos
 as an evolved recipe, freshness, building.
+
+## D108 — Power and water: the grid is dead, local sources aren't
+
+Tom asked (21 Nov 2026): power, electricity and water, or a total blackout? Agreed: **the grid and the mains are
+gone** (it fits every lore idea so far, it keeps water and light scarce, and dark cities give the "Warsaw lights"
+something to stand out against); what's left is local and has to be found or made. Water: dry taps; wells and hand
+pumps from OSM (many in Podlasie villages); rivers and lakes give dirty water, safe once boiled (not tagged
+clean_water, D107), risky to drink raw. Power: portable generators burning scavenged fuel (Tom is modelling one), car
+batteries for a radio or a lamp, real solar installations from OSM as rare places that still have light. Cooking: gas
+stoves with a canister, campfires; electric cookers are dead. A sandbox option, "utilities last 0–30 days" (default 0),
+for a Zomboid-style start. Not built yet; folded into the heat-sources step. The cause of the blackout stays Tom's
+and Noor's call.
