@@ -391,8 +391,13 @@ public partial class CraftingColumn : PanelContainer
             string Part(string label, bool ok) => $"[color=#{(ok ? Have : Lack).ToHtml(false)}]{label}[/color]";
             var parts = r.Inputs.Select(p => Part(p.Count > 1 ? $"{p.Count} × {ItemDb.Say(p.Item)}" : ItemDb.Say(p.Item), pack.CountMatching(p.Item) >= p.Count)).ToList();
             var tools = r.Tools.Select(alts => Part(string.Join(" or ", alts.Select(ItemDb.Say)), alts.Any(a => pack.CountMatching(a) > 0))).ToList();
+            if (r.Heat)
+            {
+                var heat = Recipes.HeatHere?.Invoke(pack);
+                tools.Add(Part(heat != null ? $"heat ({heat})" : Recipes.HeatName, heat != null));
+            }
             uses.Text = (parts.Count > 0 ? "uses " + string.Join(", ", parts) : "") + (tools.Count > 0 ? "  ·  needs " + string.Join(", ", tools) : "")
-                + $"  →  [color=#{Skin.Accent.ToHtml(false)}]{Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count)))}[/color]";
+                + $"  →  [color=#{Skin.Accent.ToHtml(false)}]{(r.Places != null ? $"a {r.Places} on the ground" : Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count))))}[/color]";
             text.AddChild(uses);
             if (r.About.Length > 0)
             {

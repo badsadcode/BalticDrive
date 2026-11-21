@@ -430,6 +430,30 @@
     {
      "item": "petrol_can",
      "weight": 0.6
+    },
+    {
+     "item": "firewood",
+     "weight": 0.8,
+     "count": [
+      1,
+      2
+     ]
+    },
+    {
+     "item": "axe",
+     "weight": 0.3
+    },
+    {
+     "item": "camping_stove",
+     "weight": 0.3
+    },
+    {
+     "item": "gas_canister",
+     "weight": 0.6,
+     "count": [
+      1,
+      2
+     ]
     }
    ]
   }
@@ -452,7 +476,11 @@
    "rope": 3,
    "water": 2,
    "beans": 2,
-   "petrol_can": 6
+   "petrol_can": 6,
+   "firewood": 5,
+   "axe": 5,
+   "camping_stove": 3,
+   "gas_canister": 3
   },
   "bedroom": {
    "photo_album": 2,

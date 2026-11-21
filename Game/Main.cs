@@ -190,6 +190,18 @@ public partial class Main : Node3D
 	public Power.Generators? Generators => _generators;
 	private Power.Generators? _generators;
 	private Power.Generators.Gen? _genHere, _canHere;
+	private Power.Campfires? _fires;
+	public Power.Campfires? Fires => _fires;
+	private Power.Campfires.Fire? _fireHere;
+	private Trees.TreePlacement.Tree? _treeHere;
+	private bool _waterHere;
+	private readonly Random _heatRng = new();
+	// chopping (D111): seconds into it (-1: not chopping), the tree, where you stood, your health then
+	private double _chopT = -1, _nextThunk;
+	private Trees.TreePlacement.Tree _chopTree;
+	private Vector3 _chopFrom;
+	private float _chopHealth;
+	private double _nextWoodLook;
 	private bool _poweredHome;
 
 	private OnFoot.ShootingRange? _range;
@@ -489,6 +501,28 @@ public partial class Main : Node3D
 			_parked = new Vehicle.ParkedCars(_world, _wrecks); AddChild(_parked);   // car parks and kerbs (D100)
 			_generators = new Power.Generators(_world, SaveWorld); AddChild(_generators);   // portable generators (D109)
 			BalticDrive.OnFoot.Survival.PourFuel = litres => _walker != null && _generators?.InReach(_walker.GlobalPosition) is { } g ? _generators.Pour(g, litres) : -1;
+			_fires = new Power.Campfires(_world); AddChild(_fires);   // campfires (D111)
+			Items.Recipes.HeatHere = pack =>
+				_walker != null && _fires?.Near(_walker.GlobalPosition, Power.Campfires.HeatReach, true) != null ? "the campfire"
+				: pack.CountMatching("tag:stove") > 0 && pack.CountMatching("tag:fuel_gas") > 0 ? "your camping stove" : null;
+			Items.Recipes.HeatUsed = (heat, pack) =>
+			{
+				// a canister lasts about four cookings
+				if (heat == "your camping stove" && _heatRng.NextDouble() < 0.25) { pack.UseUp("tag:fuel_gas", 1); ShowNote("The gas canister hisses empty", 4); }
+			};
+			Items.Recipes.Place = what =>
+			{
+				if (what != "campfire" || _walker == null || _fires == null) return "Nowhere to put it";
+				if (!OnFoot || _interiors?.Inside != null) return "Not indoors: outside, away from walls";
+				var fwd = new Vector3(-MathF.Sin(_walker.Yaw), 0, -MathF.Cos(_walker.Yaw));
+				var spot = _walker.GlobalPosition + fwd * 1.3f;
+				var (sx, _, sz) = WorldOrigin.ToWorld(spot);
+				if (!float.IsNaN(_world.Water(sx, sz))) return "Not in the water";
+				if (_world.InBuilding(sx, sz, 0.8f)) return "Too close to the building";
+				if (_fires.Near(spot, 2f, false) != null) return "There's a fire here already";
+				_fires.Build(spot);
+				return null;
+			};
 			// a reason to roam (D54): notes and radios name stashes across the map
 			_leads = new OnFoot.Leads(_world, _caches, _bandits); AddChild(_leads);
 			_leads.Said += s => ShowNote(s, 12, keep: true);
@@ -546,6 +580,7 @@ public partial class Main : Node3D
 		var genAt = on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : (Vector3?)null;
 		if (genAt is { } ga) _generators?.Update(ga, now, (float)GetProcessDeltaTime());
 		if (_bandits != null) _bandits.NoiseBoost = _generators?.Loud == true ? 2f : 1f;
+		if (genAt is { } fa) _fires?.Update(fa, now, (float)GetProcessDeltaTime());
 		if (_generators?.Carried != null && _walker != null && (PlayerDown || !on)) { _generators.PutDown(_walker.GlobalPosition, _walker.Yaw); _walker.Burden = 0; }   // dropped when you fall or get in a car
 		if (_generators != null && _safehouse is { } sh)
 		{
@@ -559,6 +594,25 @@ public partial class Main : Node3D
 			_genHere = null;
 			_prompt!.Visible = true;
 			_prompt.Text = "Carrying the generator · F: put it down";
+			_bars.QueueRedraw();
+			return;
+		}
+		_waterHere = false; _treeHere = null;
+		if (_chopT >= 0)
+		{
+			_prompt!.Visible = true;
+			_prompt.Text = $"Chopping... {Mathf.Clamp(_chopT / Power.Woodland.ChopSeconds, 0, 1):P0}";
+			_bars.QueueRedraw();
+			return;
+		}
+		_fireHere = _fires?.Near(_walker!.GlobalPosition, Power.Campfires.Reach, false);
+		if (_fireHere != null)
+		{
+			int wood = _walker!.Body.Pack.Count("firewood");
+			_prompt!.Visible = true;
+			_prompt.Text = _fireHere.Burning
+				? $"Campfire: {Power.Campfires.Left(_fireHere)} of wood" + (wood > 0 ? $" · F: add firewood ({wood})" : " · no firewood to add") + " · Tab: cook"
+				: "Burnt out" + (wood > 0 && _walker.Body.Pack.CountMatching("tag:fire") > 0 ? " · F: relight it" : " · firewood and matches to relight");
 			_bars.QueueRedraw();
 			return;
 		}
@@ -592,9 +646,41 @@ public partial class Main : Node3D
 		}
 		_prompt!.Visible = c != null;
 		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "F: search the body" : c.Key.StartsWith("death:") ? "F: take your things" : c.Keep ? "F: take the stash" : "F: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
-		else UpdateClaim(now, (float)GetProcessDeltaTime());
+		else if (!WoodAndWater(now)) UpdateClaim(now, (float)GetProcessDeltaTime());
 		_bars.QueueRedraw();
 	}
+	/// <summary>Outdoors, nothing else in reach (D111): water at your feet to fill a bottle from, or a tree to chop.
+	/// True when it put up a prompt.</summary>
+	private bool WoodAndWater(double now)
+	{
+		if (_walker == null || _world == null || _interiors?.Inside != null) return false;
+		var pack = _walker.Body.Pack;
+		var fwd = new Vector3(-MathF.Sin(_walker.Yaw), 0, -MathF.Cos(_walker.Yaw));
+		foreach (float k in new[] { 0.6f, 1.2f, 1.8f })
+		{
+			var (wx, _, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition + fwd * k);
+			if (float.IsNaN(_world.Water(wx, wz))) continue;
+			_waterHere = true;
+			_prompt!.Visible = true;
+			_prompt.Text = pack.Count("empty_bottle") > 0 ? $"F: fill a bottle with river water ({pack.Count("empty_bottle")} empty)" : "Water · an empty bottle would hold some";
+			return true;
+		}
+		if (now >= _nextWoodLook)
+		{
+			_nextWoodLook = now + 0.25;
+			var (px, _, pz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
+			_woodLook = Power.Woodland.Nearest(_world, px, pz);
+		}
+		if (_woodLook is not { } t) return false;
+		_treeHere = t;
+		bool axe = pack.CountMatching("tag:chopping") > 0, used = Power.Woodland.Used(SaveWorld, Power.Woodland.Key(t));
+		if (!axe && !used) return false;   // no axe: trees are just trees
+		_prompt!.Visible = true;
+		_prompt.Text = used ? "This tree has no more dead wood" : "F: chop firewood (6 s)";
+		return true;
+	}
+	private Trees.TreePlacement.Tree? _woodLook;
+
 	public OnFoot.ShootingRange? Range => _range;
 
 	/// <summary>Your things left where you fell, not yet taken (world x, z).</summary>
@@ -724,9 +810,32 @@ public partial class Main : Node3D
 				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
 				// generators (D109): put down what you carry; by one, a tap starts or stops it and a hold lifts it
 				if (OnFoot && _generators?.Carried != null) { _generators.PutDown(_walker!.GlobalPosition, _walker.Yaw); _walker.Burden = 0; GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _fireHere != null)
+				{
+					var pack = _walker!.Body.Pack;
+					if (pack.Count("firewood") == 0) ShowNote("No firewood", 3);
+					else if (!_fireHere.Burning && pack.CountMatching("tag:fire") == 0) ShowNote("Nothing to light it with", 3);
+					else { pack.Remove("firewood", 1); bool was = _fireHere.Burning; _fires!.AddWood(_fireHere); ShowNote(was ? $"You feed the fire: {Power.Campfires.Left(_fireHere)} of wood" : "The fire catches again", 3); }
+					GetViewport().SetInputAsHandled(); return;
+				}
 				if (OnFoot && _canHere != null) { _generators!.TakeCan(_canHere, _walker!.Body.Pack, out var took); ShowNote(took, 4); _canHere = null; GetViewport().SetInputAsHandled(); return; }
 				if (OnFoot && _genHere != null) { _genHold = 0; GetViewport().SetInputAsHandled(); return; }
 				if (OnFoot && _spot != null) { OpenInventory(_spot); GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _waterHere)
+				{
+					// river water (D111): one empty bottle filled per press
+					var pack = _walker!.Body.Pack;
+					if (pack.Count("empty_bottle") == 0) ShowNote("No empty bottle to fill", 3);
+					else { pack.Remove("empty_bottle", 1); pack.Add("dirty_water", 1); ShowNote($"You fill a bottle with river water ({pack.Count("dirty_water")}). Boil it before you drink it.", 4); }
+					GetViewport().SetInputAsHandled(); return;
+				}
+				if (OnFoot && _treeHere is { } tree)
+				{
+					if (_walker!.Body.Pack.CountMatching("tag:chopping") == 0) ShowNote("You need an axe", 3);
+					else if (Power.Woodland.Used(SaveWorld, Power.Woodland.Key(tree))) ShowNote("You've taken what this tree had to give", 3);
+					else { _chopT = 0; _chopTree = tree; _chopFrom = _walker.GlobalPosition; _chopHealth = _walker.Body.Health; _nextThunk = 0; }
+					GetViewport().SetInputAsHandled(); return;
+				}
 				_fTarget = OnFoot ? NearestCar() : null;
 				if (_fTarget != null) _fHeld = 0;
 				else ToggleOnFoot();
@@ -940,6 +1049,37 @@ public partial class Main : Node3D
 	public override void _Process(double delta)
 	{
 		// holding F by the car: the workshop (D68)
+		if (_chopT >= 0 && _walker != null)
+		{
+			// chopping (D111): a knock every 0.7 s; a hit or a step away stops it
+			_chopT += delta;
+			if (_walker.Body.Health < _chopHealth - 0.5f || (_walker.GlobalPosition - _chopFrom).Length() > 0.8f || !OnFoot || PlayerDown)
+			{
+				_chopT = -1;
+				ShowNote(_walker.Body.Health < _chopHealth - 0.5f ? "You're hit! The axe can wait" : "You stop chopping", 3);
+			}
+			else
+			{
+				if (_chopT >= _nextThunk)
+				{
+					_nextThunk += 0.7;
+					var thunk = new AudioStreamPlayer3D { Stream = Audio.SoundBank.Get("chop", Power.Woodland.Thunk), Bus = Audio.Buses.Sfx, UnitSize = 4f, MaxDistance = 80f };
+					AddChild(thunk);
+					thunk.GlobalPosition = _walker.GlobalPosition + Vector3.Up;
+					thunk.Play();
+					thunk.Finished += thunk.QueueFree;
+				}
+				if (_chopT >= Power.Woodland.ChopSeconds)
+				{
+					_chopT = -1;
+					int y = Power.Woodland.Yield(_chopTree), n = _walker.Body.Pack.Add("firewood", y);
+					Power.Woodland.Use(SaveWorld, Power.Woodland.Key(_chopTree));
+					string got = n == 1 ? "an armful" : $"{n} armfuls";
+					ShowNote(n == y ? $"You chop {got} of firewood" : n > 0 ? $"You chop {y} armfuls; you can carry {got}, the rest stays" : "You chop it, but you can't carry any more", 4);
+					Core.Log.Info("Wood", $"chopped {n} at {Power.Woodland.Key(_chopTree)}");
+				}
+			}
+		}
 		if (_genHold >= 0)
 		{
 			_genHold += delta;

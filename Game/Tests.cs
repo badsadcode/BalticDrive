@@ -77,7 +77,184 @@ public sealed class Tests
     private bool _tip, _tipStarted;
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
-    private double _craftT = -1, _genT = -1;
+    private double _craftT = -1, _genT = -1, _heatT = -1;
+    private bool _heat;
+    private string? _woodBackup;
+    private Power.Campfires.Fire? _fire;
+    private Vector3 _fireSpot;
+
+    private void PressF()
+    {
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = true });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = false });
+    }
+
+    /// <summary>A dry spot (world x, z) with something (a tree, water) about a metre ahead along +dir, nearest first,
+    /// within <paramref name="r"/> m; null if none.</summary>
+    private (double X, double Z, double Tx, double Tz)? FindAhead(double px, double pz, float r, Func<double, double, (double, double)?> target)
+    {
+        var w = _main.World!;
+        for (float ring = 0; ring <= r; ring += 6)
+            for (int k = 0; k < Math.Max(1, (int)(ring * 1.2f)); k++)
+            {
+                double a = k / Math.Max(1.0, ring * 1.2) * Math.Tau;
+                double x = px + Math.Cos(a) * ring, z = pz + Math.Sin(a) * ring;
+                if (target(x, z) is not { } t) continue;
+                return (x, z, t.Item1, t.Item2);
+            }
+        return null;
+    }
+
+    /// <summary>--autotest=heat (D111), best with --place=Białowieża (trees and ponds): cooking refused without heat; an
+    /// axe chops a tree (photographed) into firewood; a campfire built and rice boiled over it (photographed by day and by
+    /// night); a bottle filled at the water; river water drunk raw (it hurts) and boiled on a camping stove; the fire
+    /// burns out and is relit. user://trees_used.json is backed up and restored. True while running.</summary>
+    private bool HeatTest(double delta)
+    {
+        string tf = ProjectSettings.GlobalizePath("user://trees_used.json");
+        if (_heatT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _heatT = 0;
+            _woodBackup = System.IO.File.Exists(tf) ? System.IO.File.ReadAllText(tf) : null;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _heatT;
+        _heatT += delta;
+        bool At(double t) => before < t && _heatT >= t;
+        var w = _main.Walker!;
+        var body = w.Body;
+        var pack = body.Pack;
+        var world = _main.World!;
+        Items.Recipe R(string id) => Items.Recipes.All.First(x => x.Id == id);
+        void Make(string id)
+        {
+            bool ok = Items.Recipes.Make(R(id), pack, out var said);
+            Log.Info("Test", $"heat: {id}: {(ok ? "made" : "not made")}: {said}");
+        }
+        void StandAt(double x, double z, double tx, double tz)
+        {
+            w.GlobalPosition = WorldOrigin.ToLocal(x, world.Height(x, z) + 0.1, z);
+            w.Face(WorldOrigin.ToLocal(tx, world.Height(tx, tz) + 1.2, tz));
+        }
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("newspaper", 2), ("matches", 1), ("axe", 1), ("saucepan", 1), ("rice", 2), ("empty_bottle", 2), ("tea", 1), ("coffee_mug", 1), ("water", 2) })
+                pack.Add(id, n);
+            body.Health = 90;
+            Power.Woodland.Reset();
+            if (System.IO.File.Exists(tf)) System.IO.File.Delete(tf);
+            Make("boil_rice");
+        }
+        if (At(1.5))
+        {
+            var (px, _, pz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            var spot = FindAhead(px, pz, 200, (x, z) =>
+            {
+                if (!float.IsNaN(world.Water(x, z)) || world.InBuilding(x, z, 0.5f)) return null;
+                // a tree 1.2-1.5 m away, east of here
+                return Power.Woodland.Nearest(world, x + 1.3, z, 0.4f) is { } t ? (t.X, t.Z) : null;
+            });
+            if (spot is { } s)
+            {
+                StandAt(s.X, s.Z, s.Tx, s.Tz);
+                Log.Info("Test", $"heat: a tree at {s.Tx:0.0},{s.Tz:0.0}, standing at {s.X:0.0},{s.Z:0.0}");
+            }
+            else Log.Info("Test", "heat: no tree within 200 m");
+        }
+        if (At(2.2)) PressF();
+        if (At(5)) Shot("heat_chop");
+        if (At(9))
+        {
+            Log.Info("Test", $"heat: chopped: firewood {pack.Count("firewood")}; again: used {Power.Woodland.Used(Main.SaveWorld, "x") == false}");
+            PressF();   // the same tree again: nothing more to give
+        }
+        if (At(9.5))
+        {
+            if (pack.Count("firewood") < 3) pack.Add("firewood", 3 - pack.Count("firewood"));
+            // a fire in the open: step back from the tree first
+            var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+            w.GlobalPosition -= fwd * 2.5f;
+            Make("campfire");
+            _fire = _main.Fires!.All.LastOrDefault();
+            _fireSpot = _fire?.Node.GlobalPosition ?? Vector3.Zero;
+            Log.Info("Test", $"heat: fire: {_fire != null}, heat here: {Items.Recipes.HeatHere?.Invoke(pack)}");
+            Make("boil_rice");
+            Make("herbata");
+        }
+        if (At(10.4))
+        {
+            // a look at it: first person, two and a half metres off
+            var (fx, _, fz) = WorldOrigin.ToWorld(_fireSpot);
+            var (wx2, _, wz2) = WorldOrigin.ToWorld(w.GlobalPosition);
+            double dx = wx2 - fx, dz = wz2 - fz, dl = Math.Max(0.01, Math.Sqrt(dx * dx + dz * dz));
+            StandAt(fx + dx / dl * 2.6, fz + dz / dl * 2.6, fx, fz);
+            w.SetView(true);
+            w.Face(_fireSpot + Vector3.Up * 0.2f);
+        }
+        if (At(11)) Shot("heat_campfire");
+        if (At(11.2)) w.SetView(false);
+        if (At(11.5))
+        {
+            var (px, _, pz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            var spot = FindAhead(px, pz, 600, (x, z) =>
+            {
+                if (!float.IsNaN(world.Water(x, z)) || world.InBuilding(x, z, 0.5f)) return null;
+                return !float.IsNaN(world.Water(x + 1.2, z)) ? (x + 1.2, z) : null;
+            });
+            if (spot is { } s) { StandAt(s.X, s.Z, s.Tx + 3, s.Tz); Log.Info("Test", $"heat: water at {s.Tx:0.0},{s.Tz:0.0}"); }
+            else Log.Info("Test", "heat: no water within 600 m");
+        }
+        if (At(12.2)) PressF();
+        if (At(12.6))
+        {
+            Log.Info("Test", $"heat: bottles: river water {pack.Count("dirty_water")}, empty {pack.Count("empty_bottle")}");
+            Shot("heat_water");
+            float h0 = body.Health;
+            pack.Add("dirty_water", 1);
+            body.UseItem("dirty_water");
+            Log.Info("Test", $"heat: drank river water raw: health {h0:0} -> {body.Health:0}");
+            Make("boil_water");   // no fire here, no stove yet
+            pack.Add("camping_stove", 1); pack.Add("gas_canister", 1);
+            Make("boil_water");
+            Log.Info("Test", $"heat: pack {Items.Inventory.Say(pack.Stacks)}");
+        }
+        if (At(13.5))
+        {
+            // back to the fire, at night
+            var (fx, _, fz) = WorldOrigin.ToWorld(_fireSpot);
+            StandAt(fx - 3.2, fz + 1.5, fx, fz);
+            w.SetView(true);
+            w.Face(_fireSpot + Vector3.Up * 0.3f);
+            _main.Atmosphere.Hour = 22.3;
+        }
+        if (At(15.5)) Shot("heat_campfire_night");
+        if (At(15.7)) w.SetView(false);
+        if (At(16))
+        {
+            _main.Atmosphere.Hour = 12;
+            if (_fire != null) _fire.Fuel = 0.5f;
+        }
+        if (At(17.5))
+        {
+            Log.Info("Test", $"heat: after the wood ran out: burning {_fire?.Burning}");
+            pack.Remove("rice", 9); pack.Remove("cooked_rice", 9);   // room for an armful
+            if (pack.Count("firewood") == 0) pack.Add("firewood", 1);
+            var (fx, _, fz) = WorldOrigin.ToWorld(_fireSpot);
+            StandAt(fx - 1.2, fz, fx, fz);
+        }
+        if (At(18)) PressF();
+        if (At(18.5))
+        {
+            Log.Info("Test", $"heat: relit: burning {_fire?.Burning}, {(_fire != null ? Power.Campfires.Left(_fire) : "")} of wood; firewood left {pack.Count("firewood")}");
+            if (_woodBackup != null) System.IO.File.WriteAllText(tf, _woodBackup); else if (System.IO.File.Exists(tf)) System.IO.File.Delete(tf);
+            Power.Woodland.Reset();
+            return false;
+        }
+        return true;
+    }
     private bool _gen;
     private string? _genBackup;
     private Power.Generators.Gen? _g;
@@ -230,6 +407,7 @@ public sealed class Tests
         _take = Main.Args.GetValueOrDefault("autotest", "").Contains("takecar");
         _craft = Main.Args.GetValueOrDefault("autotest", "").Contains("craft");
         _gen = Main.Args.GetValueOrDefault("autotest", "").Contains("generator");
+        _heat = Main.Args.GetValueOrDefault("autotest", "").Contains("heat");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -1784,6 +1962,11 @@ public sealed class Tests
             if (GeneratorTest(delta)) return;
             _gen = false;
         }
+        if (_heat)
+        {
+            if (HeatTest(delta)) return;
+            _heat = false;
+        }
         if (_take)
         {
             if (TakeCarTest(delta)) return;
@@ -2046,7 +2229,7 @@ public sealed class Tests
         {
             pack.Stacks.Clear();
             body.Health = 80;
-            foreach (var (id, n) in new[] { ("potatoes", 2), ("onion", 2), ("luncheon_meat", 2), ("saucepan", 1), ("scissors", 1), ("matches", 1),
+            foreach (var (id, n) in new[] { ("potatoes", 2), ("onion", 2), ("luncheon_meat", 2), ("saucepan", 1), ("scissors", 1), ("matches", 1), ("camping_stove", 1), ("gas_canister", 3),
                          ("rice", 1), ("mineral_water", 2), ("sheet", 1), ("rag", 2), ("tea", 1), ("coffee_mug", 1), ("instant_soup", 1) })
                 pack.Add(id, n);
             Log.Info("Test", $"craft: pack {Items.Inventory.Say(pack.Stacks)}");

@@ -96,7 +96,7 @@ public sealed class Inventory
 
     /// <summary>Uses up <paramref name="n"/> items answering to an id or tag (D107), in pack order; what they leave
     /// behind (an empty bottle) goes back in. Returns the ids used.</summary>
-    public List<string> UseUp(string key, int n)
+    public List<string> UseUp(string key, int n, bool leftovers = true)
     {
         var used = new List<string>();
         while (n > 0)
@@ -108,7 +108,7 @@ public sealed class Inventory
             Remove(st.Id, k);
             n -= k;
             for (int j = 0; j < k; j++) used.Add(st.Id);
-            if (ItemDb.Get(st.Id)?.Leaves is { } left) Add(left, k);
+            if (leftovers && ItemDb.Get(st.Id)?.Leaves is { } left) Add(left, k);
         }
         return used;
     }

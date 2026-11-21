@@ -10,7 +10,8 @@ namespace BalticDrive.Items;
 /// <summary>One crafting recipe (D106): items used up, tools kept (each a list of alternatives), items made, and how
 /// many seconds it takes (D107). Inputs and tools are item ids or "tag:x" (any item with tag x).</summary>
 public sealed record Recipe(string Id, string Name, string Category, (string Item, int Count)[] Inputs,
-    string[][] Tools, (string Item, int Count)[] Outputs, string About, float Seconds);
+    string[][] Tools, (string Item, int Count)[] Outputs, string About, float Seconds,
+    bool Heat = false, string? Places = null, bool Leftovers = true);
 
 /// <summary>
 /// Crafting (D106, D107), Project Zomboid style and our own data: <c>GameData/recipes.json</c>. A recipe can be made when the
@@ -24,6 +25,17 @@ public static class Recipes
 
     public static IReadOnlyList<Recipe> All => _all ??= Load();
 
+    /// <summary>The heat source within reach, by name ("the campfire", "your camping stove"), or null (D111). Set by the
+    /// game: it knows where the fires are.</summary>
+    public static Func<Inventory, string?>? HeatHere;
+    /// <summary>Called after something was made over that heat (the stove may use up its canister).</summary>
+    public static Action<string, Inventory>? HeatUsed;
+    /// <summary>Puts a recipe's <see cref="Recipe.Places"/> on the ground (a campfire): null when it went down, else why
+    /// not ("Not indoors").</summary>
+    public static Func<string, string?>? Place;
+    /// <summary>What stands in for heat in the lists: "a fire or a camping stove".</summary>
+    public const string HeatName = "a fire or a camping stove";
+
     private static List<Recipe> Load()
     {
         var list = new List<Recipe>();
@@ -36,7 +48,10 @@ public static class Recipes
                 var tools = r.GetProperty("tools").EnumerateArray().Select(t => t.EnumerateArray().Select(x => x.GetString()!).ToArray()).ToArray();
                 var rec = new Recipe(r.GetProperty("id").GetString()!, r.GetProperty("name").GetString()!, r.GetProperty("category").GetString()!,
                     Pairs("inputs"), tools, Pairs("outputs"), r.TryGetProperty("about", out var a) ? a.GetString() ?? "" : "",
-                    r.TryGetProperty("seconds", out var sec) ? sec.GetSingle() : 0f);
+                    r.TryGetProperty("seconds", out var sec) ? sec.GetSingle() : 0f,
+                    r.TryGetProperty("heat", out var ht) && ht.GetBoolean(),
+                    r.TryGetProperty("places", out var pl) ? pl.GetString() : null,
+                    !r.TryGetProperty("leftovers", out var lo) || lo.GetBoolean());
                 foreach (var id in rec.Inputs.Select(p => p.Item).Concat(tools.SelectMany(t => t)))
                     if (!ItemDb.Known(id)) Log.Error("Recipes", $"{rec.Id}: no item is '{id}'");
                 foreach (var (id, _) in rec.Outputs)
@@ -57,6 +72,7 @@ public static class Recipes
             if (pack.CountMatching(item) < n) miss.Add(n > 1 ? $"{n} × {ItemDb.Say(item)}" : ItemDb.Say(item));
         foreach (var alts in r.Tools)
             if (!alts.Any(a => pack.CountMatching(a) > 0)) miss.Add(string.Join(" or ", alts.Select(ItemDb.Say)));
+        if (r.Heat && HeatHere?.Invoke(pack) == null) miss.Add(HeatName);
         return miss;
     }
 
@@ -74,7 +90,14 @@ public static class Recipes
         }
         float after = pack.Weight - r.Inputs.Sum(p => InW(p.Item) * p.Count) + r.Outputs.Sum(p => (ItemDb.Get(p.Item)?.Weight ?? 0) * p.Count);
         if (after > pack.MaxWeight + 1e-3f) { said = "Too heavy to carry what it makes"; return false; }
-        foreach (var (item, n) in r.Inputs) pack.UseUp(item, n);
+        string? heat = r.Heat ? HeatHere?.Invoke(pack) : null;
+        if (r.Places != null)
+        {
+            // something on the ground, not in the pack (D111: a campfire)
+            if (Place?.Invoke(r.Places) is { } why) { said = why; return false; }
+            if (Place == null) { said = "Nowhere to put it"; return false; }
+        }
+        foreach (var (item, n) in r.Inputs) pack.UseUp(item, n, r.Leftovers);
         foreach (var (item, n) in r.Outputs) pack.Add(item, n);
         string What((string Item, int Count) o)
         {
@@ -83,7 +106,8 @@ public static class Recipes
             string n = d?.Name ?? o.Item;
             return ("aeiou".Contains(char.ToLowerInvariant(n[0])) ? "an " : "a ") + n;
         }
-        said = "You make " + string.Join(" and ", r.Outputs.Select(What));
+        said = r.Outputs.Length == 0 ? $"Done: {r.Name.ToLowerInvariant()}" : "You make " + string.Join(" and ", r.Outputs.Select(What));
+        if (heat != null) { said += $", over {heat}"; HeatUsed?.Invoke(heat, pack); }
         Log.Info("Recipes", $"{r.Id}: {said}");
         return true;
     }

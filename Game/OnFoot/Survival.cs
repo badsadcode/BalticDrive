@@ -28,7 +28,7 @@ public sealed partial class Survival : Node
     public int Water { get => Pack.CountWhere(IsDrink); set => SetCount(IsDrink, "water", value); }
     public int Medkits { get => Pack.CountWhere(IsMedical); set => SetCount(IsMedical, "medkit", value); }
     private static bool IsFood(ItemDef d) => d.Category == "food";
-    private static bool IsDrink(ItemDef d) => d.Category == "drink" && d.Drink > 0;
+    private static bool IsDrink(ItemDef d) => d.Category == "drink" && d.Drink > 0 && !d.Matches("tag:dirty_water");   // river water only by hand (D111)
     private static bool IsMedical(ItemDef d) => d.Category == "medical" && d.Heal > 0;
     private void SetCount(Func<ItemDef, bool> kind, string plain, int n)
     {
@@ -119,6 +119,13 @@ public sealed partial class Survival : Node
         {
             Hunger = Math.Clamp(Hunger + d.Food, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink, 0, 100);
             Say(d.Category == "drink" ? $"You drink a {d.Name}" : $"You eat a {d.Name}");
+            if (d.Matches("tag:dirty_water"))
+            {
+                // unboiled (D111): it quenches, and it costs you
+                Health = MathF.Max(1, Health - 8);
+                _cause = "river water";
+                Say("It tastes of mud. Your stomach turns. Boil it next time.");
+            }
         }
         Pack.Remove(id, 1);
         if (d.Leaves != null) Pack.Add(d.Leaves, 1);

@@ -1648,3 +1648,32 @@ are kept in user://generators.json per world. Tom's can is modelled 0.95 m tall;
 Self-test `--autotest=generator` (best with `--place=Trześcianka`; user://generators.json backed up and restored, no
 saving after): the found ones logged; a can taken; an empty one won't start; poured and started; a bandit 80 m off
 investigates; fuel burns 0.035 L in 8.4 s; carried 6 m in 3 s; photographed by day, at night and carried.
+
+
+## D111 — Heat for cooking: campfires, a camping stove, firewood from trees, river water
+
+Agreed order with Tom (tags, time, then heat sources), and D108 (the grid is dead). Until now "something to light a
+fire" was enough to cook kartacze anywhere. Now recipes can need **heat** (`"heat": true` in recipes.json: boiling
+water, rice, soup, tea, kartacze, clean bandages): a **burning campfire within 2.2 m**, or a **camping gas stove with
+a gas canister** in the pack (each use empties the canister one time in four). The crafting list shows which ("heat
+(the campfire)") or asks for "a fire or a camping stove".
+**Campfire** (`Power.Campfires`): the recipe "Build a campfire" (two armfuls of firewood, something for tinder, matches
+or a lighter; 20 s) puts it 1.3 m in front of you, outdoors only (not indoors, in water, by a wall, or on another).
+Ten minutes of fire; F adds an armful (+5 min, at most 30); burnt out, F with firewood and a light relights it. Looks:
+a ring of stones, a teepee of logs, flames, sparks, smoke, a flickering warm light with shadows, a crackle (synthesized
+placeholder; Assets/Sounds/campfire.wav wins). At night its light carries: bandits within 60 m come to look (a
+generator is heard at 110 m, D109). Not kept between sessions. A recipe can now put something on the ground instead
+of into the pack (`places`), and can keep what its inputs leave behind out of the pack (`leftovers: false`).
+**Firewood** (Tom: "chopping down trees, breaking furniture"): stand at a tree with an axe, F chops for 6 s (a knock
+every 0.7 s; a hit or a step away stops it) for two or three armfuls (2 kg each); the tree stays (instanced from the
+map) and gives wood once, kept in user://trees_used.json. Also on shelves and in storage rooms. Breaking furniture
+waits: a flat's furniture is one built model, so a broken wardrobe would stay standing.
+**River water**: facing a river or lake with an empty bottle, F fills it ("bottle of river water"). Drunk raw it
+quenches and costs 8 health ("It tastes of mud"), and you never drink it by yourself when thirsty; "Boil river water"
+(saucepan, heat, 25 s) turns it into a bottle of water. Wells and pumps from OSM come later (the importer doesn't
+keep them yet). Electric cookers on generator power wait too: the kitchens have no cooker to stand at.
+New items: firewood, axe, camping stove, gas canister, river water (68 now). Self-tests: `--autotest=heat` (with
+`--place=Białowieża`; user://trees_used.json backed up and restored): cooking refused without heat; a tree chopped
+(3 armfuls, then nothing more); a fire built; rice and tea cooked over it; a bottle filled at a pond; river water
+drunk raw (90 -> 82); boiling refused without heat, then done on the stove; the fire burns out and is relit;
+photographed by day, at night and while chopping. `--autotest=craft` now cooks on a camping stove.
