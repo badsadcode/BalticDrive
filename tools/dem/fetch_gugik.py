@@ -97,9 +97,11 @@ def write_empty(todo, block, spacing, out):
         path = os.path.join(out, f"{bx * block}_{by * block}.tif")
         if os.path.exists(path):
             continue
-        with rasterio.open(path, "w", driver="GTiff", width=n, height=n, count=1, dtype="float32", crs="EPSG:2180",
+        tmp = path + ".part"   # written whole, then renamed: an interrupted run never leaves half a block
+        with rasterio.open(tmp, "w", driver="GTiff", width=n, height=n, count=1, dtype="float32", crs="EPSG:2180",
                            transform=from_origin(bx * block, (by + 1) * block, spacing, spacing)) as d:
             d.write(np.zeros((n, n), np.float32), 1)
+        os.replace(tmp, path)
         made += 1
     return made
 
