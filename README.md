@@ -43,6 +43,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=heat` (with `--place=Białowieża`) — cooking needs heat: a tree chopped for firewood, a campfire built, rice and tea cooked on it, a bottle filled at a pond, river water drunk raw and boiled on a camping stove, the fire burns out and is relit; day, night and chopping shots (D111).
 * `--autotest=books` — recipe books: kartacze refused until the cookbook is read (15 s, photographed), then kartacze and placki made; knowledge kept in a file (D112).
 * `--autotest=skills` — Cooking levels up after five pots of rice (faster, the note photographed); First aid, Woodcraft, Mechanics and Shooting effects checked; XP read back. Every autotest keeps its XP in user://skills_selftest.json (D113).
+* `--autotest=bigos` — the bigos test (yes): a pot started, four ingredients added, reheated three times, photographed, carried into a box and back, eaten serving by serving until the saucepan comes back (D114).
 * `--autotest=takecar` — out of the car, take the nearest wreck if it runs (else why not), drive it, back to the old car (D99). With `--sb.wrecks.runners=1` every wreck runs.
 * Sandbox settings for any run: `--sandbox=apocalypse` (a preset from `GameData/sandbox.json`) or `--sb.loot.abundance=2` (one setting).
 * `--autotest=tip` — double lane changes at 50/70/90 km/h, full-lock turns, a handbrake turn: the worst roll and any flips (D97). `--grip=K` and `--antiroll=0` for tuning.

@@ -1717,3 +1717,26 @@ Cooking 0 -> 1 after five pots of rice (30 s -> 27 s, the note and the skills li
 aid 3 heals 19.9 (15 x 1.3, plus the body's own mending); woodcraft 2 chops in 4.6 s, mechanics 1 fits an engine in
 27 s, shooting 4 sways x 0.68; the XP read back from the file. Not yet: skill-locked recipes (Cooking 2 for bigos?),
 reading skill books faster, a skills page of its own.
+
+
+## D114 — Bigos, the evolved recipe
+
+Tom's agreed order, after skills: bigos as an evolved recipe (Zomboid's idea, our own dish and numbers). A pot of
+bigos carries its state in its item id, `bigos:<what's in it>:<servings>:<reheats>` (bigos:KMGPO:6:3), and
+`Items.Bigos` makes its name, food and weight from that and the "bigos" template in items.json. Why the id and not
+per-item data: moving, stacking, containers, saving and loot all work unchanged; real per-item data can come later if
+freshness needs it. **Start a bigos**: sauerkraut, clean water and the saucepan (it becomes the pot), heat, 40 s: six
+servings, "thin". **Add** (one recipe each, `"evolve": "bigos"` with `"adds"`): meat (any: luncheon meat, kabanos,
+the new kiełbasa), dried mushrooms, prunes, fresh cabbage (and a knife), onion (and a knife); each once. **Reheat**
+over heat, up to three times ("everyone knows bigos is best on the third day"). Quality 0-8 (ingredients beyond
+sauerkraut, plus reheats): thin, decent, proper, very good, like babcia's; a serving's food is 14 + 4 × quality (42 for
+very good). Eating takes a serving; the last gives the saucepan back. The name in lists stays short ("pot of bigos
+(6 servings, very good)"); what's in it and the reheats are its tooltip (a new optional `Note` on items), and long item
+names now wrap instead of widening the window. New items: sauerkraut, fresh cabbage, dried mushrooms, prunes, kiełbasa
+(cupboards, fridges, kitchens, storage). Not yet: bigos going off (freshness, next), bigos for the whole safehouse.
+Self-test `--autotest=bigos`: adding before there's a pot refused; started (the saucepan used); meat, mushrooms,
+prunes, onion added, meat twice refused; reheated three times, a fourth refused; "very good", 42 food a serving;
+photographed; into a box and back intact; six servings eaten (hunger 20 -> 62 each), the saucepan back.
+Tom asked whether I'd like Project Zomboid's files for scope: no. Their item and recipe scripts are their lists and
+numbers; keeping our design our own is easiest if they're never opened. Scope comes from playing it, the public wiki,
+and Tom.

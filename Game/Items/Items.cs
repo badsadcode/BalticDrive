@@ -9,7 +9,7 @@ namespace BalticDrive.Items;
 
 /// <summary>One kind of item (D89), from <c>GameData/items.json</c>.</summary>
 public sealed record ItemDef(string Id, string Name, string Plural, string Category, float Weight, int Stack,
-    float Food, float Drink, float Heal, string[] Tags, string? Leaves, string[] Teaches)
+    float Food, float Drink, float Heal, string[] Tags, string? Leaves, string[] Teaches, string Note = "")
 {
     public string Count(int n) => n == 1 ? Name : $"{n} {Plural}";
     /// <summary>Does it answer to a recipe's need (D107): its own id, or "tag:x" when it has tag x.</summary>
@@ -32,7 +32,7 @@ public static class ItemDb
 
     public static IReadOnlyDictionary<string, ItemDef> All => _defs ??= Load();
 
-    public static ItemDef? Get(string id) => All.TryGetValue(id, out var d) ? d : null;
+    public static ItemDef? Get(string id) => All.TryGetValue(id, out var d) ? d : Bigos.Is(id) ? Bigos.Def(id) : null;   // a pot of bigos is made up from its id (D114)
     public static ItemDef Def(string id) => Get(id) ?? throw new KeyError($"no item '{id}' in {ItemsPath}");
 
     /// <summary>How a recipe's need reads (D107): an item's name, or a tag's ("something to hold water").</summary>

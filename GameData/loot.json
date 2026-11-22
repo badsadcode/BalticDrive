@@ -198,6 +198,18 @@
       1,
       2
      ]
+    },
+    {
+     "item": "kielbasa",
+     "weight": 1.2
+    },
+    {
+     "item": "cabbage",
+     "weight": 0.6
+    },
+    {
+     "item": "sauerkraut",
+     "weight": 0.6
     }
    ]
   },
@@ -314,6 +326,18 @@
     {
      "item": "book_kuchnia_podlaska",
      "weight": 0.35
+    },
+    {
+     "item": "sauerkraut",
+     "weight": 1.0
+    },
+    {
+     "item": "dried_mushrooms",
+     "weight": 0.8
+    },
+    {
+     "item": "prunes",
+     "weight": 0.8
     }
    ]
   },
@@ -478,6 +502,10 @@
     {
      "item": "book_pierwsza_pomoc",
      "weight": 0.25
+    },
+    {
+     "item": "sauerkraut",
+     "weight": 0.3
     }
    ]
   }
@@ -486,7 +514,9 @@
   "kitchen": {
    "beans": 2,
    "water": 2,
-   "can_opener": 2
+   "can_opener": 2,
+   "sauerkraut": 2,
+   "kielbasa": 2
   },
   "bathroom": {
    "bandage": 2,
@@ -504,7 +534,8 @@
    "firewood": 5,
    "axe": 5,
    "camping_stove": 3,
-   "gas_canister": 3
+   "gas_canister": 3,
+   "sauerkraut": 2
   },
   "bedroom": {
    "photo_album": 2,

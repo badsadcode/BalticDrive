@@ -77,7 +77,72 @@ public sealed class Tests
     private bool _tip, _tipStarted;
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
-    private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1;
+    private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
+    private bool _bigos;
+
+    /// <summary>--autotest=bigos (D114): adding before there's a pot is refused; a bigos started (sauerkraut, water,
+    /// the saucepan); meat, mushrooms, prunes and onion added, meat twice refused; reheated three times, a fourth refused;
+    /// the pot photographed in the inventory; a pot moved into a box and back; eaten serving by serving until the
+    /// saucepan comes back. True while running.</summary>
+    private bool BigosTest(double delta)
+    {
+        if (_bigosT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _bigosT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _bigosT;
+        _bigosT += delta;
+        bool At(double t) => before < t && _bigosT >= t;
+        var body = _main.Walker!.Body;
+        var pack = body.Pack;
+        Items.Recipe R(string id) => Items.Recipes.All.First(x => x.Id == id);
+        string Pot() => pack.Stacks.Select(s => s.Id).FirstOrDefault(Items.Bigos.Is) ?? "(no pot)";
+        void Make(string id)
+        {
+            bool ok = Items.Recipes.Make(R(id), pack, out var said);
+            Log.Info("Test", $"bigos: {id}: {(ok ? "made" : "not made")}: {said}  [{Pot()}]");
+        }
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("sauerkraut", 1), ("water", 1), ("saucepan", 1), ("kielbasa", 2), ("dried_mushrooms", 1), ("prunes", 1),
+                         ("onion", 1), ("kitchen_knife", 1), ("camping_stove", 1), ("gas_canister", 4) })
+                pack.Add(id, n);
+            Make("bigos_meat");
+            Make("bigos_start");
+            var d = Items.ItemDb.Get(Pot());
+            Log.Info("Test", $"bigos: started: {d?.Name}, {d?.Food} food a serving, {d?.Weight:0.00} kg; saucepan left in the pack: {pack.Count("saucepan")}");
+            foreach (var id in new[] { "bigos_meat", "bigos_mushrooms", "bigos_prunes", "bigos_onion", "bigos_meat" }) Make(id);
+            for (int i = 0; i < 4; i++) Make("bigos_reheat");
+            d = Items.ItemDb.Get(Pot());
+            Log.Info("Test", $"bigos: now: {d?.Name}, {d?.Food} food a serving");
+            _main.OpenInventory(null);
+        }
+        if (At(2)) Shot("bigos_pot");
+        if (At(2.5))
+        {
+            _main.InventoryWindow!.Close();
+            var box = new Items.Inventory();
+            string pot = Pot();
+            int moved = pack.MoveTo(box, pot, 1);
+            Log.Info("Test", $"bigos: into a box: {moved}, the box holds {Items.Inventory.Say(box.Stacks)}");
+            box.MoveTo(pack, pot, 1);
+            Log.Info("Test", $"bigos: back: {Pot() == pot}");
+            for (int i = 0; i < 6; i++)
+            {
+                body.Hunger = 20;
+                string id = Pot();
+                body.UseItem(id);
+                Log.Info("Test", $"bigos: serving {i + 1}: hunger 20 -> {body.Hunger:0}; left: {Pot()}");
+            }
+            Log.Info("Test", $"bigos: saucepan back: {pack.Count("saucepan")}; pack {Items.Inventory.Say(pack.Stacks)}");
+            return false;
+        }
+        return true;
+    }
     private bool _skills;
     private float _skH0;
 
@@ -544,6 +609,7 @@ public sealed class Tests
         _heat = Main.Args.GetValueOrDefault("autotest", "").Contains("heat");
         _books = Main.Args.GetValueOrDefault("autotest", "").Contains("books");
         _skills = Main.Args.GetValueOrDefault("autotest", "").Contains("skills");
+        _bigos = Main.Args.GetValueOrDefault("autotest", "").Contains("bigos");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2112,6 +2178,11 @@ public sealed class Tests
         {
             if (SkillsTest(delta)) return;
             _skills = false;
+        }
+        if (_bigos)
+        {
+            if (BigosTest(delta)) return;
+            _bigos = false;
         }
         if (_take)
         {

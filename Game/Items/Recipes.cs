@@ -11,7 +11,8 @@ namespace BalticDrive.Items;
 /// many seconds it takes (D107). Inputs and tools are item ids or "tag:x" (any item with tag x).</summary>
 public sealed record Recipe(string Id, string Name, string Category, (string Item, int Count)[] Inputs,
     string[][] Tools, (string Item, int Count)[] Outputs, string About, float Seconds,
-    bool Heat = false, string? Places = null, bool Leftovers = true, string? Book = null, string? Skill = null);
+    bool Heat = false, string? Places = null, bool Leftovers = true, string? Book = null, string? Skill = null,
+    string? Evolve = null, string? Adds = null);
 
 /// <summary>
 /// Crafting (D106, D107), Project Zomboid style and our own data: <c>GameData/recipes.json</c>. A recipe can be made when the
@@ -56,7 +57,9 @@ public static class Recipes
                     r.TryGetProperty("places", out var pl) ? pl.GetString() : null,
                     !r.TryGetProperty("leftovers", out var lo) || lo.GetBoolean(),
                     r.TryGetProperty("book", out var bk) ? bk.GetString() : null,
-                    r.TryGetProperty("skill", out var sk) ? sk.GetString() : null);
+                    r.TryGetProperty("skill", out var sk) ? sk.GetString() : null,
+                    r.TryGetProperty("evolve", out var ev) ? ev.GetString() : null,
+                    r.TryGetProperty("adds", out var ad) ? ad.GetString() : null);
                 if (rec.Skill != null && !Skills.All.ContainsKey(rec.Skill)) Log.Error("Recipes", $"{rec.Id}: unknown skill '{rec.Skill}'");
                 if (rec.Book != null && ItemDb.Get(rec.Book) is not { } bookDef) Log.Error("Recipes", $"{rec.Id}: unknown book '{rec.Book}'");
                 else if (rec.Book != null && !ItemDb.Def(rec.Book).Teaches.Contains(rec.Id)) Log.Error("Recipes", $"{rec.Id}: {rec.Book} doesn't teach it (items.json teaches)");
@@ -82,6 +85,7 @@ public static class Recipes
         foreach (var alts in r.Tools)
             if (!alts.Any(a => pack.CountMatching(a) > 0)) miss.Add(string.Join(" or ", alts.Select(ItemDb.Say)));
         if (r.Heat && HeatHere?.Invoke(pack) == null) miss.Add(HeatName);
+        if (r.Evolve == "bigos" && Bigos.Missing(pack, r.Adds ?? "") is { } pot) miss.Add(pot);   // D114
         return miss;
     }
 
@@ -107,6 +111,15 @@ public static class Recipes
             if (Place == null) { said = "Nowhere to put it"; return false; }
         }
         foreach (var (item, n) in r.Inputs) pack.UseUp(item, n, r.Leftovers);
+        if (r.Evolve == "bigos")
+        {
+            // the pot changes instead of something new being made (D114)
+            Bigos.Evolve(pack, r.Adds ?? "", out said);
+            if (heat != null) { said += $", over {heat}"; HeatUsed?.Invoke(heat, pack); }
+            Skills.Add(r.Skill, 10);
+            Log.Info("Recipes", $"{r.Id}: {said}");
+            return true;
+        }
         foreach (var (item, n) in r.Outputs) pack.Add(item, n);
         string What((string Item, int Count) o)
         {

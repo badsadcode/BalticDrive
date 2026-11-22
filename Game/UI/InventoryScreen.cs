@@ -287,7 +287,9 @@ public partial class ItemRow : HBoxContainer
         _screen = screen; _column = column; _id = id; _n = n;
         MouseFilter = MouseFilterEnum.Stop;
         CustomMinimumSize = new Vector2(0, 32);
-        var name = new Label { Text = (n > 1 ? $"{n} × " : "") + (def?.Name ?? id), SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
+        var name = new Label { Text = (n > 1 ? $"{n} × " : "") + (def?.Name ?? id), SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(80, 0) };   // a long name wraps, never widens the window
+        if (def is { Note.Length: > 0 }) TooltipText = def.Note;
         name.AddThemeColorOverride("font_color", def?.Category switch
         {
             "food" => new Color(0.95f, 0.85f, 0.6f), "drink" => new Color(0.65f, 0.85f, 1f), "medical" => new Color(1f, 0.6f, 0.6f),
@@ -454,7 +456,7 @@ public partial class CraftingColumn : PanelContainer
                 tools.Add(Part(heat != null ? $"heat ({heat})" : Recipes.HeatName, heat != null));
             }
             uses.Text = (parts.Count > 0 ? "uses " + string.Join(", ", parts) : "") + (tools.Count > 0 ? "  ·  needs " + string.Join(", ", tools) : "")
-                + $"  →  [color=#{Skin.Accent.ToHtml(false)}]{(r.Places != null ? $"a {r.Places} on the ground" : Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count))))}[/color]";
+                + $"  →  [color=#{Skin.Accent.ToHtml(false)}]{(r.Places != null ? $"a {r.Places} on the ground" : r.Evolve != null ? $"a better {r.Evolve}" : Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count))))}[/color]";
             text.AddChild(uses);
             if (r.About.Length > 0)
             {
