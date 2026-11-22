@@ -39,7 +39,7 @@ public sealed partial class Survival : Node
     /// <summary>The item of a kind that best fits what's missing: the biggest that doesn't waste much, else the smallest.</summary>
     private string? Best(Func<ItemDef, bool> kind, Func<ItemDef, float> value, float missing)
     {
-        var have = Pack.Stacks.Select(st => ItemDb.Get(st.Id)).OfType<ItemDef>().Where(kind).DistinctBy(d => d.Id).ToList();
+        var have = Pack.Stacks.Where(st => !Freshness.IsRotten(st)).Select(st => ItemDb.Get(st.Id)).OfType<ItemDef>().Where(kind).DistinctBy(d => d.Id).ToList();
         if (have.Count == 0) return null;
         var fits = have.Where(d => value(d) <= missing + 10).OrderByDescending(value).FirstOrDefault();
         return (fits ?? have.OrderBy(value).First()).Id;
@@ -62,21 +62,9 @@ public sealed partial class Survival : Node
         Hunger = MathF.Max(0, Hunger - dt * effort * 100f / (HungerMinutes * 60));
         Thirst = MathF.Max(0, Thirst - dt * effort * 100f / (ThirstMinutes * 60));
         // carried food and water are used without asking, before it hurts: what fits the hunger best
-        if (Hunger < 35 && Best(IsFood, d => d.Food, 100 - Hunger) is { } eat)
-        {
-            var d = ItemDb.Def(eat);
-            Pack.Remove(eat, 1);
-            Hunger = Math.Clamp(Hunger + d.Food, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink, 0, 100);
-            Say($"You eat a {d.Name}");
-        }
-        if (Thirst < 35 && Best(IsDrink, d => d.Drink, 100 - Thirst) is { } drink)
-        {
-            var d = ItemDb.Def(drink);
-            Pack.Remove(drink, 1);
-            Thirst = Math.Clamp(Thirst + d.Drink, 0, 100); Hunger = Math.Clamp(Hunger + d.Food, 0, 100);
-            if (d.Leaves != null) Pack.Add(d.Leaves, 1);   // the empty bottle (D107: from the data)
-            Say($"You drink a {d.Name}");
-        }
+        // (never rotten food by itself; the stale before it turns: D115)
+        if (Hunger < 35 && Best(IsFood, d => d.Food, 100 - Hunger) is { } eat) Consume(eat, null);
+        if (Thirst < 35 && Best(IsDrink, d => d.Drink, 100 - Thirst) is { } drink) Consume(drink, null);
         // health: empty stomach or bottle hurts, a looked-after body heals up to 70 by itself, a medkit all the way
         if (Hunger <= 0) { Health -= dt * 0.25f; _cause = "starved"; }
         if (Thirst <= 0) { Health -= dt * 0.4f; _cause = "dehydrated"; }
@@ -92,8 +80,36 @@ public sealed partial class Survival : Node
     /// when nothing is. Set by the game.</summary>
     public static Func<float, float>? PourFuel;
 
-    /// <summary>Eats, drinks or uses one of an item you carry (the inventory's Use button).</summary>
-    public void UseItem(string id)
+    /// <summary>Eats or drinks one (at a freshness stage, or any but rotten): stale fills less, rotten barely and makes
+    /// you ill (D115); what it leaves (a bottle, the rest of a pot of bigos) keeps its age.</summary>
+    private void Consume(string id, int? stage)
+    {
+        var d = ItemDb.Get(id);
+        if (d == null || Pack.TakeOne(id, stage) is not { } st) return;
+        int fr = Freshness.Stage(d, st.Made);
+        float k = Freshness.FoodFactor(fr);
+        Hunger = Math.Clamp(Hunger + d.Food * k, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink * k, 0, 100);
+        string what = fr is Freshness.Stale or Freshness.Rotten ? $"{Freshness.Word(fr)} {d.Name}" : d.Name;
+        Say(d.Category == "drink" ? $"You drink a {what}" : $"You eat a {what}");
+        if (fr == Freshness.Rotten)
+        {
+            Health = MathF.Max(1, Health - 10);
+            _cause = "rotten food";
+            Say("It's gone off. Your stomach turns.");
+        }
+        if (d.Matches("tag:dirty_water"))
+        {
+            // unboiled (D111): it quenches, and it costs you
+            Health = MathF.Max(1, Health - 8);
+            _cause = "river water";
+            Say("It tastes of mud. Your stomach turns. Boil it next time.");
+        }
+        if (d.Leaves != null) Pack.Add(d.Leaves, 1, st.Made);
+    }
+
+    /// <summary>Eats, drinks or uses one of an item you carry (the inventory's Use button; food at a freshness
+    /// <paramref name="stage"/>, the row you pressed).</summary>
+    public void UseItem(string id, int? stage = null)
     {
         var d = ItemDb.Get(id);
         if (d == null || Pack.Count(id) == 0) return;
@@ -118,15 +134,8 @@ public sealed partial class Survival : Node
         }
         else
         {
-            Hunger = Math.Clamp(Hunger + d.Food, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink, 0, 100);
-            Say(d.Category == "drink" ? $"You drink a {d.Name}" : $"You eat a {d.Name}");
-            if (d.Matches("tag:dirty_water"))
-            {
-                // unboiled (D111): it quenches, and it costs you
-                Health = MathF.Max(1, Health - 8);
-                _cause = "river water";
-                Say("It tastes of mud. Your stomach turns. Boil it next time.");
-            }
+            Consume(id, stage ?? (Pack.Stacks.Any(s => s.Id == id && !Freshness.IsRotten(s)) ? null : Freshness.Rotten));
+            return;
         }
         Pack.Remove(id, 1);
         if (d.Leaves != null) Pack.Add(d.Leaves, 1);
@@ -176,7 +185,7 @@ public sealed partial class Survival : Node
         var got = new List<ItemStack>();
         foreach (var it in items)
         {
-            int n = Pack.Add(it.Id, it.Count);
+            int n = Pack.Add(it);   // keeping its age (D115)
             if (n > 0) got.Add(new ItemStack(it.Id, n));
             if (n < it.Count) full = true;
         }

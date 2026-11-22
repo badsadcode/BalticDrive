@@ -28,7 +28,7 @@ public static class Containers
         Load(map);
         if (_open!.TryGetValue(id, out var inv)) return inv;
         inv = new Inventory();
-        foreach (var s in LootTables.Roll(lootKind, room, id)) inv.Add(s.Id, s.Count);
+        foreach (var s in LootTables.Roll(lootKind, room, id)) inv.Add(s);
         _open[id] = inv;
         Save();
         return inv;
@@ -45,7 +45,7 @@ public static class Containers
             string path = ProjectSettings.GlobalizePath(FilePath);
             var all = File.Exists(path) ? JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, List<object[]>>>>(File.ReadAllText(path)) ?? new() : new();
             if (_map == Main.SaveWorld) all.Remove("mazowsze");
-            all[_map] = _open.ToDictionary(kv => kv.Key, kv => kv.Value.Stacks.Select(s => new object[] { s.Id, s.Count }).ToList());
+            all[_map] = _open.ToDictionary(kv => kv.Key, kv => kv.Value.Stacks.Select(s => s.Made >= 0 ? new object[] { s.Id, s.Count, s.Made } : new object[] { s.Id, s.Count }).ToList());
             File.WriteAllText(path, JsonSerializer.Serialize(all));
         }
         catch (Exception ex) { Log.Error("Containers", ex.Message); }
@@ -66,7 +66,7 @@ public static class Containers
             foreach (var (id, stacks) in mine)
             {
                 var inv = new Inventory();
-                foreach (var s in stacks) inv.Add(s[0].GetString()!, s[1].GetInt32());
+                foreach (var s in stacks) inv.Add(s[0].GetString()!, s[1].GetInt32(), s.Length > 2 ? s[2].GetDouble() : double.NaN);
                 _open[id] = inv;
             }
         }

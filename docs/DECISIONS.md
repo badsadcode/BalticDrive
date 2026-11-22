@@ -1740,3 +1740,31 @@ photographed; into a box and back intact; six servings eaten (hunger 20 -> 62 ea
 Tom asked whether I'd like Project Zomboid's files for scope: no. Their item and recipe scripts are their lists and
 numbers; keeping our design our own is easiest if they're never opened. Scope comes from playing it, the public wiki,
 and Tom.
+
+
+## D115 — Freshness: fresh, stale, rotten
+
+Tom's agreed order, after bigos. The sky's clock stands still unless turned, so food ages by a **play clock**
+(`Core.WorldClock`): it runs while the game does and waits when you quit (Zomboid-style); an hour played is a "day" for
+food; kept per world in user://clock.json; a new world starts on **day 312** (the lore brainstorm's "Day 312"), which
+also lets found food be months old. Items that go off have `fresh` and `stale` days in items.json (kiełbasa 4+4,
+cooked food 2+2, hot soup 1+1.5, tea half a day, potatoes 20+20, onion 25+25, cabbage 12+10, jam 60+60, bigos 6+6);
+tins, jars, dried things and drinks in bottles don't. The sandbox's new **food.spoil** (0 never, up to 3) scales it.
+Each stack remembers when it was made (`ItemStack.Made`; stacks of different ages stay apart, the oldest is used
+first, moving keeps the age, containers save it). **Eating**: stale fills 60 %, rotten 25 % and costs 10 health ("It's
+gone off"); hunger and thirst never take rotten food by themselves and eat what's turning first; the inventory shows
+"kiełbasa (stale)" and "kiełbasa (rotten)" as their own rows (their own colours, their own Eat button). **Recipes**
+don't take rotten food. **Found food** has an age: anything from just made to well past rotten (40 test fridges: 14
+fresh, 16 stale, 4 rotten). **Bigos**: adding keeps the pot's age, reheating makes it fresh again; eating a serving
+keeps the rest's age. Also fixed: hunger eating a pot of bigos by itself used to take the whole pot. Not yet: powered
+fridges slowing it down (a generator nearby: D109), salting and drying, rotten food for compost. Self-test
+`--autotest=fresh` (clock and skills in scratch files, as for every autotest).
+
+## D116 — Evolved dishes are data
+
+Tom: "making this game data-driven? So we can add recipes and other items without touching the code." It mostly was
+(items, recipes, loot, skills, sandbox, cars and regions are JSON since D89); bigos's ingredient list was the one
+shortcut in code. Now an evolved dish is a template item with an `evolved` block (ingredients by letter, base,
+servings, max reheats, food per quality step, quality names, what the empty pot becomes) plus recipes that `evolve`
+it; `Items.Evolved` (was Bigos.cs) reads them all. A żurek or a krupnik pot is JSON only. Code is still needed for a
+new *kind* of behaviour (heat, placing a campfire, carrying a generator), never for more of one.

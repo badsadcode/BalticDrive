@@ -85,7 +85,7 @@ public static class Recipes
         foreach (var alts in r.Tools)
             if (!alts.Any(a => pack.CountMatching(a) > 0)) miss.Add(string.Join(" or ", alts.Select(ItemDb.Say)));
         if (r.Heat && HeatHere?.Invoke(pack) == null) miss.Add(HeatName);
-        if (r.Evolve == "bigos" && Bigos.Missing(pack, r.Adds ?? "") is { } pot) miss.Add(pot);   // D114
+        if (r.Evolve != null && Evolved.Missing(pack, r.Evolve, r.Adds ?? "") is { } pot) miss.Add(pot);   // D114, D116
         return miss;
     }
 
@@ -111,10 +111,10 @@ public static class Recipes
             if (Place == null) { said = "Nowhere to put it"; return false; }
         }
         foreach (var (item, n) in r.Inputs) pack.UseUp(item, n, r.Leftovers);
-        if (r.Evolve == "bigos")
+        if (r.Evolve != null)
         {
             // the pot changes instead of something new being made (D114)
-            Bigos.Evolve(pack, r.Adds ?? "", out said);
+            Evolved.Evolve(pack, r.Evolve, r.Adds ?? "", out said);
             if (heat != null) { said += $", over {heat}"; HeatUsed?.Invoke(heat, pack); }
             Skills.Add(r.Skill, 10);
             Log.Info("Recipes", $"{r.Id}: {said}");

@@ -55,6 +55,7 @@ public partial class Main : Node3D
 	/// </summary>
 	public override void _Notification(int what)
 	{
+		if (what == NotificationWMCloseRequest || what == NotificationPredelete) Core.WorldClock.Save();   // the play clock (D115)
 		if (_tests != null) return;
 		if (what == NotificationApplicationFocusOut && _focusedMaxFps < 0)
 		{
@@ -306,7 +307,7 @@ public partial class Main : Node3D
 		var w = _walker;
 		_inventory.Health = () => w.Body.Health;
 		_inventory.Note = s => w.Body.Say(s);
-		_inventory.Open(w.Body.Pack, other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind), BalticDrive.OnFoot.Survival.Usable, id => w.Body.UseItem(id),
+		_inventory.Open(w.Body.Pack, other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind), BalticDrive.OnFoot.Survival.Usable, (id, stage) => w.Body.UseItem(id, stage),
 			() => { w.Autopilot = _parkedAutopilot; _parkedAutopilot = null; });
 		Core.Log.Info("Items", spot == null ? $"pack: {Items.Inventory.Say(w.Body.Pack.Stacks)}" : $"{spot.FurnitureKind} ({spot.LootKind}, {spot.Room}): {Items.Inventory.Say(other!.Stacks)}");
 	}
@@ -1052,6 +1053,7 @@ public partial class Main : Node3D
 
 	public override void _Process(double delta)
 	{
+		if (_world != null) Core.WorldClock.Tick(delta);   // food ages while you play (D115)
 		// holding F by the car: the workshop (D68)
 		if (_chopT >= 0 && _walker != null)
 		{

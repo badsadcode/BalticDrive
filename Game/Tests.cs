@@ -78,7 +78,79 @@ public sealed class Tests
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
-    private bool _bigos;
+    private bool _bigos, _fresh;
+    private double _freshT = -1;
+
+    /// <summary>--autotest=fresh (D115; the play clock in its scratch file): kiełbasa fresh, then stale after 5 days
+    /// (eaten: 60 %), a fresh one beside it (two rows, photographed), then the old one rotten: recipes don't count it,
+    /// hunger eats the beans instead, eating it by hand hurts; ages kept through a box; fridge loot of mixed ages; a
+    /// stale pot of bigos reheated fresh. True while running.</summary>
+    private bool FreshTest(double delta)
+    {
+        if (_freshT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _freshT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _freshT;
+        _freshT += delta;
+        bool At(double t) => before < t && _freshT >= t;
+        var body = _main.Walker!.Body;
+        var pack = body.Pack;
+        const double Day = Core.WorldClock.Day;
+        string Ages() => string.Join(", ", pack.Stacks.Where(s => s.Made >= 0).Select(s => $"{s.Id} x{s.Count} {Items.Freshness.Word(Items.Freshness.Stage(s)) switch { "" => "fresh", var w => w }} ({Items.Freshness.AgeDays(s.Made):0.0} d)"));
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("kielbasa", 2), ("beans", 1), ("camping_stove", 1), ("gas_canister", 3), ("sauerkraut", 1), ("water", 1), ("saucepan", 1) })
+                pack.Add(id, n);
+            Log.Info("Test", $"fresh: clock {Core.WorldClock.Days:0.00} d; {Ages()}");
+            Core.WorldClock.Skip(5 * Day);
+            body.Hunger = 30;
+            body.UseItem("kielbasa");
+            Log.Info("Test", $"fresh: +5 d: {Ages()}; ate one: hunger 30 -> {body.Hunger:0} (30 x 0.6 = 18)");
+            pack.Add("kielbasa", 1);
+            Log.Info("Test", $"fresh: a fresh one beside it: {Ages()}");
+            Items.Recipes.Make(Items.Recipes.All.First(r => r.Id == "bigos_start"), pack, out var said);
+            Log.Info("Test", $"fresh: {said}");
+            _main.OpenInventory(null);
+        }
+        if (At(2)) Shot("fresh_rows");
+        if (At(2.5))
+        {
+            _main.InventoryWindow!.Close();
+            Core.WorldClock.Skip(4.5 * Day);
+            Log.Info("Test", $"fresh: +4.5 d: {Ages()}; meat a recipe can use: {pack.CountMatching("tag:meat")} of {pack.Count("kielbasa")}");
+            var box = new Items.Inventory();
+            pack.MoveTo(box, "kielbasa", 9);
+            Log.Info("Test", $"fresh: in a box: {string.Join(", ", box.Stacks.Select(s => $"{Items.Freshness.Word(Items.Freshness.Stage(s))}/{Items.Freshness.AgeDays(s.Made):0.0}"))}");
+            box.MoveTo(pack, "kielbasa", 9);
+            body.Hunger = 20;
+            pack.Remove("beans", 9); pack.Add("beans", 1);
+            body._Process(0.01);   // hungry: what does it eat by itself
+            Log.Info("Test", $"fresh: hungry, by itself: beans left {pack.Count("beans")}, kiełbasa left {pack.Count("kielbasa")}");
+            float h0 = body.Health;
+            body.UseItem("kielbasa", Items.Freshness.Rotten);
+            Log.Info("Test", $"fresh: rotten eaten by hand: health {h0:0} -> {body.Health:0}");
+            // fridges, 312 days in
+            var counts = new Dictionary<string, int>();
+            for (int i = 0; i < 40; i++)
+                foreach (var s in Items.LootTables.Roll("fridge", "kitchen", $"fresh-test-{i}").Where(s => Items.Freshness.Perishable(Items.ItemDb.Get(s.Id))))
+                {
+                    string w = Items.Freshness.Word(Items.Freshness.Stage(s)); if (w == "") w = "fresh";
+                    counts[w] = counts.GetValueOrDefault(w) + s.Count;
+                }
+            Log.Info("Test", $"fresh: 40 fridges' food: {string.Join(", ", counts.Select(kv => $"{kv.Value} {kv.Key}"))}");
+            Core.WorldClock.Skip(3 * Day);
+            Log.Info("Test", $"fresh: the bigos after 7.5 d: {Ages().Split(", ").FirstOrDefault(x => x.StartsWith("bigos")) ?? "(none)"}");
+            Items.Recipes.Make(Items.Recipes.All.First(r => r.Id == "bigos_reheat"), pack, out var said2);
+            Log.Info("Test", $"fresh: {said2}; now {Ages().Split(", ").FirstOrDefault(x => x.StartsWith("bigos")) ?? "(none)"}");
+            return false;
+        }
+        return true;
+    }
 
     /// <summary>--autotest=bigos (D114): adding before there's a pot is refused; a bigos started (sauerkraut, water,
     /// the saucepan); meat, mushrooms, prunes and onion added, meat twice refused; reheated three times, a fourth refused;
@@ -99,7 +171,7 @@ public sealed class Tests
         var body = _main.Walker!.Body;
         var pack = body.Pack;
         Items.Recipe R(string id) => Items.Recipes.All.First(x => x.Id == id);
-        string Pot() => pack.Stacks.Select(s => s.Id).FirstOrDefault(Items.Bigos.Is) ?? "(no pot)";
+        string Pot() => pack.Stacks.Select(s => s.Id).FirstOrDefault(Items.Evolved.Is) ?? "(no pot)";
         void Make(string id)
         {
             bool ok = Items.Recipes.Make(R(id), pack, out var said);
@@ -601,6 +673,10 @@ public sealed class Tests
         {
             // self-tests practise too (D113): their XP goes to a scratch file, never the player's
             Items.Skills.FilePath = "user://skills_selftest.json";
+            Core.WorldClock.FilePath = "user://clock_selftest.json";   // and their play time (D115)
+            string cf = ProjectSettings.GlobalizePath(Core.WorldClock.FilePath);
+            if (System.IO.File.Exists(cf)) System.IO.File.Delete(cf);
+            Core.WorldClock.Reset();
             string sf = ProjectSettings.GlobalizePath(Items.Skills.FilePath);
             if (System.IO.File.Exists(sf)) System.IO.File.Delete(sf);
             Items.Skills.Reset();
@@ -610,6 +686,7 @@ public sealed class Tests
         _books = Main.Args.GetValueOrDefault("autotest", "").Contains("books");
         _skills = Main.Args.GetValueOrDefault("autotest", "").Contains("skills");
         _bigos = Main.Args.GetValueOrDefault("autotest", "").Contains("bigos");
+        _fresh = Main.Args.GetValueOrDefault("autotest", "").Contains("fresh");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2183,6 +2260,11 @@ public sealed class Tests
         {
             if (BigosTest(delta)) return;
             _bigos = false;
+        }
+        if (_fresh)
+        {
+            if (FreshTest(delta)) return;
+            _fresh = false;
         }
         if (_take)
         {

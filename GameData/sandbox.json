@@ -10,6 +10,7 @@
     "wrecks.runners":      { "name": "Cars that still run", "default": 0.2,  "min": 0,   "max": 1,   "about": "The share of abandoned cars that still run: engine, battery and four wheels good enough to drive away." },
     "wrecks.condition":    { "name": "Car condition", "default": 1.0,  "min": 0.2, "max": 2,   "about": "How worn abandoned cars' parts are (× their condition; above 1 better, never above 100 %)." },
     "wrecks.picked_over":  { "name": "Parts already taken", "default": 1.0,  "min": 0,   "max": 2,   "about": "How often scavengers took parts before you came (× the chance a part is missing)." },
+    "food.spoil":          { "name": "Food spoils", "default": 1.0,  "min": 0,   "max": 3,   "about": "How fast food goes stale and rotten (x; an hour played is a day for food). 0: nothing spoils." },
     "generators.frequency": { "name": "Generators", "default": 1.0,  "min": 0,   "max": 4,   "about": "How many portable generators stand beside houses, farms, sheds and works (× the chance per building: about one farm in seven, one house in thirty). 0: none." }
   },
   "presets": {

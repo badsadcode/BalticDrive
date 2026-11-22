@@ -9,15 +9,16 @@ namespace BalticDrive.Items;
 
 /// <summary>One kind of item (D89), from <c>GameData/items.json</c>.</summary>
 public sealed record ItemDef(string Id, string Name, string Plural, string Category, float Weight, int Stack,
-    float Food, float Drink, float Heal, string[] Tags, string? Leaves, string[] Teaches, string Note = "")
+    float Food, float Drink, float Heal, string[] Tags, string? Leaves, string[] Teaches, string Note = "", float Fresh = 0, float Stale = 0)
 {
     public string Count(int n) => n == 1 ? Name : $"{n} {Plural}";
     /// <summary>Does it answer to a recipe's need (D107): its own id, or "tag:x" when it has tag x.</summary>
     public bool Matches(string key) => key.StartsWith("tag:") ? Array.IndexOf(Tags, key[4..]) >= 0 : key == Id;
 }
 
-/// <summary>A pile of one item.</summary>
-public readonly record struct ItemStack(string Id, int Count);
+/// <summary>A pile of one item. <paramref name="Made"/>: when it was made, in <see cref="Core.WorldClock"/> seconds, for food
+/// that goes off (D115); -1 for things that don't.</summary>
+public readonly record struct ItemStack(string Id, int Count, double Made = -1);
 
 /// <summary>
 /// Everything you can carry (D89, Tom: "the items data-driven game with crafting recipes"): the definitions are data,
@@ -32,7 +33,7 @@ public static class ItemDb
 
     public static IReadOnlyDictionary<string, ItemDef> All => _defs ??= Load();
 
-    public static ItemDef? Get(string id) => All.TryGetValue(id, out var d) ? d : Bigos.Is(id) ? Bigos.Def(id) : null;   // a pot of bigos is made up from its id (D114)
+    public static ItemDef? Get(string id) => All.TryGetValue(id, out var d) ? d : Evolved.Is(id) ? Evolved.Def(id) : null;   // a pot of an evolved dish is made up from its id (D114, D116)
     public static ItemDef Def(string id) => Get(id) ?? throw new KeyError($"no item '{id}' in {ItemsPath}");
 
     /// <summary>How a recipe's need reads (D107): an item's name, or a tag's ("something to hold water").</summary>
@@ -63,7 +64,8 @@ public static class ItemDb
                     e.TryGetProperty("stack", out var st) ? st.GetInt32() : 1, F("food"), F("drink"), F("heal"),
                     e.TryGetProperty("tags", out var tg) ? tg.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>(),
                     e.TryGetProperty("leaves", out var lv) ? lv.GetString() : null,
-                    e.TryGetProperty("teaches", out var te) ? te.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>());
+                    e.TryGetProperty("teaches", out var te) ? te.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>(),
+                    "", F("fresh"), F("stale"));
             }
             if (doc.RootElement.TryGetProperty("tags", out var tags))
                 foreach (var t in tags.EnumerateObject()) _tagNames[t.Name] = t.Value.GetString()!;
@@ -77,7 +79,8 @@ public static class ItemDb
 
 /// <summary>
 /// A list of items with a weight limit (D89): the player's pack, a wardrobe, a fridge. Stacks merge by id; a stack
-/// holds at most its item's <see cref="ItemDef.Stack"/> (more go into a new stack).
+/// holds at most its item's <see cref="ItemDef.Stack"/> (more go into a new stack). Food that goes off (D115) merges
+/// only with food made about the same time, and the oldest is used first; moving keeps when it was made.
 /// </summary>
 public sealed class Inventory
 {
@@ -92,24 +95,26 @@ public sealed class Inventory
     public int Count(string id) => Stacks.Where(s => s.Id == id).Sum(s => s.Count);
     public int CountWhere(Func<ItemDef, bool> f) => Stacks.Where(s => ItemDb.Get(s.Id) is { } d && f(d)).Sum(s => s.Count);
     public bool IsEmpty => Stacks.Count == 0;
-    /// <summary>How many answer to an id or "tag:x" (D107).</summary>
-    public int CountMatching(string key) => CountWhere(d => d.Matches(key));
+    /// <summary>How many answer to an id or "tag:x" (D107); rotten food doesn't count (D115: it's only good for the bin).</summary>
+    public int CountMatching(string key) => Stacks.Where(s => ItemDb.Get(s.Id) is { } d && d.Matches(key) && !Freshness.IsRotten(s)).Sum(s => s.Count);
 
-    /// <summary>Uses up <paramref name="n"/> items answering to an id or tag (D107), in pack order; what they leave
-    /// behind (an empty bottle) goes back in. Returns the ids used.</summary>
+    /// <summary>Uses up <paramref name="n"/> items answering to an id or tag (D107), never rotten ones, the oldest
+    /// first; what they leave behind (an empty bottle) goes back in. Returns the ids used.</summary>
     public List<string> UseUp(string key, int n, bool leftovers = true)
     {
         var used = new List<string>();
         while (n > 0)
         {
-            int i = Stacks.FindIndex(s => ItemDb.Get(s.Id) is { } d && d.Matches(key));
+            int i = -1;
+            for (int j = 0; j < Stacks.Count; j++)
+                if (ItemDb.Get(Stacks[j].Id) is { } d && d.Matches(key) && !Freshness.IsRotten(Stacks[j]) && (i < 0 || Stacks[j].Made < Stacks[i].Made)) i = j;
             if (i < 0) break;
             var st = Stacks[i];
             int k = Math.Min(n, st.Count);
-            Remove(st.Id, k);
+            TakeAt(i, k);
             n -= k;
             for (int j = 0; j < k; j++) used.Add(st.Id);
-            if (leftovers && ItemDb.Get(st.Id)?.Leaves is { } left) Add(left, k);
+            if (leftovers && ItemDb.Get(st.Id)?.Leaves is { } left) Add(left, k, st.Made);
         }
         return used;
     }
@@ -123,44 +128,91 @@ public sealed class Inventory
         return Math.Max(0, (int)MathF.Floor((MaxWeight - Weight) / d.Weight + 1e-4f));
     }
 
-    /// <summary>Adds up to <paramref name="n"/>; returns how many went in.</summary>
-    public int Add(string id, int n)
+    /// <summary>Adds up to <paramref name="n"/>; returns how many went in. <paramref name="made"/>: when food was made
+    /// (default: now); things that don't go off ignore it.</summary>
+    public int Add(string id, int n, double made = double.NaN)
     {
         var d = ItemDb.Get(id);
         if (d == null || n <= 0) return 0;
+        bool perishable = Freshness.Perishable(d);
+        if (!perishable) made = -1;
+        else if (double.IsNaN(made) || made < 0) made = Core.WorldClock.Seconds;
         int take = Math.Min(n, Room(id)), left = take;
         for (int i = 0; i < Stacks.Count && left > 0; i++)
         {
-            if (Stacks[i].Id != id || Stacks[i].Count >= d.Stack) continue;
-            int add = Math.Min(left, d.Stack - Stacks[i].Count);
-            Stacks[i] = Stacks[i] with { Count = Stacks[i].Count + add };
+            var st = Stacks[i];
+            if (st.Id != id || st.Count >= d.Stack) continue;
+            if (perishable && Math.Abs(st.Made - made) > Freshness.MergeSeconds) continue;   // different ages stay apart
+            int add = Math.Min(left, d.Stack - st.Count);
+            Stacks[i] = st with { Count = st.Count + add, Made = perishable ? Math.Min(st.Made, made) : -1 };
             left -= add;
         }
-        while (left > 0) { int add = Math.Min(left, Math.Max(1, d.Stack)); Stacks.Add(new ItemStack(id, add)); left -= add; }
+        while (left > 0) { int add = Math.Min(left, Math.Max(1, d.Stack)); Stacks.Add(new ItemStack(id, add, made)); left -= add; }
         if (take > 0) Changed?.Invoke();
         return take;
     }
 
-    /// <summary>Takes up to <paramref name="n"/> away; returns how many it had.</summary>
+    /// <summary>Adds a stack as it is (keeping its age).</summary>
+    public int Add(ItemStack s) => Add(s.Id, s.Count, s.Made < 0 ? double.NaN : s.Made);
+
+    private void TakeAt(int i, int k)
+    {
+        if (k >= Stacks[i].Count) Stacks.RemoveAt(i); else Stacks[i] = Stacks[i] with { Count = Stacks[i].Count - k };
+        Changed?.Invoke();
+    }
+
+    /// <summary>Takes up to <paramref name="n"/> away, the oldest first; returns how many it had.</summary>
     public int Remove(string id, int n)
     {
         int left = n;
-        for (int i = Stacks.Count - 1; i >= 0 && left > 0; i--)
+        while (left > 0)
         {
-            if (Stacks[i].Id != id) continue;
+            int i = -1;
+            for (int j = 0; j < Stacks.Count; j++)
+                if (Stacks[j].Id == id && (i < 0 || Stacks[j].Made < Stacks[i].Made)) i = j;
+            if (i < 0) break;
             int take = Math.Min(left, Stacks[i].Count);
+            TakeAt(i, take);
             left -= take;
-            if (take == Stacks[i].Count) Stacks.RemoveAt(i); else Stacks[i] = Stacks[i] with { Count = Stacks[i].Count - take };
         }
-        if (left < n) Changed?.Invoke();
         return n - left;
     }
 
-    /// <summary>Moves up to <paramref name="n"/> of an item into another inventory (as many as fit there).</summary>
-    public int MoveTo(Inventory to, string id, int n)
+    /// <summary>One of an item at a freshness <paramref name="stage"/> (null: any but rotten), the oldest of those;
+    /// returns the stack it came from (count 1), or null.</summary>
+    public ItemStack? TakeOne(string id, int? stage = null)
     {
-        int moved = to.Add(id, Math.Min(n, Count(id)));
-        Remove(id, moved);
+        int i = -1;
+        for (int j = 0; j < Stacks.Count; j++)
+        {
+            if (Stacks[j].Id != id) continue;
+            int st = Freshness.Stage(Stacks[j]);
+            if (stage != null ? st != stage : st == Freshness.Rotten) continue;
+            if (i < 0 || Stacks[j].Made < Stacks[i].Made) i = j;
+        }
+        if (i < 0) return null;
+        var s = Stacks[i] with { Count = 1 };
+        TakeAt(i, 1);
+        return s;
+    }
+
+    /// <summary>Moves up to <paramref name="n"/> of an item (at a freshness stage, if given) into another inventory, as
+    /// many as fit there, the oldest first, keeping when it was made.</summary>
+    public int MoveTo(Inventory to, string id, int n, int? stage = null)
+    {
+        int moved = 0;
+        while (moved < n)
+        {
+            int i = -1;
+            for (int j = 0; j < Stacks.Count; j++)
+                if (Stacks[j].Id == id && (stage == null || Freshness.Stage(Stacks[j]) == stage) && (i < 0 || Stacks[j].Made < Stacks[i].Made)) i = j;
+            if (i < 0) break;
+            var st = Stacks[i];
+            int k = to.Add(st.Id, Math.Min(n - moved, st.Count), st.Made < 0 ? double.NaN : st.Made);
+            if (k == 0) break;
+            TakeAt(i, k);
+            moved += k;
+        }
         return moved;
     }
 
@@ -243,7 +295,8 @@ public static class LootTables
             foreach (var e in t.Items)
             {
                 if ((r -= W(e)) > 0) continue;
-                if (e.Item != "empty") res.Add(new ItemStack(e.Item, rng.Next(e.Min, e.Max + 1)));
+                if (e.Item != "empty")
+                    res.Add(new ItemStack(e.Item, rng.Next(e.Min, e.Max + 1), ItemDb.Get(e.Item) is { } fd ? Freshness.FoundMade(fd, rng) : -1));   // found food has an age (D115)
                 break;
             }
         }

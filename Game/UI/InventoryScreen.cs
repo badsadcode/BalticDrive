@@ -16,7 +16,7 @@ public partial class InventoryScreen : Control
     private Inventory? _mine, _other;
     private string _otherTitle = "";
     private Func<ItemDef, bool>? _usable;
-    private Action<string>? _use;
+    private Action<string, int?>? _use;
     private Action? _closed;
     private readonly ItemColumn _left, _right;
     private readonly CraftingColumn _craft;
@@ -72,7 +72,7 @@ public partial class InventoryScreen : Control
     }
 
     /// <summary>Opens on a container (<paramref name="other"/>) or, when it's null, on your pack alone.</summary>
-    public void Open(Inventory mine, Inventory? other, string otherTitle, Func<ItemDef, bool> usable, Action<string> use, Action closed)
+    public void Open(Inventory mine, Inventory? other, string otherTitle, Func<ItemDef, bool> usable, Action<string, int?> use, Action closed)
     {
         _mine = mine; _other = other; _otherTitle = otherTitle; _usable = usable; _use = use; _closed = closed;
         _left.Visible = other != null;
@@ -160,17 +160,17 @@ public partial class InventoryScreen : Control
     }
 
     /// <summary>Moves items between the two sides: from the container (<paramref name="fromLeft"/>) or from you.</summary>
-    public void Move(bool fromLeft, string id, int n)
+    public void Move(bool fromLeft, string id, int n, int? stage = null)
     {
         if (_mine == null || _other == null) return;
         var (from, to) = fromLeft ? (_other, _mine) : (_mine, _other);
-        int moved = from.MoveTo(to, id, n);
+        int moved = from.MoveTo(to, id, n, stage);
         if (moved == 0 && fromLeft) Flash("Too heavy to carry");
         Containers.Save();
         Refresh();
     }
 
-    public void Use(string id)
+    public void Use(string id, int? stage = null)
     {
         // a book (D112): reading takes time, like crafting, and teaches its recipes
         if (ItemDb.Get(id) is { Category: "book" } book)
@@ -181,7 +181,7 @@ public partial class InventoryScreen : Control
                 Array.Empty<(string, int)>(), "", ReadSeconds));
             return;
         }
-        _use?.Invoke(id); Refresh();
+        _use?.Invoke(id, stage); Refresh();
     }
 
     /// <summary>How long reading a book takes (D112).</summary>
@@ -257,11 +257,12 @@ public partial class ItemColumn : PanelContainer
         _title.Text = title;
         _weight.Text = weight;
         foreach (var c in _rows.GetChildren()) c.QueueFree();
-        var groups = inv.Stacks.GroupBy(s => s.Id).Select(g => (Def: ItemDb.Get(g.Key), Id: g.Key, N: g.Sum(s => s.Count)))
-            .OrderBy(g => g.Def?.Category).ThenBy(g => g.Def?.Name).ToList();
+        // a row per item and freshness (D115): fresh kiełbasa and stale kiełbasa are two rows
+        var groups = inv.Stacks.GroupBy(s => (s.Id, Stage: Freshness.Stage(s))).Select(g => (Def: ItemDb.Get(g.Key.Id), g.Key.Id, g.Key.Stage, N: g.Sum(s => s.Count)))
+            .OrderBy(g => g.Def?.Category).ThenBy(g => g.Def?.Name).ThenBy(g => g.Stage).ToList();
         if (groups.Count == 0) _rows.AddChild(new Label { Text = "  (empty)", Modulate = new Color(1, 1, 1, 0.5f) });
-        foreach (var (def, id, n) in groups)
-            _rows.AddChild(new ItemRow(_screen, this, id, n, def, usable != null && def != null && usable(def)));
+        foreach (var (def, id, stage, n) in groups)
+            _rows.AddChild(new ItemRow(_screen, this, id, n, def, usable != null && def != null && usable(def), stage));
     }
 
     public override bool _CanDropData(Vector2 at, Variant data) =>
@@ -270,7 +271,8 @@ public partial class ItemColumn : PanelContainer
     public override void _DropData(Vector2 at, Variant data)
     {
         var d = data.AsGodotDictionary();
-        _screen.Move((bool)d["left"], (string)d["id"], (int)d["n"]);
+        int st = d.ContainsKey("stage") ? (int)d["stage"] : 0;
+        _screen.Move((bool)d["left"], (string)d["id"], (int)d["n"], st > 0 ? st : null);
     }
 }
 
@@ -281,13 +283,15 @@ public partial class ItemRow : HBoxContainer
     private readonly ItemColumn _column;
     private readonly string _id;
     private readonly int _n;
+    private readonly int? _stage;
 
-    public ItemRow(InventoryScreen screen, ItemColumn column, string id, int n, ItemDef? def, bool usable)
+    public ItemRow(InventoryScreen screen, ItemColumn column, string id, int n, ItemDef? def, bool usable, int stage = 0)
     {
-        _screen = screen; _column = column; _id = id; _n = n;
+        _screen = screen; _column = column; _id = id; _n = n; _stage = stage > 0 ? stage : null;
         MouseFilter = MouseFilterEnum.Stop;
         CustomMinimumSize = new Vector2(0, 32);
-        var name = new Label { Text = (n > 1 ? $"{n} × " : "") + (def?.Name ?? id), SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore,
+        string fresh = stage is Freshness.Stale or Freshness.Rotten ? $" ({Freshness.Word(stage)})" : "";
+        var name = new Label { Text = (n > 1 ? $"{n} × " : "") + (def?.Name ?? id) + fresh, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore,
             AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(80, 0) };   // a long name wraps, never widens the window
         if (def is { Note.Length: > 0 }) TooltipText = def.Note;
         name.AddThemeColorOverride("font_color", def?.Category switch
@@ -295,6 +299,8 @@ public partial class ItemRow : HBoxContainer
             "food" => new Color(0.95f, 0.85f, 0.6f), "drink" => new Color(0.65f, 0.85f, 1f), "medical" => new Color(1f, 0.6f, 0.6f),
             "tool" => new Color(0.8f, 0.9f, 0.75f), "material" => new Color(0.85f, 0.8f, 0.9f), _ => new Color(0.85f, 0.85f, 0.85f),
         });
+        if (stage == Freshness.Stale) name.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.45f));
+        else if (stage == Freshness.Rotten) name.AddThemeColorOverride("font_color", new Color(0.55f, 0.65f, 0.35f));
         AddChild(name);
         var w = new Label { Text = $"{(def?.Weight ?? 0) * n:0.00} kg", MouseFilter = MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0.6f) };
         AddChild(w);
@@ -302,7 +308,7 @@ public partial class ItemRow : HBoxContainer
         {
             var b = new Button { Text = def!.Category == "food" ? "Eat" : def.Category == "drink" ? "Drink" : def.Category == "fuel" ? "Pour" : def.Category == "book" ? "Read" : "Use", CustomMinimumSize = new Vector2(70, 0) };
             Skin.Button(b, "button_small");
-            b.Pressed += () => _screen.Use(_id);
+            b.Pressed += () => _screen.Use(_id, _stage);
             AddChild(b);
         }
     }
@@ -310,15 +316,15 @@ public partial class ItemRow : HBoxContainer
     public override void _GuiInput(InputEvent e)
     {
         if (e is not InputEventMouseButton { Pressed: true } mb) return;
-        if (mb.ButtonIndex == MouseButton.Left && mb.DoubleClick) { _screen.Move(_column.Left, _id, _n); AcceptEvent(); }
-        else if (mb.ButtonIndex == MouseButton.Right) { _screen.Move(_column.Left, _id, 1); AcceptEvent(); }
+        if (mb.ButtonIndex == MouseButton.Left && mb.DoubleClick) { _screen.Move(_column.Left, _id, _n, _stage); AcceptEvent(); }
+        else if (mb.ButtonIndex == MouseButton.Right) { _screen.Move(_column.Left, _id, 1, _stage); AcceptEvent(); }
     }
 
     public override Variant _GetDragData(Vector2 at)
     {
         int n = Input.IsKeyPressed(Key.Ctrl) ? 1 : _n;
         SetDragPreview(new Label { Text = n > 1 ? $"{n} × {ItemDb.Get(_id)?.Name ?? _id}" : ItemDb.Get(_id)?.Name ?? _id });
-        return new Godot.Collections.Dictionary { ["left"] = _column.Left, ["id"] = _id, ["n"] = n };
+        return new Godot.Collections.Dictionary { ["left"] = _column.Left, ["id"] = _id, ["n"] = n, ["stage"] = _stage ?? 0 };
     }
 
     private static StyleBox? _rowNormal, _rowHover;
