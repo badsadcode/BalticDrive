@@ -339,5 +339,8 @@
  "n.pump_stopped": "Pistolet odwieszony: wlane {0} l, w baku {1} l",
  "n.pump_ran_dry": "Dystrybutor charczy i staje: zbiorniki stacji są puste",
  "n.pump_power_lost": "Dystrybutor gaśnie: brak prądu (wlane {0} l)",
- "n.pump_can": "Kanister napełniony ({0})"
+ "n.pump_can": "Kanister napełniony ({0})",
+ "p.boot": "F: otwórz bagażnik ({0} z {1} kg)",
+ "boot.title": "bagażnik i tylna kanapa",
+ "n.boot_moving": "Najpierw się zatrzymaj: bagażnik jest z tyłu"
 }

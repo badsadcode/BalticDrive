@@ -159,8 +159,8 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         _pack = pack;
         if (_titleLabel != null) _titleLabel.Text = Core.Lang.T("nb.title");
         _progress.Visible = _screen.Busy;
-        foreach (var c in _tabs.GetChildren()) c.QueueFree();
-        foreach (var c in _rows.GetChildren()) c.QueueFree();
+        foreach (var c in _tabs.GetChildren()) { _tabs.RemoveChild(c); c.QueueFree(); }   // out of the layout at once (D125)
+        foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }   // out of the layout at once (D125)
         // sticker tabs, for the categories there are recipes in
         var cats = Recipes.All.Select(r => r.Category).ToHashSet();
         foreach (var (id, pl, sticker) in Tabs)

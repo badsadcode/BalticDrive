@@ -142,7 +142,7 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
             .Select(g => (Def: ItemDb.Get(g.Key.Id), g.Key.Id, g.Key.Stage, N: g.Sum(s => s.Count), Made: g.Min(s => s.Made)))
             .OrderBy(p => Array.FindIndex(ItemIcons.Categories, c => c.Id == p.Def?.Category)).ThenBy(p => p.Def?.Name).ThenBy(p => p.Stage).ToList();
         // tabs: all, and each category there is something of
-        foreach (var c in _tabs.GetChildren()) c.QueueFree();
+        Clear(_tabs);
         var counts = piles.GroupBy(p => p.Def?.Category ?? "junk").ToDictionary(g => g.Key, g => g.Sum(p => p.N));
         if (_category != "all" && !counts.ContainsKey(_category)) _category = "all";
         foreach (var (id, name) in ItemIcons.Categories)
@@ -158,13 +158,20 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
             _tabs.AddChild(b);
         }
         // tiles
-        foreach (var c in _grid.GetChildren()) c.QueueFree();
+        Clear(_grid);
         var shown = piles.Where(p => _category == "all" || p.Def?.Category == _category).ToList();
         if (_selected is { } sel && !shown.Any(p => p.Id == sel.Id && p.Stage == sel.Stage)) _selected = null;
         if (shown.Count == 0) _grid.AddChild(new Label { Text = "  " + Core.Lang.T("inv.empty"), Modulate = new Color(1, 1, 1, 0.5f) });
         foreach (var p in shown)
             _grid.AddChild(new ItemTile(this, p.Id, p.N, p.Def, p.Stage, _selected == (p.Id, p.Stage)));
         ShowCard(shown.FirstOrDefault(p => _selected == (p.Id, p.Stage)) is var s && s.Id != null ? s : default);
+    }
+
+    /// <summary>Old children out of the layout at once, then freed: left in until the frame ends, the tab row laid out old
+    /// and new tabs together and, with the longer Polish names, kept re-sorting until the game ran out of memory (D125).</summary>
+    private static void Clear(Node box)
+    {
+        foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); }
     }
 
     public InventoryScreen GetScreen() => _screen;
@@ -174,7 +181,7 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
     /// <summary>The picked item's card: what it is, how fresh, what it counts as, and what you can do with it.</summary>
     private void ShowCard((ItemDef? Def, string Id, int Stage, int N, double Made) p)
     {
-        foreach (var c in _card.GetChildren()) c.QueueFree();
+        Clear(_card);
         if (p.Id == null || p.Def is not { } d)
         {
             var hint = new Label { Text = Core.Lang.T(Left ? "card.pick_take" : "card.pick"), AutowrapMode = TextServer.AutowrapMode.WordSmart };

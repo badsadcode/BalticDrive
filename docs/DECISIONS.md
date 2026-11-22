@@ -1909,3 +1909,26 @@ placed under canopies, on top of where the islands go (canopies are open, so `In
 off canopies now (`MapContext.UnderCanopy`, so carports lose theirs too). F at a pump comes before the crate check, as
 its prompt does (a station's crate stood within reach of the pump and took the first press). The pumps are box
 placeholders like the village wells: Tom may model a proper one. Self-test `--autotest=pumps`, English and Polish.
+
+
+## D125 — The car boot
+
+Tom: "then the car boot." Every car type has a `boot` in `cars.json`: kilograms the boot and back seat hold together
+(sedan 60, pickup 200, muscle 35, van 350, lorry 800, the small classic 25). The boot is a container like any other
+(`Items.Containers`, kept in `user://containers.json`): yours is `car:own` and starts empty; a wreck's is keyed by its
+square, a parked car's by its bay, and the first look rolls the new `boot` loot table (bottles, water, empty and full
+cans, a siphon hose, rope, tape, beans, a bandage; often nothing). Stand at the back (within 1.5 m of the lid; at the
+front when the engine's at the back, the Maluch's way, D96) and F opens it beside your pack, "boot and back seat" with
+its weight out of the limit; in the car, stopped, Tab opens it from the seat. More than it holds won't go in (the
+pack's rule). Closed, the load's weight goes on the car's mass. F at the back now opens the boot rather than getting
+in; the other sides still do that, and hold F there for the workshop. The inventory window shows "11.7 / 60 kg" for
+anything with a limit.
+
+Found on the way, a crash: in Polish, opening the inventory window a second time with a container filled the engine's
+deferred-call queue ("Object was deleted while awaiting a callback", four million times) until it died. The columns
+cleared their old tabs and tiles with `QueueFree` alone, so for the rest of the frame the old and new tabs were laid
+out together in the flow row, and with the longer Polish names it never settled. Old children are now taken out of
+the layout first (`RemoveChild`, then `QueueFree`), in the rucksack, the notebook and the classic columns. English
+never showed it. The test died before putting the player's containers file back, so the searched-furniture state of
+the Baltic world was lost (it was test data); the boot test now keeps its copy on disk (`containers.json.selftest`)
+and the next run puts it back if a run dies. Self-test `--autotest=boot`, English and Polish.

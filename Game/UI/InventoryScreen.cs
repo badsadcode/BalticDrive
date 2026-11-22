@@ -105,7 +105,7 @@ public partial class InventoryScreen : Control
     public void Refresh()
     {
         if (_mine == null) return;
-        if (_other != null) _left.Fill(_other, $"{char.ToUpper(_otherTitle[0]) + _otherTitle[1..]}", $"{_other.Weight:0.0} kg", null);
+        if (_other != null) _left.Fill(_other, $"{char.ToUpper(_otherTitle[0]) + _otherTitle[1..]}", _other.MaxWeight < float.MaxValue ? $"{_other.Weight:0.0} / {_other.MaxWeight:0} kg" : $"{_other.Weight:0.0} kg", null);
         _takeAll.Text = Core.Lang.T("inv.take_all");
         _hint.Text = HintText;
         _right.Fill(_mine, Core.Lang.T("inv.you"), $"{_mine.Weight:0.0} / {_mine.MaxWeight:0} kg", _usable);
@@ -268,7 +268,7 @@ public partial class ItemColumn : PanelContainer, IItemColumn
     {
         _title.Text = title;
         _weight.Text = weight;
-        foreach (var c in _rows.GetChildren()) c.QueueFree();
+        foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }   // out of the layout at once (D125)
         // a row per item and freshness (D115): fresh kiełbasa and stale kiełbasa are two rows
         var groups = inv.Stacks.GroupBy(s => (s.Id, Stage: Freshness.Stage(s))).Select(g => (Def: ItemDb.Get(g.Key.Id), g.Key.Id, g.Key.Stage, N: g.Sum(s => s.Count)))
             .OrderBy(g => g.Def?.Category).ThenBy(g => g.Def?.Name).ThenBy(g => g.Stage).ToList();
@@ -428,7 +428,7 @@ public partial class CraftingColumn : PanelContainer, ICraftColumn
     public void Fill(Inventory pack)
     {
         _progress.Visible = _screen.Busy;
-        foreach (var c in _rows.GetChildren()) c.QueueFree();
+        foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }   // out of the layout at once (D125)
         // what you can make first, then by category
         var list = Recipes.All.Select(r => (R: r, Miss: Recipes.Missing(r, pack)))
             .OrderBy(x => !Knowledge.Known(x.R)).ThenBy(x => x.Miss.Count > 0).ThenBy(x => x.R.Category).ToList();

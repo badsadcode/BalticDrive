@@ -10,12 +10,12 @@ namespace BalticDrive.Vehicle;
 /// How a car drives (D98), from <c>GameData/cars.json</c>: weight, engine pull, top speed, which wheels drive, tyre
 /// grip front and rear, steering lock, brakes, springs and dampers, the centre of mass, the anti-roll helper's
 /// strength (D97), where the engine sits (D96), and the petrol tank (litres) and what it burns (litres per 100 km
-/// at a steady cruise, D123). A car takes the first entry whose <c>models</c> match its model's
+/// at a steady cruise, D123), and what the boot and back seat hold together (kg, D125). A car takes the first entry whose <c>models</c> match its model's
 /// file name, else the default. <c>--grip=K</c> still scales the grip for tuning.
 /// </summary>
 public sealed record CarSpec(string Id, string Name, float Mass, float Power, float TopKmh, string Drive,
     float GripFront, float GripRear, float Steer, float Brakes, float Suspension, float DampCompression, float DampRebound,
-    float ComY, float AntiRoll, string Engine, float Tank = 50, float Consumption = 8)
+    float ComY, float AntiRoll, string Engine, float Tank = 50, float Consumption = 8, float Boot = 60)
 {
     public const string DataPath = "res://GameData/cars.json";
     public float TopSpeed => TopKmh / 3.6f;
@@ -70,7 +70,7 @@ public sealed record CarSpec(string Id, string Name, float Mass, float Power, fl
                     F("mass", Fallback.Mass), F("power", Fallback.Power), F("top_kmh", Fallback.TopKmh),
                     c.TryGetProperty("drive", out var dv) ? dv.GetString()! : "front", gf, gr, F("steer", Fallback.Steer), F("brakes", Fallback.Brakes),
                     F("suspension", Fallback.Suspension), dc, dr, F("com_y", 0), F("antiroll", 1),
-                    c.TryGetProperty("engine", out var e) ? e.GetString()! : "front", F("tank", 50), F("consumption", 8));
+                    c.TryGetProperty("engine", out var e) ? e.GetString()! : "front", F("tank", 50), F("consumption", 8), F("boot", 60));
                 var models = new List<string>();
                 if (c.TryGetProperty("models", out var ms)) foreach (var m in ms.EnumerateArray()) models.Add(m.GetString()!);
                 _all.Add((models.ToArray(), spec));

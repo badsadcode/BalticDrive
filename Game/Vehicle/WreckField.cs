@@ -134,7 +134,7 @@ public sealed partial class WreckField : Node3D
     private void Spawn((long, long) key, (double X, double Z, float Yaw) spot, Random rng)
     {
         string model = $"res://Assets/Synty/PolygonCity/Prefabs/Vehicles/{Models[rng.Next(Models.Length)]}.tscn";
-        var car = new Car { Name = $"Wreck{key.Item1}_{key.Item2}", Model = Car.ChooseModel(model), Map = _world, Parked = true, Driving = false };
+        var car = new Car { Name = $"Wreck{key.Item1}_{key.Item2}", Model = Car.ChooseModel(model), Map = _world, Parked = true, Driving = false, BootId = $"car:w{key.Item1}_{key.Item2}" };
         AddChild(car);
         if (_seen.TryGetValue(key, out var kept)) { car.Parts.CopyFrom(kept); _seen[key] = car.Parts; }
         else
@@ -209,7 +209,7 @@ public sealed partial class WreckField : Node3D
     /// every time; kept for the session once met), standing where the parked model stood.</summary>
     public Car Adopt(string id, string model, double x, double z, float yaw, float grime)
     {
-        var car = new Car { Name = $"Parked_{id}", Model = Car.ChooseModel(model), Map = _world, Parked = true, Driving = false };
+        var car = new Car { Name = $"Parked_{id}", Model = Car.ChooseModel(model), Map = _world, Parked = true, Driving = false, BootId = $"car:p{id}" };
         AddChild(car);
         if (_seenParked.TryGetValue(id, out var kept)) car.Parts.CopyFrom(kept);
         else RollParts(car, new Random((int)Hash.Of(id.GetHashCode(), 77, 4711)), 1f);

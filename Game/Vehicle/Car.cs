@@ -386,6 +386,21 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
     public string Model = ModelPath;
 
+    // ---- the boot (D125) ----
+    /// <summary>Its boot's id in the kept containers (user://containers.json): yours "car:own", a wreck's from its
+    /// square, a parked car's from its bay; set by whoever makes the car.</summary>
+    public string BootId = "car:own";
+    /// <summary>Where you open it, car-local: the back, or the front when the engine's at the back (a Maluch's boot is
+    /// under the bonnet, D96).</summary>
+    public Vector3 BootAnchor
+    {
+        get
+        {
+            var a = PartAnchor(Parts["trunk"]);
+            return Spec.Engine == "rear" ? a with { Z = 2 * _bodyCentre.Z - a.Z } : a;
+        }
+    }
+
     // ---- petrol (D123) ----
     /// <summary>How full a car starts that nobody rolled petrol for (yours): a bit under half.</summary>
     public const float StartFuel = 0.4f;

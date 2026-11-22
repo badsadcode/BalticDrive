@@ -325,14 +325,59 @@ public partial class Main : Node3D
 	{
 		if (_walker == null || _inventory == null || _inventory.IsOpen) return;
 		Items.Inventory? other = spot == null ? null : Items.Containers.Get(SaveWorld, spot.Id, spot.LootKind, spot.Room);
+		OpenInventoryOn(other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind));
+		Core.Log.Info("Items", spot == null ? $"pack: {Items.Inventory.Say(_walker.Body.Pack.Stacks)}" : $"{spot.FurnitureKind} ({spot.LootKind}, {spot.Room}): {Items.Inventory.Say(other!.Stacks)}");
+	}
+
+	/// <summary>The inventory window on your pack and another inventory (a container, a car's boot), or the pack alone.</summary>
+	private void OpenInventoryOn(Items.Inventory? other, string title, Action? closed = null)
+	{
+		if (_walker == null || _inventory == null || _inventory.IsOpen) return;
 		_parkedAutopilot = _walker.Autopilot;
 		_walker.Autopilot = _ => (Vector2.Zero, false);
 		var w = _walker;
 		_inventory.Health = () => w.Body.Health;
 		_inventory.Note = s => w.Body.Say(s);
-		_inventory.Open(w.Body.Pack, other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind), BalticDrive.OnFoot.Survival.Usable, (id, stage) => w.Body.UseItem(id, stage),
-			() => { w.Autopilot = _parkedAutopilot; _parkedAutopilot = null; });
-		Core.Log.Info("Items", spot == null ? $"pack: {Items.Inventory.Say(w.Body.Pack.Stacks)}" : $"{spot.FurnitureKind} ({spot.LootKind}, {spot.Room}): {Items.Inventory.Say(other!.Stacks)}");
+		_inventory.Open(w.Body.Pack, other, title, BalticDrive.OnFoot.Survival.Usable, (id, stage) => w.Body.UseItem(id, stage),
+			() => { w.Autopilot = _parkedAutopilot; _parkedAutopilot = null; closed?.Invoke(); });
+	}
+
+	// ---- the boot (D125): a car's boot and back seat, kept like any container ----
+	/// <summary>Within this of the boot's lid, F opens it.</summary>
+	public const float BootReach = 1.5f;
+	private Vehicle.Car? _bootHere;
+
+	/// <summary>A car's boot: kept with the containers (yours starts empty, a found car's is rolled from the "boot" loot),
+	/// holding what its spec says.</summary>
+	public Items.Inventory Boot(Vehicle.Car c)
+	{
+		var inv = Items.Containers.Get(SaveWorld, c.BootId, c.BootId == "car:own" ? "none" : "boot", null);
+		inv.MaxWeight = c.Spec.Boot;
+		return inv;
+	}
+
+	/// <summary>The car whose boot you stand at, or null.</summary>
+	public Vehicle.Car? BootInReach()
+	{
+		if (_walker == null) return null;
+		var at = _walker.GlobalPosition;
+		Vehicle.Car? best = null; float bd = BootReach;
+		foreach (var c in (_car != null ? new[] { _car } : Array.Empty<Vehicle.Car>()).Concat(_wrecks?.Live ?? Enumerable.Empty<Vehicle.Car>()))
+		{
+			if (!IsInstanceValid(c) || c.GlobalPosition.DistanceTo(at) > 6) continue;
+			var b = c.ToGlobal(c.BootAnchor);
+			float d = (b - at with { Y = b.Y }).Length();
+			if (d < bd) { bd = d; best = c; }
+		}
+		return best;
+	}
+
+	/// <summary>Opens a car's boot beside your pack; closing it puts the load's weight on the car.</summary>
+	public void OpenBoot(Vehicle.Car c)
+	{
+		var inv = Boot(c);
+		OpenInventoryOn(inv, Core.Lang.T("boot.title"), () => { if (IsInstanceValid(c)) c.Mass = c.Spec.Mass + inv.Weight; Items.Containers.Save(); });
+		Core.Log.Info("Items", $"boot of {c.Name} ({c.BootId}, {inv.Weight:0.0} of {inv.MaxWeight:0} kg): {Items.Inventory.Say(inv.Stacks)}");
 	}
 
 	private float _downTime = -1;
@@ -664,6 +709,15 @@ public partial class Main : Node3D
 			_bars.QueueRedraw();
 			return;
 		}
+		_bootHere = BootInReach();
+		if (_bootHere != null)
+		{
+			var boot = Boot(_bootHere);
+			_prompt!.Visible = true;
+			_prompt.Text = Core.Lang.T("p.boot", boot.Weight.ToString("0.0"), boot.MaxWeight.ToString("0"));
+			_bars.QueueRedraw();
+			return;
+		}
 		_fireHere = _fires?.Near(_walker!.GlobalPosition, Power.Campfires.Reach, false);
 		if (_fireHere != null)
 		{
@@ -907,6 +961,7 @@ public partial class Main : Node3D
 					else ShowNote(Power.Stations.Prompt(pump, null, 0), 4);
 					GetViewport().SetInputAsHandled(); return;
 				}
+				if (OnFoot && _bootHere != null && IsInstanceValid(_bootHere)) { OpenBoot(_bootHere); GetViewport().SetInputAsHandled(); return; }   // D125
 				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
 				// generators (D109): put down what you carry; by one, a tap starts or stops it and a hold lifts it
 				if (OnFoot && _generators?.Carried != null) { _generators.PutDown(_walker!.GlobalPosition, _walker.Yaw); _walker.Burden = 0; GetViewport().SetInputAsHandled(); return; }
@@ -966,6 +1021,13 @@ public partial class Main : Node3D
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Tab } && OnFoot)
 		{
 			OpenInventory(null);
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+		// in the car, stopped: the pack and the boot behind you (D125)
+		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Tab } && !OnFoot && !Flying && _car is { Driving: true } && _walker != null)
+		{
+			if (MathF.Abs(_car.Speed) < 0.6f) OpenBoot(_car); else ShowNote(Core.Lang.T("n.boot_moving"), 2);
 			GetViewport().SetInputAsHandled();
 			return;
 		}

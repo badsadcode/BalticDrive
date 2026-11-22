@@ -339,5 +339,8 @@
  "n.pump_stopped": "You hang up the nozzle: {0} litres in, {1} in the tank",
  "n.pump_ran_dry": "The pump coughs and stops: the station's tanks are dry",
  "n.pump_power_lost": "The pump dies: no power ({0} litres in)",
- "n.pump_can": "You fill a can at the pump ({0})"
+ "n.pump_can": "You fill a can at the pump ({0})",
+ "p.boot": "F: open the boot ({0} of {1} kg)",
+ "boot.title": "boot and back seat",
+ "n.boot_moving": "Stop first: the boot's behind you"
 }

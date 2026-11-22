@@ -79,6 +79,91 @@ public sealed class Tests
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
     private bool _bigos, _fresh, _ui, _wells;
+    private double _bootT = -1;
+    private bool _boot;
+    private string? _bootBackup;
+
+    /// <summary>--autotest=boot (D125): behind the car, F opens its boot beside the pack; things moved in (firewood, a
+    /// can, water); more than it holds refused; closed, the load's weight goes on the car; in the car, stopped, Tab opens
+    /// it too; the boots of the found cars around logged. The player's containers file is put back afterwards.</summary>
+    private bool BootTest(double delta)
+    {
+        string file = ProjectSettings.GlobalizePath("user://containers.json");
+        if (_bootT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _bootT = 0;
+            // a copy on disk first: if the game dies mid-test, the next run puts it back (D125)
+            string keep = file + ".selftest";
+            if (System.IO.File.Exists(keep)) { System.IO.File.Copy(keep, file, true); Log.Info("Test", "boot: the containers file from a test that died put back"); }
+            _bootBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
+            if (_bootBackup != null) System.IO.File.WriteAllText(keep, _bootBackup);
+            Items.Containers.Forget(Main.SaveWorld);
+            Log.Info("Test", $"boot: {_main.Car.Spec.Id}: holds {_main.Car.Spec.Boot:0} kg; mass {_main.Car.Mass:0} kg");
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _bootT;
+        _bootT += delta;
+        bool At(double t) => before < t && _bootT >= t;
+        var w = _main.Walker!;
+        var pack = w.Body.Pack;
+        var car = _main.Car!;
+        var inv = _main.InventoryWindow!;
+        if (At(1))
+        {
+            var b = car.ToGlobal(car.BootAnchor);
+            var out_ = (b - car.GlobalPosition) with { Y = 0 };
+            w.GlobalPosition = b + out_.Normalized() * 0.75f - Vector3.Up * (b.Y - car.GlobalPosition.Y);
+            w.SetView(true);
+            w.Face(b);
+            pack.Stacks.Clear();
+            pack.Add("water", 3); pack.Add("firewood", 2); pack.Add("beans", 2); pack.Add("petrol_can", 1);
+        }
+        if (At(2)) { Log.Info("Test", $"boot: behind the car: \"{_main.PromptText}\""); PressF(); }
+        if (At(2.5)) Log.Info("Test", $"boot: window open {inv.IsOpen}, with a container {inv.HasContainer}");
+        if (At(3)) Shot("boot_open");
+        if (At(3.5))
+        {
+            var boot = _main.Boot(car);
+            int f = pack.MoveTo(boot, "firewood", 2), c = pack.MoveTo(boot, "petrol_can", 1), wa = pack.MoveTo(boot, "water", 2);
+            inv.Refresh();
+            Log.Info("Test", $"boot: moved firewood {f}, can {c}, water {wa}: boot {boot.Weight:0.0} of {boot.MaxWeight:0} kg, pack {pack.Weight:0.0} kg");
+            int fit = boot.Add("firewood", 100);
+            Log.Info("Test", $"boot: 100 armfuls of firewood offered, {fit} fit: {boot.Weight:0.0} kg");
+            boot.Remove("firewood", fit);
+            inv.Refresh();
+        }
+        if (At(4.5)) Shot("boot_loaded");
+        if (At(5)) { inv.Close(); Log.Info("Test", $"boot: closed: car mass {car.Mass:0} kg (spec {car.Spec.Mass:0})"); }
+        if (At(5.5)) { _main.ToggleOnFoot(); }
+        if (At(7.5))
+        {
+            Log.Info("Test", $"boot: in the car {!_main.OnFoot}, {car.Speed * 3.6f:0} km/h; Tab");
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Tab, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Tab, Pressed = false });
+        }
+        if (At(8)) { Log.Info("Test", $"boot: from the seat: window open {inv.IsOpen}, with a container {inv.HasContainer}"); Shot("boot_seat"); }
+        if (At(8.5))
+        {
+            inv.Close();
+            var found = _main.Wrecks?.Live.Where(c => c != car).Take(8).ToList() ?? new();
+            foreach (var fc in found)
+            {
+                var fb = _main.Boot(fc);
+                Log.Info("Test", $"boot: {fc.Name} ({fc.Spec.Id}, {fb.MaxWeight:0} kg): {(fb.IsEmpty ? "empty" : Items.Inventory.Say(fb.Stacks))}");
+            }
+        }
+        if (At(9))
+        {
+            if (_bootBackup != null) System.IO.File.WriteAllText(file, _bootBackup); else if (System.IO.File.Exists(file)) System.IO.File.Delete(file);
+            if (System.IO.File.Exists(file + ".selftest")) System.IO.File.Delete(file + ".selftest");
+            Log.Info("Test", "boot: done (containers file put back)");
+            return false;
+        }
+        return true;
+    }
+
     private double _pumpT = -1;
     private bool _pumps;
     private (double X, double Z) _pumpPoi;
@@ -1012,6 +1097,7 @@ public sealed class Tests
         _wells = Main.Args.GetValueOrDefault("autotest", "").Contains("wells");
         _fuel = Main.Args.GetValueOrDefault("autotest", "").Contains("fuel");
         _pumps = Main.Args.GetValueOrDefault("autotest", "").Contains("pumps");
+        _boot = Main.Args.GetValueOrDefault("autotest", "").Contains("boot");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2600,6 +2686,12 @@ public sealed class Tests
         {
             if (WellsTest(delta)) return;
             _wells = false;
+        }
+        if (_boot)
+        {
+            if (BootTest(delta)) return;
+            _boot = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
         }
         if (_pumps)
         {
