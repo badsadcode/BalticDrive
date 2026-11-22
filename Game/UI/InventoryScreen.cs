@@ -18,8 +18,12 @@ public partial class InventoryScreen : Control
     private Func<ItemDef, bool>? _usable;
     private Action<string, int?>? _use;
     private Action? _closed;
-    private readonly ItemColumn _left, _right;
-    private readonly CraftingColumn _craft;
+    private readonly IItemColumn _left, _right;
+    private readonly ICraftColumn _craft;
+    /// <summary>The old list window (D89-D115) instead of the rucksack and notebook (D117): <c>--ui=classic</c>.</summary>
+    public static bool Classic => Main.Args.GetValueOrDefault("ui", "") == "classic";
+    /// <summary>A container is open beside your pack.</summary>
+    public bool HasContainer => _other != null;
     private readonly Button _takeAll;
     private readonly Label _hint, _skills;
 
@@ -52,12 +56,13 @@ public partial class InventoryScreen : Control
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 18);
         box.AddChild(row);
-        _left = new ItemColumn(this, true);
-        _right = new ItemColumn(this, false);
-        _craft = new CraftingColumn(this);
-        row.AddChild(_left);
-        row.AddChild(_craft);
-        row.AddChild(_right);
+        // D117: the rucksack and the notebook; the old lists with --ui=classic
+        _left = Classic ? new ItemColumn(this, true) : new RucksackColumn(this, true);
+        _right = Classic ? new ItemColumn(this, false) : new RucksackColumn(this, false);
+        _craft = Classic ? new CraftingColumn(this) : new NotebookColumn(this);
+        row.AddChild((Control)_left);
+        row.AddChild((Control)_craft);
+        row.AddChild((Control)_right);
         _takeAll = new Button { Text = "Take all (E)", CustomMinimumSize = new Vector2(170, 38) };
         Skin.Button(_takeAll);
         _takeAll.Pressed += TakeAll;
@@ -66,7 +71,7 @@ public partial class InventoryScreen : Control
         _skills.AddThemeFontSizeOverride("font_size", 13);
         _skills.AddThemeColorOverride("font_color", new Color(Skin.Text, 0.75f));
         _right.Footer.AddChild(_skills);
-        _hint = new Label { Text = "drag, or double-click: move the pile · right-click: move one · Esc closes", HorizontalAlignment = HorizontalAlignment.Center };
+        _hint = new Label { Text = HintText, HorizontalAlignment = HorizontalAlignment.Center };
         _hint.AddThemeColorOverride("font_color", new Color(1, 1, 1, 0.65f));
         box.AddChild(_hint);
     }
@@ -75,8 +80,8 @@ public partial class InventoryScreen : Control
     public void Open(Inventory mine, Inventory? other, string otherTitle, Func<ItemDef, bool> usable, Action<string, int?> use, Action closed)
     {
         _mine = mine; _other = other; _otherTitle = otherTitle; _usable = usable; _use = use; _closed = closed;
-        _left.Visible = other != null;
-        _craft.Visible = other == null;   // your pack alone (Tab): crafting on the left (D106)
+        ((Control)_left).Visible = other != null;
+        ((Control)_craft).Visible = other == null;   // your pack alone (Tab): crafting on the left (D106)
         Visible = true;
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Refresh();
@@ -90,6 +95,9 @@ public partial class InventoryScreen : Control
         if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
         _closed?.Invoke();
     }
+
+    /// <summary>Self-tests: pick an item in your pack (the rucksack's card).</summary>
+    public void SelectMine(string id, int stage) { if (_right is RucksackColumn r) r.Select(id, stage); }
 
     /// <summary>Self-tests: the crafting list scrolled to its end.</summary>
     public void ScrollCraftingToEnd() => _craft.ScrollToEnd();
@@ -196,7 +204,8 @@ public partial class InventoryScreen : Control
         Refresh();
     }
 
-    public void Flash(string s) { _hint.Text = s; GetTree().CreateTimer(2.0).Timeout += () => _hint.Text = "drag, or double-click: move the pile · right-click: move one · Esc closes"; }
+    public void Flash(string s) { string back = HintText; _hint.Text = s; GetTree().CreateTimer(2.0).Timeout += () => _hint.Text = back; }
+    private static string HintText => Classic ? "drag, or double-click: move the pile · right-click: move one · Esc closes" : "click: what it is · double-click: use it, or move the pile · right-click: move one · drag across · Esc closes";
 
     public override void _Input(InputEvent e)
     {
@@ -212,13 +221,13 @@ public partial class InventoryScreen : Control
 }
 
 /// <summary>One side of the inventory window: a title, the weight, the list of items, and a drop target.</summary>
-public partial class ItemColumn : PanelContainer
+public partial class ItemColumn : PanelContainer, IItemColumn
 {
     private readonly InventoryScreen _screen;
-    public readonly bool Left;
+    public bool Left { get; }
     private readonly Label _title, _weight;
     private readonly VBoxContainer _rows;
-    public readonly HBoxContainer Footer;
+    public HBoxContainer Footer { get; }
 
     public ItemColumn(InventoryScreen screen, bool left)
     {
@@ -347,7 +356,7 @@ public partial class ItemRow : HBoxContainer
 
 /// <summary>The crafting list (D106): every recipe by category, what it uses and needs (what you lack in red), what it
 /// makes, and a Make button when your pack has it all.</summary>
-public partial class CraftingColumn : PanelContainer
+public partial class CraftingColumn : PanelContainer, ICraftColumn
 {
     private readonly InventoryScreen _screen;
     private readonly VBoxContainer _rows;

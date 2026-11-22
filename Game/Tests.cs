@@ -78,7 +78,49 @@ public sealed class Tests
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
-    private bool _bigos, _fresh;
+    private bool _bigos, _fresh, _ui;
+    private double _uiT = -1;
+
+    /// <summary>--autotest=ui (D117): the rucksack and the notebook photographed: Tab with a varied pack (fresh and
+    /// stale food, a pot of bigos, a book, tools); the card of the pot picked; a cupboard opened beside the rucksack.</summary>
+    private bool UiTest(double delta)
+    {
+        if (_uiT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _uiT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _uiT;
+        _uiT += delta;
+        bool At(double t) => before < t && _uiT >= t;
+        var pack = _main.Walker!.Body.Pack;
+        var inv = _main.InventoryWindow!;
+        if (At(1))
+        {
+            pack.Stacks.Clear();
+            foreach (var (id, n) in new[] { ("kielbasa", 1), ("onion", 2), ("potatoes", 1), ("water", 2), ("bandage", 3), ("kitchen_knife", 1), ("matches", 1),
+                         ("camping_stove", 1), ("gas_canister", 2), ("book_kuchnia_podlaska", 1), ("rag", 2), ("beans", 1) })
+                pack.Add(id, n);
+            pack.Add("kielbasa", 1, Core.WorldClock.Seconds - 5 * Core.WorldClock.Day);   // a stale one
+            pack.Add("bigos:KMG:5:2", 1);
+            _main.OpenInventory(null);
+        }
+        if (At(2)) Shot("ui_tab");
+        if (At(2.3)) inv.SelectMine("bigos:KMG:5:2", Items.Freshness.Fresh);
+        if (At(2.8)) Shot("ui_card");
+        if (At(3.1))
+        {
+            inv.Close();
+            var box = new Items.Inventory();
+            foreach (var (id, n) in new[] { ("sauerkraut", 1), ("prunes", 2), ("tea", 1), ("saucepan", 1), ("jam", 1) }) box.Add(id, n);
+            inv.Open(pack, box, "the kitchen cupboards", OnFoot.Survival.Usable, (id, st) => { }, () => { });
+        }
+        if (At(4)) Shot("ui_container");
+        if (At(4.4)) { inv.Close(); return false; }
+        return true;
+    }
     private double _freshT = -1;
 
     /// <summary>--autotest=fresh (D115; the play clock in its scratch file): kiełbasa fresh, then stale after 5 days
@@ -687,6 +729,7 @@ public sealed class Tests
         _skills = Main.Args.GetValueOrDefault("autotest", "").Contains("skills");
         _bigos = Main.Args.GetValueOrDefault("autotest", "").Contains("bigos");
         _fresh = Main.Args.GetValueOrDefault("autotest", "").Contains("fresh");
+        _ui = Main.Args.GetValueOrDefault("autotest", "").Contains("ui");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2265,6 +2308,11 @@ public sealed class Tests
         {
             if (FreshTest(delta)) return;
             _fresh = false;
+        }
+        if (_ui)
+        {
+            if (UiTest(delta)) return;
+            _ui = false;
         }
         if (_take)
         {

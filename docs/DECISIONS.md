@@ -1768,3 +1768,27 @@ shortcut in code. Now an evolved dish is a template item with an `evolved` block
 servings, max reheats, food per quality step, quality names, what the empty pot becomes) plus recipes that `evolve`
 it; `Items.Evolved` (was Bigos.cs) reads them all. A żurek or a krupnik pot is JSON only. Code is still needed for a
 new *kind* of behaviour (heat, placing a campfire, carrying a generator), never for more of one.
+
+
+## D117 — The rucksack and the notebook (Tom's pick "A + B")
+
+Tom: "a cool interface for crafting and inventory management", without breaking what works. Three directions were
+mocked up (A the rucksack, B "zeszyt w kratkę", C a workbench); Tom chose A + B. The window's workings (moving,
+using, timed crafting, reading, interrupts, the tests' hooks) stay as they were; only its faces changed, behind two
+small interfaces (`IItemColumn`, `ICraftColumn`), so the old lists remain with `--ui=classic`.
+**The rucksack** (`UI.RucksackColumn`): your side and a container's side alike: a weight bar (green, amber, red),
+category tabs with counts (All, Food, Drink, Medical, Tools, Materials, Fuel, Books, Junk: only those you have), item
+tiles with a freshness strip (D115), and a paper-label card for the picked item: what it is, weight, food/drink/heal,
+how fresh ("fresh, 6 days left", "stale: eat it soon", "rotten"), its note (a bigos's contents), what it counts as in
+recipes (its tags), and its actions (Eat/Drink/Read/Pour/Use, Take/Put one or all). Click: the card; double-click:
+use it, or move the pile when a container's open; right-click: move one; drag across as before. Icons come from
+`Assets/UI/icons/items/<item id>.png` when Codex's set arrives (docs/ICON_ASSETS_BRIEF.md: 78 items, categories,
+freshness badges, notebook art); until then a tile shows a badge in its category's colour with the item's initials.
+**The notebook** (`UI.NotebookColumn`): squared paper with a red margin and the cover's edge, handwriting in Caveat
+(OFL, Polish letters; downloaded with Tom's OK, Assets/Fonts), Polish headings (Tom: "Polish headings only"):
+Przepisy, sticker tabs Wszystko / Gotowanie / Bigos / Apteczka / Ogień / Materiały / Kłopoty, and "Jeszcze nie umiem"
+for recipes still to learn. A recipe you can make is ringed in pencil; what you have is ticked in green ink, what you
+lack in red; what it makes in amber; its flavour line in pencil; "Make · 27 s" in a hand-drawn ring. The timed craft
+and reading show as a line of ink over a hatched pencil bar. Self-test `--autotest=ui` photographs the Tab window,
+an item's card and a cupboard beside the rucksack; craft, books and bigos tests pass on it, and craft on
+`--ui=classic`. Next: Codex's icons and notebook art in place of the drawn ones.
