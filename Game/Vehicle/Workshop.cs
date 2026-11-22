@@ -24,7 +24,7 @@ public sealed partial class Workshop : Control
     /// driver's side.</summary>
     public float Yaw { get => _yaw; set => _yaw = value; }
     /// <summary>Parts the player carries (the car's boot, for now: a spare tyre to start with).</summary>
-    public readonly List<LoosePart> Carried = new() { new LoosePart(PartKind.Tyre, "Spare tyre", 100) };
+    public readonly List<LoosePart> Carried = new() { new LoosePart(PartKind.Tyre, Core.Lang.T("part.spare"), 100) };
     public event Action<string>? Said;
 
     private Camera3D _cam = null!;
@@ -134,7 +134,7 @@ public sealed partial class Workshop : Control
         {
             Carried.Add(new LoosePart(part.Kind, part.Name, part.Condition));
             part.Missing = true;
-            Said?.Invoke($"{part.Name} removed ({part.Condition:0} %)");
+            Said?.Invoke(Core.Lang.T("ws.removed", part.Name, part.Condition.ToString("0")));
             Log.Info("Workshop", $"removed {part.Name} at {part.Condition:0} %");
         }
         else
@@ -142,7 +142,7 @@ public sealed partial class Workshop : Control
             Carried.Remove(fit);
             part.Missing = false;
             part.Condition = fit.Condition;
-            Said?.Invoke($"{part.Name}: fitted ({fit.Condition:0} %)");
+            Said?.Invoke(Core.Lang.T("ws.fitted", part.Name, fit.Condition.ToString("0")));
             Log.Info("Workshop", $"fitted {fit.Name} as {part.Name} at {fit.Condition:0} %");
         }
         Car.PartsChanged();
@@ -216,10 +216,10 @@ public sealed partial class Workshop : Control
             _buttons.Add((box, act));
             y += 30;
         }
-        Line("Workshop    A/D or drag: round the car   W/S: up and down   wheel: closer   Esc / F: back", new Color(0.75f, 0.78f, 0.72f), 13);
+        Line(Core.Lang.T("ws.help"), new Color(0.75f, 0.78f, 0.72f), 13);
         if (_job is { } j)
         {
-            Line($"{(j.Fit == null ? "Removing" : "Fitting")} {j.Part.Name.ToLowerInvariant()}...  {j.Done:0}/{j.Time:0} s   (Esc to stop)", Colors.White, 16);
+            Line(Core.Lang.T(j.Fit == null ? "ws.removing" : "ws.fitting", j.Part.Name.ToLowerInvariant(), j.Done.ToString("0"), j.Time.ToString("0")), Colors.White, 16);
             var bar = new Rect2(panel.Position.X + 14, y - 8, 490, 12);
             DrawRect(bar, new Color(0.15f, 0.15f, 0.15f));
             DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * j.Done / j.Time, bar.Size.Y)), new Color(0.4f, 0.75f, 0.45f));
@@ -228,19 +228,19 @@ public sealed partial class Workshop : Control
         else if (_picked is { } p)
         {
             Line(p.Missing ? $"{p.Name}: missing" : $"{p.Name}: {p.Condition:0} %", Colors.White, 17);
-            if (!p.Missing) Button($"Remove ({JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics"):0} s)", () => StartJob(p));
+            if (!p.Missing) Button(Core.Lang.T("ws.remove", (JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics")).ToString("0")), () => StartJob(p));
             else
             {
                 var fits = Carried.Where(c => c.Kind == p.Kind).Take(3).ToList();
-                if (fits.Count == 0) Line("You carry nothing that fits here.", new Color(0.8f, 0.6f, 0.5f));
-                foreach (var f in fits) Button($"Fit {f.Name.ToLowerInvariant()} ({f.Condition:0} %, {JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics"):0} s)", () => StartJob(p, f));
+                if (fits.Count == 0) Line(Core.Lang.T("ws.nothing_fits"), new Color(0.8f, 0.6f, 0.5f));
+                foreach (var f in fits) Button(Core.Lang.T("ws.fit", f.Name.ToLowerInvariant(), f.Condition.ToString("0"), (JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics")).ToString("0")), () => StartJob(p, f));
             }
         }
-        else Line("Click a part to work on it.", new Color(0.8f, 0.8f, 0.75f));
+        else Line(Core.Lang.T("ws.click"), new Color(0.8f, 0.8f, 0.75f));
         // what you carry
         var inv = new Rect2(size.X - 300, size.Y - 210, 280, 190);
         DrawRect(inv, new Color(0.05f, 0.06f, 0.07f, 0.85f));
-        DrawString(_font, inv.Position + new Vector2(12, 24), "Parts you carry", HorizontalAlignment.Left, -1, 15, new Color(0.85f, 0.85f, 0.8f));
+        DrawString(_font, inv.Position + new Vector2(12, 24), Core.Lang.T("ws.carried"), HorizontalAlignment.Left, -1, 15, new Color(0.85f, 0.85f, 0.8f));
         int row = 0;
         foreach (var c in Carried.Take(8))
             DrawString(_font, inv.Position + new Vector2(12, 48 + row++ * 18), $"{c.Name} {c.Condition:0} %", HorizontalAlignment.Left, -1, 14, Colors.White);

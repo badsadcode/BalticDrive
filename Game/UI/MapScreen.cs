@@ -306,7 +306,7 @@ public partial class MapScreen : Control
                     DrawColoredPolygon(new[] { s + new Vector2(0, -12), s + new Vector2(12, 0), s + new Vector2(0, 12), s + new Vector2(-12, 0) }, black);
                     DrawColoredPolygon(new[] { s + new Vector2(0, -9), s + new Vector2(9, 0), s + new Vector2(0, 9), s + new Vector2(-9, 0) }, ink);
                 }
-                string label = kind switch { 0 => "stash: " + text, 1 => "taken: " + text, _ => text };
+                string label = kind switch { 0 => Core.Lang.T("map.stash", text), 1 => Core.Lang.T("map.taken", text), _ => text };
                 DrawString(_font, s + new Vector2(15, 6) + Vector2.One, label, HorizontalAlignment.Left, -1, 15, new Color(0, 0, 0, 0.9f));
                 DrawString(_font, s + new Vector2(15, 6), label, HorizontalAlignment.Left, -1, 15, kind == 1 ? Dim : Paper);
             }
@@ -349,9 +349,9 @@ public partial class MapScreen : Control
         DrawString(_font, _mouse + new Vector2(17, -7) + Vector2.One, tip, HorizontalAlignment.Left, -1, 14, new Color(0, 0, 0, 0.85f));
         DrawString(_font, _mouse + new Vector2(17, -7), tip, HorizontalAlignment.Left, -1, 14, Paper);
 
-        string status = _nav.Routing ? "Calculating route..."
-            : route != null ? $"Route: {_nav.Remaining / 1000f:0.0} km to go"
-            : _nav.Destination != null ? "No route to the flag" : "";
+        string status = _nav.Routing ? Core.Lang.T("map.routing")
+            : route != null ? Core.Lang.T("map.route", (_nav.Remaining / 1000f).ToString("0.0"))
+            : _nav.Destination != null ? Core.Lang.T("map.no_route") : "";
         if (status.Length > 0)
         {
             var ss = _font.GetStringSize(status, HorizontalAlignment.Left, -1, 17);
@@ -361,8 +361,8 @@ public partial class MapScreen : Control
 
         string[] help =
         {
-            "[M] close    wheel or +/- zoom    drag to move    [Space] back to you",
-            "click: GPS destination    [Del] cancel route    right-click: pin on / off    [T] travel to cursor",
+            Core.Lang.T("map.help1"),
+            Core.Lang.T("map.help2"),
         };
         float hw = 0;
         foreach (var line in help) hw = MathF.Max(hw, _font.GetStringSize(line, HorizontalAlignment.Left, -1, 13).X);

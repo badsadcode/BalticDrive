@@ -24,9 +24,9 @@ public partial class GpsHud : Control
     {
         if (_nav.Route == null && !_nav.Routing) return;
         float cx = Size.X * 0.5f, y = 18;
-        string text = _nav.Routing && _nav.Route == null ? "Calculating route..."
-            : _nav.NextTurnIn >= 0 ? $"{Dist(_nav.NextTurnIn)}  then {(_nav.NextTurn > 0 ? "left" : "right")}     {Dist(_nav.Remaining)} to go"
-            : $"Straight on     {Dist(_nav.Remaining)} to go";
+        string text = _nav.Routing && _nav.Route == null ? Core.Lang.T("map.routing")
+            : _nav.NextTurnIn >= 0 ? Core.Lang.T("gps.then", Dist(_nav.NextTurnIn), Core.Lang.T(_nav.NextTurn > 0 ? "gps.left" : "gps.right"), Dist(_nav.Remaining))
+            : Core.Lang.T("gps.straight", Dist(_nav.Remaining));
         var ts = _font.GetStringSize(text, HorizontalAlignment.Left, -1, 18);
         float w = ts.X + 70;
         DrawRect(new Rect2(cx - w * 0.5f, y, w, 40), new Color(0, 0, 0, 0.6f));

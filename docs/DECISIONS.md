@@ -1826,3 +1826,19 @@ names at once. The notebook stays a squared Polish exercise book in both (it's t
 Recipes / Cooking / First aid / Fire / Trouble. Not yet in Polish: the HUD notes and prompts outside the inventory
 (cars, the workshop, generators, campfires, trees, bandits, the map, the F10 window's own settings): the same
 mechanism, key by key, when Tom wants them. Translations are Sage's; Tom may correct any.
+
+
+## D120 — The rest of the game in Polish
+
+Tom: "Yes, the rest." Everything a player reads now goes through `Core.Lang` (D119): the HUD (the controls lines, the
+pack line, the OSM/GUGiK credit, speed "pieszo"/"poza drogą"), every prompt (crates, furniture, the body, your things,
+the stash, safehouse claiming, campfire, generator, petrol can, river water, trees), every note (waking up, dying,
+chopping, fires, generators, debug keys), the car (part names, won't-start reasons, damage), the workshop, loot
+("Znalezione: …"), the map and the GPS ("potem w lewo, jeszcze 2,4 km"), the gang leads, and the F10 window (its
+settings and presets carry name_pl/about_pl in sandbox.json). 315 phrases in each file. Polish details: floors
+"parter" / "3. piętro"; a lead's place as an address ("Orlen, ul. Grochowska", no declined street names); gangs in
+Polish (ekipa Kuby, chłopaki z Pragi, dresiarze, ludzie Zbyszka…); "Ustawienia piaskownicy". The F10 window is rebuilt
+when the language changes (it's built once, and the switch is in it). Found on the way: the "Food spoils" and
+"Generators" settings had no group, so the F10 window never showed them; they're under "The world" now. The pack
+line in the corner was too narrow for Polish: wider. Still English by design: the developer overlay (fps, tiles,
+coordinates) and the log. Self-tests ran in Polish (`--lang=pl`: heat, generator, skills, the F10 window) and English.

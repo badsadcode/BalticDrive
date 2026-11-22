@@ -33,7 +33,7 @@ public sealed partial class Leads : Node
         public int Guards;                  // still alive (set when you first come close)
         public CacheField.Cache? Stash;
         /// <summary>"the Orlen on Grochowska", "a petrol station on Grochowska", "the Biedronka".</summary>
-        public string Where => (Place.Length > 0 ? Place : Generic(Kind)) + (Street.Length > 0 ? " on " + Street : "");
+        public string Where => Street.Length > 0 ? Core.Lang.T("lead.on", Place.Length > 0 ? Place : Generic(Kind), Street) : Place.Length > 0 ? Place : Generic(Kind);
     }
 
     public const float Arrive = 180f, Forget = 300f;   // under the bandits' own 320 m, so guards and stash go together
@@ -53,11 +53,7 @@ public sealed partial class Leads : Node
     public IReadOnlyList<Lead> All => _all;
     public int Taken => _all.Count(l => l.Stage == Stage.Taken);
 
-    private static readonly string[] Gangs =
-    {
-        "Kuba's lot", "the Praga boys", "the Wola crew", "the Siekiera gang", "the tracksuits", "Zbyszek's people",
-        "the Ursus lads", "the old garage crew",
-    };
+    private static string[] Gangs => Enumerable.Range(0, 8).Select(i => Core.Lang.T($"gang.{i}")).ToArray();   // D119
 
     public Leads(MapWorld world, CacheField caches, BanditField bandits)
     {
@@ -95,7 +91,7 @@ public sealed partial class Leads : Node
         if (lead != null)
         {
             lead.Guards = Math.Max(0, lead.Guards - 1);
-            if (lead.Guards == 0) Said?.Invoke($"That's the last of {lead.Gang}. The stash is yours.");
+            if (lead.Guards == 0) Said?.Invoke(Core.Lang.T("lead.last", lead.Gang));
             return;
         }
         if (_rng.NextDouble() < 0.15) Look(b.GlobalPosition, "radio");
@@ -178,13 +174,13 @@ public sealed partial class Leads : Node
 
     private static string Generic(MapPoiKind k) => k switch
     {
-        MapPoiKind.Fuel => "a petrol station",
-        MapPoiKind.Police => "a police station",
-        MapPoiKind.Garage => "a garage",
-        MapPoiKind.Hardware => "a hardware shop",
-        MapPoiKind.Medical => "a pharmacy",
-        MapPoiKind.Camp => "a camp site",
-        _ => "a shop",
+        MapPoiKind.Fuel => Core.Lang.T("poi.fuel"),
+        MapPoiKind.Police => Core.Lang.T("poi.police"),
+        MapPoiKind.Garage => Core.Lang.T("poi.garage"),
+        MapPoiKind.Hardware => Core.Lang.T("poi.hardware"),
+        MapPoiKind.Medical => Core.Lang.T("poi.medical"),
+        MapPoiKind.Camp => Core.Lang.T("poi.camp"),
+        _ => Core.Lang.T("poi.shop"),
     };
 
     // ---- each frame -----------------------------------------------------------------------------------------------
@@ -202,9 +198,9 @@ public sealed partial class Leads : Node
             Log.Info("Leads", $"lead {lead.Id} from a {f.Source}: {lead.Where} ({lead.Kind}), {lead.Gang}");
             Said?.Invoke(f.Source switch
             {
-                "radio" => $"A radio on the body crackles: \"...{lead.Gang}, at {lead.Where}... keep the stash covered...\"  Marked on your map (M).",
-                "stash" => $"A note in the stash: \"Rest of it at {lead.Where}, with {lead.Gang}.\"  Marked on your map (M).",
-                _ => $"A scrap of paper in the crate: \"Stash at {lead.Where}. {Cap(lead.Gang)} are sitting on it.\"  Marked on your map (M).",
+                "radio" => Core.Lang.T("lead.radio", lead.Gang, lead.Where),
+                "stash" => Core.Lang.T("lead.stash", lead.Gang, lead.Where),
+                _ => Core.Lang.T("lead.crate", Core.Lang.Pl ? lead.Gang : Cap(lead.Gang), lead.Where),
             });
         }
         if (at is not { } p) return;

@@ -126,7 +126,7 @@ public sealed partial class Generators : Node3D
             if (g.Fuel <= 0)
             {
                 SetOn(g, false);
-                if (g.Node != null && g.Node.GlobalPosition.DistanceTo(at) < 40) Main.Instance?.ShowNote("The generator coughs and dies: out of petrol");
+                if (g.Node != null && g.Node.GlobalPosition.DistanceTo(at) < 40) Main.Instance?.ShowNote(Core.Lang.T("gen.dies"));
                 Log.Info("Power", $"{g.Id}: out of petrol");
             }
         }
@@ -233,26 +233,26 @@ public sealed partial class Generators : Node3D
     /// <summary>F by a can: into the pack, if it fits.</summary>
     public bool TakeCan(Gen g, Items.Inventory pack, out string said)
     {
-        if (pack.Room("petrol_can") < 1) { said = "Too heavy to carry: the can's full"; return false; }
+        if (pack.Room("petrol_can") < 1) { said = Core.Lang.T("gen.too_heavy"); return false; }
         pack.Add("petrol_can", 1);
         g.Can = false; g.CanNode?.QueueFree(); g.CanNode = null;
         g.Touched = true; Remember(g);
-        said = "You take the can of petrol";
+        said = Core.Lang.T("gen.took_can");
         Log.Info("Power", $"{g.Id}: can taken");
         return true;
     }
 
     /// <summary>What F does with it, for the prompt.</summary>
     public static string Prompt(Gen g, int cans) =>
-        (g.On ? "F: switch off" : g.Fuel > 0 ? "F: start the generator" : "Empty") + " · hold F: carry"
-        + $"   [petrol {g.Fuel:0.0} / {Tank:0} L" + (cans > 0 && g.Fuel < Tank - 0.5f ? $"; Tab: pour from your {(cans == 1 ? "can" : $"{cans} cans")}" : "") + "]";
+        Core.Lang.T(g.On ? "gen.switch_off" : g.Fuel > 0 ? "gen.start" : "gen.empty") + Core.Lang.T("gen.carry")
+        + Core.Lang.T("gen.petrol", g.Fuel.ToString("0.0"), Tank.ToString("0")) + (cans > 0 && g.Fuel < Tank - 0.5f ? (cans == 1 ? Core.Lang.T("gen.pour_one") : Core.Lang.T("gen.pour_n", cans)) : "") + "]";
 
     /// <summary>F: start or stop. False with a reason when it won't start.</summary>
     public bool Toggle(Gen g, out string said)
     {
-        if (g.On) { SetOn(g, false); said = "You switch the generator off"; }
-        else if (g.Fuel <= 0) { said = "No petrol in it"; return false; }
-        else { SetOn(g, true); said = "A pull on the cord, another... it starts. It's loud."; }
+        if (g.On) { SetOn(g, false); said = Core.Lang.T("gen.off"); }
+        else if (g.Fuel <= 0) { said = Core.Lang.T("n.no_petrol"); return false; }
+        else { SetOn(g, true); said = Core.Lang.T("gen.on"); }
         g.Touched = true; Remember(g);
         Log.Info("Power", $"{g.Id}: {(g.On ? "on" : "off")}, {g.Fuel:0.0} L");
         return true;

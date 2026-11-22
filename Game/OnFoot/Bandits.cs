@@ -753,7 +753,7 @@ public sealed partial class BanditField : Node3D
         // what they had on them: a few rounds for their gun, sometimes food or a medkit
         var loot = new Loot(_rng.NextDouble() < 0.4 ? 1 : 0, "tin of beans", _rng.NextDouble() < 0.3 ? 1 : 0, _rng.NextDouble() < 0.25 ? 1 : 0,
             new[] { (b.Gun.Id, b.Gun.Mode == FireMode.Auto ? 20 : b.Gun.Mode == FireMode.Semi ? 10 : 5) });
-        _caches?.Drop(b.GlobalPosition, loot, "the bandit's pockets");
+        _caches?.Drop(b.GlobalPosition, loot, Core.Lang.T("loot.pockets"));
     }
 
     public void Update(double now)

@@ -116,11 +116,11 @@ public sealed partial class Survival : Node
         if (d.Category == "fuel")
         {
             float took = PourFuel?.Invoke(5f) ?? -1;
-            if (took < 0) { Say("Nothing to pour it into here: stand by a generator"); return; }
-            if (took <= 0.01f) { Say("The tank is full"); return; }
+            if (took < 0) { Say(Core.Lang.T("loot.pour_none")); return; }
+            if (took <= 0.01f) { Say(Core.Lang.T("loot.tank_full")); return; }
             // a can holds 5 litres and isn't measured: less than half poured, it's still a can; more, it's used up
-            if (took < 2.5f) { Say($"You top it up with {took:0.0} litres; the can's still mostly full"); return; }
-            Say(took < 4.95f ? $"You pour {took:0.0} litres in; the dregs aren't worth keeping" : "You pour the whole can in");
+            if (took < 2.5f) { Say(Core.Lang.T("loot.top_up", took.ToString("0.0"))); return; }
+            Say(took < 4.95f ? Core.Lang.T("loot.pour_dregs", took.ToString("0.0")) : Core.Lang.T("loot.pour_all"));
             Pack.Remove(id, 1);
             if (d.Leaves != null) Pack.Add(d.Leaves, 1);
             return;
@@ -143,7 +143,7 @@ public sealed partial class Survival : Node
 
     public void UseMedkit()
     {
-        if (Medkits <= 0) { Say("Nothing to patch yourself up with"); return; }
+        if (Medkits <= 0) { Say(Core.Lang.T("loot.no_med")); return; }
         if (Health >= 99) { Say(Core.Lang.T("eat.fine")); return; }
         // what fits the wound: a first aid kit for a bad one, a bandage or a plaster for less
         var id = Best(IsMedical, d => d.Heal, 100 - Health)!;
@@ -192,8 +192,8 @@ public sealed partial class Survival : Node
         if (got.Count > 0) said.Add(Inventory.Say(got));
         foreach (var (gun, rounds) in l.Ammo)
             if (_w.Guns.AddAmmo(gun, rounds) is var took and > 0)
-                said.Add($"{took} rounds for the {WeaponDef.All.First(d => d.Id == gun).Name}");
-        return said.Count == 0 ? (full ? "Nothing you can carry" : "Empty") : "Found " + string.Join(", ", said) + (full ? " (too heavy to take it all)" : "");
+                said.Add(Core.Lang.T("loot.rounds", took, WeaponDef.All.First(d => d.Id == gun).Name));
+        return said.Count == 0 ? Core.Lang.T(full ? "loot.nothing_carry" : "loot.empty") : Core.Lang.T("loot.found", string.Join(", ", said), full ? Core.Lang.T("loot.too_heavy") : "");
     }
 
     private void Fall()
@@ -428,7 +428,7 @@ public sealed partial class CacheField : Node3D
     /// them, with your body lying there (a copy of the walker's, in the pose it fell in).</summary>
     public Cache PlacePackage(Vector3 at, Loot loot, Transform3D corpse, Func<Skeleton3D, bool>? pose = null)
     {
-        var c = new Cache { Key = $"death:{++_deaths}", Place = "your things", Kind = MapPoiKind.Camp, Loot = loot, Keep = true, CollisionLayer = 0, CollisionMask = 0 };
+        var c = new Cache { Key = $"death:{++_deaths}", Place = Core.Lang.T("loot.your_things"), Kind = MapPoiKind.Camp, Loot = loot, Keep = true, CollisionLayer = 0, CollisionMask = 0 };
         AddChild(c);
         c.GlobalPosition = at;
         var body = new Node3D { Name = "Body" };

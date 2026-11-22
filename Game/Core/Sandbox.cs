@@ -28,6 +28,29 @@ public static class Sandbox
 
     /// <summary>A preset's description and its value for a setting (the setting's default when the preset doesn't say).</summary>
     public static string PresetAbout(string preset) { Load(); return _presets.TryGetValue(preset, out var p) ? p.About : ""; }
+
+    private static readonly Dictionary<string, string> _presetNames = new();
+    /// <summary>A preset's name in the current language (D119), or null to make one from its id.</summary>
+    public static string? PresetName(string preset) { Load(); return _presetNames.TryGetValue(preset, out var n) ? n : null; }
+
+    /// <summary>The language changed (D119): names and descriptions are read again (the values stay).</summary>
+    public static void ReloadLabels()
+    {
+        Load();
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(Godot.FileAccess.GetFileAsString(DataPath));
+            var root = doc.RootElement;
+            foreach (var p in root.GetProperty("settings").EnumerateObject())
+                if (_settings!.TryGetValue(p.Name, out var s)) _settings[p.Name] = s with { Name = Lang.Pick(p.Value, "name") ?? p.Name, About = Lang.Pick(p.Value, "about") ?? "" };
+            foreach (var p in root.GetProperty("presets").EnumerateObject())
+            {
+                if (_presets.TryGetValue(p.Name, out var v)) _presets[p.Name] = (Lang.Pick(p.Value, "about") ?? "", v.Values);
+                if (Lang.Pick(p.Value, "name") is { } n) _presetNames[p.Name] = n; else _presetNames.Remove(p.Name);
+            }
+        }
+        catch (Exception e) { Log.Error("Sandbox", e.Message); }
+    }
     public static float PresetValue(string preset, string key)
     {
         Load();
@@ -55,16 +78,17 @@ public static class Sandbox
             foreach (var p in root.GetProperty("settings").EnumerateObject())
             {
                 var e = p.Value;
-                _settings[p.Name] = new Setting(p.Name, e.TryGetProperty("name", out var nm) ? nm.GetString() ?? p.Name : p.Name,
+                _settings[p.Name] = new Setting(p.Name, Lang.Pick(e, "name") ?? p.Name,
                     (float)e.GetProperty("default").GetDouble(), (float)e.GetProperty("min").GetDouble(), (float)e.GetProperty("max").GetDouble(),
-                    e.TryGetProperty("step", out var st) ? (float)st.GetDouble() : 0.05f, e.TryGetProperty("about", out var a) ? a.GetString() ?? "" : "");
+                    e.TryGetProperty("step", out var st) ? (float)st.GetDouble() : 0.05f, Lang.Pick(e, "about") ?? "");
             }
             foreach (var p in root.GetProperty("presets").EnumerateObject())
             {
                 var vals = new Dictionary<string, float>();
                 if (p.Value.TryGetProperty("values", out var v))
                     foreach (var kv in v.EnumerateObject()) vals[kv.Name] = (float)kv.Value.GetDouble();
-                _presets[p.Name] = (p.Value.TryGetProperty("about", out var a) ? a.GetString() ?? "" : "", vals);
+                _presets[p.Name] = (Lang.Pick(p.Value, "about") ?? "", vals);
+                if (Lang.Pick(p.Value, "name") is { } pn) _presetNames[p.Name] = pn;
             }
             Preset = root.TryGetProperty("default_preset", out var dp) ? dp.GetString() ?? Preset : Preset;
         }

@@ -36,27 +36,27 @@ public enum PartKind { Engine, Battery, Tyre, Brakes, Suspension, Windshield, Wi
 public sealed class CarParts
 {
     public readonly List<CarPart> All = new();
-    public static readonly string[] Corner = { "front left", "front right", "rear left", "rear right" };
-    public static readonly string[] Side = { "left", "right" };
+    public static string[] Corner => new[] { Core.Lang.T("corner.0"), Core.Lang.T("corner.1"), Core.Lang.T("corner.2"), Core.Lang.T("corner.3") };
+    public static string[] Side => new[] { Core.Lang.T("side.0"), Core.Lang.T("side.1") };
 
     public CarParts()
     {
-        Add("engine", "Engine", PartKind.Engine);
-        Add("battery", "Battery", PartKind.Battery);
-        for (int i = 0; i < 4; i++) Add($"tyre.{i}", $"Tyre ({Corner[i]})", PartKind.Tyre, i);
-        Add("brakes.front", "Brakes (front)", PartKind.Brakes, 0);
-        Add("brakes.rear", "Brakes (rear)", PartKind.Brakes, 1);
-        Add("suspension.front", "Suspension (front)", PartKind.Suspension, 0);
-        Add("suspension.rear", "Suspension (rear)", PartKind.Suspension, 1);
-        Add("windshield", "Windshield", PartKind.Windshield);
+        Add("engine", Core.Lang.T("part.engine"), PartKind.Engine);
+        Add("battery", Core.Lang.T("part.battery"), PartKind.Battery);
+        for (int i = 0; i < 4; i++) Add($"tyre.{i}", Core.Lang.T("part.tyre", Corner[i]), PartKind.Tyre, i);
+        Add("brakes.front", Core.Lang.T("part.brakes.front"), PartKind.Brakes, 0);
+        Add("brakes.rear", Core.Lang.T("part.brakes.rear"), PartKind.Brakes, 1);
+        Add("suspension.front", Core.Lang.T("part.suspension.front"), PartKind.Suspension, 0);
+        Add("suspension.rear", Core.Lang.T("part.suspension.rear"), PartKind.Suspension, 1);
+        Add("windshield", Core.Lang.T("part.windshield"), PartKind.Windshield);
         for (int s = 0; s < 2; s++)
         {
-            Add($"window.{s}", $"Window ({Side[s]})", PartKind.Window, s);
-            Add($"door.{s}", $"Door ({Side[s]})", PartKind.Door, s);
+            Add($"window.{s}", Core.Lang.T("part.window", Side[s]), PartKind.Window, s);
+            Add($"door.{s}", Core.Lang.T("part.door", Side[s]), PartKind.Door, s);
         }
-        Add("hood", "Hood", PartKind.Hood);
-        Add("trunk", "Trunk", PartKind.Trunk);
-        Add("seat.driver", "Driver's seat", PartKind.Seat, 0);
+        Add("hood", Core.Lang.T("part.hood"), PartKind.Hood);
+        Add("trunk", Core.Lang.T("part.trunk"), PartKind.Trunk);
+        Add("seat.driver", Core.Lang.T("part.seat.driver"), PartKind.Seat, 0);
     }
 
     private void Add(string id, string name, PartKind kind, int slot = 0) => All.Add(new CarPart { Id = id, Name = name, Kind = kind, Slot = slot });
@@ -103,6 +103,6 @@ public sealed class CarParts
     {
         var bad = All.Where(p => p.Missing || p.Condition < 70).OrderBy(p => p.Health).Take(5).ToList();
         if (bad.Count == 0) return "";
-        return string.Join("   ", bad.Select(p => p.Missing ? $"{p.Name}: missing" : p.Condition <= 0 ? $"{p.Name}: broken" : $"{p.Name} {p.Condition:0} %"));
+        return string.Join("   ", bad.Select(p => p.Missing ? Core.Lang.T("car.missing", p.Name) : p.Condition <= 0 ? Core.Lang.T("car.broken", p.Name) : $"{p.Name} {p.Condition:0} %"));
     }
 }

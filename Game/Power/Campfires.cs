@@ -95,7 +95,7 @@ public sealed partial class Campfires : Node3D
                     f.Fuel = 0;
                     f.Fx?.QueueFree(); f.Fx = null;
                     Char(f.Node, true);
-                    if (f.Node.GlobalPosition.DistanceTo(player) < 40) Main.Instance?.ShowNote("The campfire has burnt down to embers");
+                    if (f.Node.GlobalPosition.DistanceTo(player) < 40) Main.Instance?.ShowNote(Core.Lang.T("fire.embers"));
                     Log.Info("Fire", "burnt out");
                 }
             }

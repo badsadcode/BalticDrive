@@ -16,9 +16,10 @@ public partial class SandboxMenu : Control
 {
     private static readonly (string Title, string[] Prefixes)[] Groups =
     {
-        ("Finding things", new[] { "loot.", "caches." }),
-        ("Bandits", new[] { "bandits." }),
-        ("Cars", new[] { "parked.", "wrecks." }),
+        ("sb.group.find", new[] { "loot.", "caches." }),
+        ("sb.group.bandits", new[] { "bandits." }),
+        ("sb.group.cars", new[] { "parked.", "wrecks." }),
+        ("sb.group.world", new[] { "food.", "generators." }),   // D119: these two had no group, so the window never showed them
     };
 
     private readonly OptionButton _preset;
@@ -47,7 +48,7 @@ public partial class SandboxMenu : Control
         // the title on the set's title bar
         var titleBar = new PanelContainer();
         if (Skin.Box("panels/window_title_bar.png", 12, 2) is { } bar) titleBar.AddThemeStyleboxOverride("panel", bar);
-        var title = new Label { Text = "Sandbox settings" };
+        var title = new Label { Text = Core.Lang.T("sb.title") };
         title.AddThemeFontSizeOverride("font_size", 22);
         title.AddThemeColorOverride("font_color", Skin.Text);
         titleBar.AddChild(title);
@@ -70,7 +71,7 @@ public partial class SandboxMenu : Control
         // the preset
         var pr = new HBoxContainer();
         pr.AddThemeConstantOverride("separation", 12);
-        pr.AddChild(Text("Preset", 17, Skin.Text, 120));
+        pr.AddChild(Text(Core.Lang.T("sb.preset"), 17, Skin.Text, 120));
         _preset = new OptionButton { CustomMinimumSize = new Vector2(240, 34) };
         if (Skin.Box("controls/dropdown_normal.png", 8, 2) is { } dn) { _preset.AddThemeStyleboxOverride("normal", dn); _preset.AddThemeStyleboxOverride("focus", dn); }
         if (Skin.Box("controls/dropdown_hover.png", 8, 2) is { } dh) { _preset.AddThemeStyleboxOverride("hover", dh); _preset.AddThemeStyleboxOverride("pressed", dh); }
@@ -94,21 +95,21 @@ public partial class SandboxMenu : Control
         {
             var inGroup = settings.Where(s => prefixes.Any(p => s.Key.StartsWith(p))).ToList();
             if (inGroup.Count == 0) continue;
-            var head = Text(groupTitle, 18, Skin.Accent);
+            var head = Text(Core.Lang.T(groupTitle), 18, Skin.Accent);
             list.AddChild(head);
             if (Skin.Tex("panels/divider.png") is { } div) list.AddChild(new TextureRect { Texture = div, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale, CustomMinimumSize = new Vector2(0, 4) });
             foreach (var s in inGroup) list.AddChild(Row(s));
         }
 
         // the buttons
-        _status = Text("New settings apply to what the world makes from now on; places you've already seen keep theirs.", 13, new Color(Skin.Text, 0.6f));
+        _status = Text(Core.Lang.T("sb.note"), 13, new Color(Skin.Text, 0.6f));
         _status.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         v.AddChild(_status);
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
         buttons.AddThemeConstantOverride("separation", 10);
-        buttons.AddChild(MakeButton("Reset to preset", () => ApplyPreset(_presetNames[_preset.Selected])));
-        buttons.AddChild(MakeButton("Cancel", Close));
-        buttons.AddChild(MakeButton("Save", Save));
+        buttons.AddChild(MakeButton(Core.Lang.T("sb.reset"), () => ApplyPreset(_presetNames[_preset.Selected])));
+        buttons.AddChild(MakeButton(Core.Lang.T("sb.cancel"), Close));
+        buttons.AddChild(MakeButton(Core.Lang.T("sb.save"), Save));
         v.AddChild(buttons);
     }
 
@@ -180,7 +181,7 @@ public partial class SandboxMenu : Control
         Input.MouseMode = Input.MouseModeEnum.Visible;
     }
 
-    private static string Pretty(string preset) => string.Join(' ', preset.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
+    private static string Pretty(string preset) => Sandbox.PresetName(preset) ?? string.Join(' ', preset.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
 
     private void ApplyPreset(string preset)
     {

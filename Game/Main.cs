@@ -75,7 +75,20 @@ public partial class Main : Node3D
 		// a skill went up (D113): say so
 		Items.Skills.LevelUp += (d, lvl) => ShowNote(Core.Lang.T("skill.level", d.Name, lvl, char.ToUpper(Items.Skills.Says(d, lvl)[0]) + Items.Skills.Says(d, lvl)[1..]), 6);
 		// another language (D119): everything that keeps names reads them again
-		Core.Lang.Changed += () => { Items.ItemDb.Reload(); Items.Recipes.Reload(); Items.Evolved.Reload(); Items.Skills.ReloadDefs(); };
+		Core.Lang.Changed += () =>
+		{
+			Items.ItemDb.Reload(); Items.Recipes.Reload(); Items.Evolved.Reload(); Items.Skills.ReloadDefs(); Core.Sandbox.ReloadLabels();
+			// the F10 window is built once: build it again in the new language (it's open: that's where the switch is)
+			if (_sandboxMenu != null && _ui != null)
+			{
+				bool open = _sandboxMenu.IsOpen;
+				if (open) _sandboxMenu.Close();
+				_sandboxMenu.QueueFree();
+				_sandboxMenu = new UI.SandboxMenu();
+				_ui.AddChild(_sandboxMenu);
+				if (open) OpenSandboxMenu();
+			}
+		};
 		// sound (D53): buses with a reverb that follows the space, the listener's acoustics, the world's ambience
 		Audio.Buses.Setup();
 		AddChild(new Audio.Acoustics());
@@ -117,7 +130,7 @@ public partial class Main : Node3D
 		var ui = _ui = new CanvasLayer();
 		ui.AddChild(_hud);
 		// ODbL: the credit stays visible whenever the map is on screen.
-		var credit = new Label { Text = "Map data © OpenStreetMap contributors · elevation © GUGiK", Modulate = new Color(1, 1, 1, 0.75f) };
+		var credit = new Label { Text = Core.Lang.T("hud.credit"), Modulate = new Color(1, 1, 1, 0.75f) };
 		credit.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight, Control.LayoutPresetMode.Minsize, 10);
 		credit.GrowHorizontal = Control.GrowDirection.Begin;
 		credit.GrowVertical = Control.GrowDirection.Begin;
@@ -266,7 +279,7 @@ public partial class Main : Node3D
 			Bar(0, "health", "icon_health", b.Health, new Color(0.85f, 0.22f, 0.2f));
 			Bar(1, "food", "icon_food", b.Hunger, new Color(0.9f, 0.6f, 0.2f));
 			Bar(2, "water", "icon_water", b.Thirst, new Color(0.25f, 0.55f, 0.95f));
-			_bars.DrawString(font, new Vector2(-70, 74), $"{b.Pack.Weight:0.0}/{BalticDrive.OnFoot.Survival.MaxCarry:0} kg · food {b.Food} · drink {b.Water} · med {b.Medkits} · Tab", HorizontalAlignment.Right, 280, 13, new Color(1, 1, 1, 0.8f));
+			_bars.DrawString(font, new Vector2(-170, 74), Core.Lang.T("hud.carry", b.Pack.Weight.ToString("0.0"), BalticDrive.OnFoot.Survival.MaxCarry.ToString("0"), b.Food, b.Water, b.Medkits), HorizontalAlignment.Right, 380, 13, new Color(1, 1, 1, 0.8f));
 		};
 		_ui.AddChild(_bars);
 		_prompt = new Label { HorizontalAlignment = HorizontalAlignment.Center, Visible = false };
@@ -342,8 +355,8 @@ public partial class Main : Node3D
 		if (_deathLabel != null)
 		{
 			_deathLabel.Visible = _downTime > 1.2f;
-			string what = _downCause switch { "starved" => "You collapsed from hunger.", "dehydrated" => "You collapsed from thirst.", _ => "You were shot." };
-			_deathLabel.Text = $"{what}\nYour things stay here with you.\n\nClick to wake up {(BalticDrive.OnFoot.Safehouse.Get(SaveWorld) is { } sh ? "in your safehouse" : "somewhere else")}.";
+			string what = Core.Lang.T(_downCause switch { "starved" => "die.hunger", "dehydrated" => "die.thirst", _ => "die.shot" });
+			_deathLabel.Text = Core.Lang.T("die.rest", what, Core.Lang.T(BalticDrive.OnFoot.Safehouse.Get(SaveWorld) is { } sh ? "die.in_safehouse" : "die.elsewhere"));
 		}
 	}
 
@@ -413,29 +426,29 @@ public partial class Main : Node3D
 		if (_deathLabel != null) _deathLabel.Visible = false;
 		double dx = fx - step.X, dz = fz - step.Z, km = Math.Sqrt(dx * dx + dz * dz) / 1000;
 		string toward = Compass(dx, dz);
-		string where = home is { IsFlat: true } ? $"in {home.Value.Address.Replace("the flat", "your flat")}"
-			: home != null ? $"in your safehouse{(home.Value.Address.Length > 0 ? ", " + home.Value.Address : "")}"
-			: step.Address.Length > 0 ? $"outside {step.Address}" : "outside a block of flats";
-		ShowNote(package.Opened ? $"You wake up {where}." : km < 0.05 ? $"You wake up {where}. Your things are right here."
-			: $"You wake up {where}. Your things are {km:0.0} km {toward}, where you fell: marked on the map (M).", 12);
+		string where = home is { IsFlat: true } ? Core.Lang.T("wake.flat", Core.Lang.Pl ? home.Value.Address : home.Value.Address.Replace("the flat", "your flat"))
+			: home != null ? Core.Lang.T("wake.safehouse", home.Value.Address.Length > 0 ? ", " + home.Value.Address : "")
+			: step.Address.Length > 0 ? Core.Lang.T("wake.outside", step.Address) : Core.Lang.T("wake.outside_block");
+		ShowNote(package.Opened ? Core.Lang.T("wake.opened", where) : km < 0.05 ? Core.Lang.T("wake.here", where)
+			: Core.Lang.T("wake.far", where, km.ToString("0.0"), toward), 12);
 		Core.Log.Info("Death", $"woke {where}, {km:0.00} km from the body (package {(package.Opened ? "empty" : "left")})");
 	}
 
 	/// <summary>"the flat on the 4th floor, left" (Polish style: the ground floor is parter, then 1st, 2nd...).</summary>
 	private static string FlatName(BadBuilding.Interior.InteriorModel m, int storey, string flat)
 	{
-		string floor = storey == 0 ? "the ground floor" : $"the {storey}{(storey % 100 is 11 or 12 or 13 ? "th" : (storey % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" })} floor";
-		string side = flat.EndsWith("/L") ? "left" : flat.EndsWith("/R") ? "right" : "";
+		string floor = storey == 0 ? Core.Lang.T("flat.ground") : Core.Lang.T("flat.floor", Core.Lang.Pl ? storey.ToString() : $"{storey}{(storey % 100 is 11 or 12 or 13 ? "th" : (storey % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" })}");
+		string side = flat.EndsWith("/L") ? Core.Lang.T("flat.left") : flat.EndsWith("/R") ? Core.Lang.T("flat.right") : "";
 		int staircases = m.Entrances.Count;
 		string stair = "";
-		if (staircases > 1 && System.Text.RegularExpressions.Regex.Match(flat, @"/c(\d+)/") is { Success: true } mc) stair = $", staircase {int.Parse(mc.Groups[1].Value) + 1}";
-		return $"the flat on {floor}{(side.Length > 0 ? ", " + side : "")}{stair}";
+		if (staircases > 1 && System.Text.RegularExpressions.Regex.Match(flat, @"/c(\d+)/") is { Success: true } mc) stair = Core.Lang.T("flat.staircase", int.Parse(mc.Groups[1].Value) + 1);
+		return Core.Lang.T("flat.name", floor, side.Length > 0 ? ", " + side : "", stair);
 	}
 
 	private static string Compass(double dx, double dz)
 	{
 		// world +Z is south
-		string[] names = { "north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west" };
+		string[] names = { Core.Lang.T("dir.n"), Core.Lang.T("dir.ne"), Core.Lang.T("dir.e"), Core.Lang.T("dir.se"), Core.Lang.T("dir.s"), Core.Lang.T("dir.sw"), Core.Lang.T("dir.w"), Core.Lang.T("dir.nw") };
 		double a = Math.Atan2(dx, -dz);
 		int i = (int)Math.Round(a / (Math.PI / 4));
 		return names[((i % 8) + 8) % 8];
@@ -455,7 +468,7 @@ public partial class Main : Node3D
 			bool holdingF = TestClaim || Input.IsKeyPressed(Key.K);
 			_claim = holdingF ? _claim + dt : 0;
 			_prompt!.Visible = true;
-			_prompt.Text = holdingF ? $"Claiming {name}... {MathF.Min(_claim / 2f, 1):P0}" : $"Hold K: make {name} your safehouse";
+			_prompt.Text = holdingF ? Core.Lang.T("safe.claiming", name, MathF.Min(_claim / 2f, 1).ToString("P0")) : Core.Lang.T("safe.hold", name);
 			if (_claim >= 2f && BalticDrive.World.Interiors.Find(inside.Id) is { } found)
 			{
 				var (wx, wy, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
@@ -466,7 +479,7 @@ public partial class Main : Node3D
 				BalticDrive.OnFoot.Safehouse.Set(SaveWorld, s);
 				_safehouse = s;
 				_claim = 0;
-				ShowNote($"{char.ToUpper(name[0]) + name[1..]} is your safehouse now. You'll wake up here.", 8);
+				ShowNote(Core.Lang.T("safe.done", char.ToUpper(name[0]) + name[1..]), 8);
 				Core.Log.Info("Safehouse", $"claimed flat {flat} ({name}) at {wx:0.0},{wy:0.0},{wz:0.0}");
 			}
 			return true;
@@ -475,13 +488,13 @@ public partial class Main : Node3D
 		{
 			_nextHomeLook = now + 0.3;
 			var (wx, _, wz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
-			_homeHere = BalticDrive.OnFoot.Homes.At(_world, wx, wz, _walker.Yaw + MathF.PI) is { } at ? (at.Step, at.Step.Address.Length > 0 ? at.Step.Address : at.Home.Type == BuildingKind.House ? "this house" : "this block") : null;
+			_homeHere = BalticDrive.OnFoot.Homes.At(_world, wx, wz, _walker.Yaw + MathF.PI) is { } at ? (at.Step, at.Step.Address.Length > 0 ? at.Step.Address : at.Home.Type == BuildingKind.House ? Core.Lang.T("home.this_house") : Core.Lang.T("home.this_block")) : null;
 		}
 		if (_homeHere is not { } here || (_safehouse is { } mine && mine.OsmId == here.Step.OsmId && mine.OsmId != 0)) { _claim = 0; return false; }
 		bool holding = TestClaim || Input.IsKeyPressed(Key.K);
 		_claim = holding ? _claim + dt : 0;
 		_prompt!.Visible = true;
-		_prompt.Text = holding ? $"Claiming {here.Name}... {MathF.Min(_claim / 2f, 1):P0}" : $"Hold K: make {here.Name} your safehouse";
+		_prompt.Text = holding ? Core.Lang.T("safe.claiming", here.Name, MathF.Min(_claim / 2f, 1).ToString("P0")) : Core.Lang.T("safe.hold", here.Name);
 		if (_claim >= 2f)
 		{
 			// facing out from the wall when you wake: the way you'd walk out of the door
@@ -490,7 +503,7 @@ public partial class Main : Node3D
 			BalticDrive.OnFoot.Safehouse.Set(SaveWorld, s);
 			_safehouse = s;
 			_claim = 0;
-			ShowNote($"{char.ToUpper(here.Name[0]) + here.Name[1..]} is your safehouse now. You'll wake up here.", 8);
+			ShowNote(Core.Lang.T("safe.done", char.ToUpper(here.Name[0]) + here.Name[1..]), 8);
 			Core.Log.Info("Safehouse", $"claimed {here.Name} (osm {s.OsmId}) at {s.X:0},{s.Z:0}");
 		}
 		return true;
@@ -592,7 +605,7 @@ public partial class Main : Node3D
 		if (_generators != null && _safehouse is { } sh)
 		{
 			bool p = _generators.PoweredAt(sh.X, sh.Z);
-			if (p && !_poweredHome) ShowNote("The safehouse has power while the generator runs");
+			if (p && !_poweredHome) ShowNote(Core.Lang.T("safe.power"));
 			_poweredHome = p;
 		}
 		if (!on || PlayerDown || (_inventory?.IsOpen ?? false)) { _prompt!.Visible = false; _claim = 0; return; }
@@ -600,7 +613,7 @@ public partial class Main : Node3D
 		{
 			_genHere = null;
 			_prompt!.Visible = true;
-			_prompt.Text = "Carrying the generator · F: put it down";
+			_prompt.Text = Core.Lang.T("p.carrying");
 			_bars.QueueRedraw();
 			return;
 		}
@@ -608,7 +621,7 @@ public partial class Main : Node3D
 		if (_chopT >= 0)
 		{
 			_prompt!.Visible = true;
-			_prompt.Text = $"Chopping... {Mathf.Clamp(_chopT / ChopTime, 0, 1):P0}";
+			_prompt.Text = Core.Lang.T("p.chopping", Mathf.Clamp(_chopT / ChopTime, 0, 1).ToString("P0"));
 			_bars.QueueRedraw();
 			return;
 		}
@@ -618,8 +631,8 @@ public partial class Main : Node3D
 			int wood = _walker!.Body.Pack.Count("firewood");
 			_prompt!.Visible = true;
 			_prompt.Text = _fireHere.Burning
-				? $"Campfire: {Power.Campfires.Left(_fireHere)} of wood" + (wood > 0 ? $" · F: add firewood ({wood})" : " · no firewood to add") + " · Tab: cook"
-				: "Burnt out" + (wood > 0 && _walker.Body.Pack.CountMatching("tag:fire") > 0 ? " · F: relight it" : " · firewood and matches to relight");
+				? Core.Lang.T("p.fire", Power.Campfires.Left(_fireHere)) + (wood > 0 ? Core.Lang.T("p.fire_add", wood) : Core.Lang.T("p.fire_nowood")) + Core.Lang.T("p.fire_cook")
+				: Core.Lang.T("p.burnt") + (wood > 0 && _walker.Body.Pack.CountMatching("tag:fire") > 0 ? Core.Lang.T("p.relight") : Core.Lang.T("p.relight_need"));
 			_bars.QueueRedraw();
 			return;
 		}
@@ -628,7 +641,7 @@ public partial class Main : Node3D
 		{
 			_genHere = null;
 			_prompt!.Visible = true;
-			_prompt.Text = "F: take the can of petrol";
+			_prompt.Text = Core.Lang.T("p.take_can");
 			_bars.QueueRedraw();
 			return;
 		}
@@ -636,7 +649,7 @@ public partial class Main : Node3D
 		if (_genHere != null)
 		{
 			_prompt!.Visible = true;
-			_prompt.Text = _genHold >= 0 ? $"Lifting... {MathF.Min((float)_genHold / 0.6f, 1):P0}" : Power.Generators.Prompt(_genHere, _walker!.Body.Pack.Count("petrol_can"));
+			_prompt.Text = _genHold >= 0 ? Core.Lang.T("p.lifting", MathF.Min((float)_genHold / 0.6f, 1).ToString("P0")) : Power.Generators.Prompt(_genHere, _walker!.Body.Pack.Count("petrol_can"));
 			_bars.QueueRedraw();
 			return;
 		}
@@ -647,12 +660,12 @@ public partial class Main : Node3D
 		if (_spot != null)
 		{
 			_prompt!.Visible = true;
-			_prompt.Text = $"F: search {Items.Containers.Label(_spot.FurnitureKind)}" + (Items.Containers.Searched(SaveWorld, _spot.Id) ? " (searched)" : "");
+			_prompt.Text = Core.Lang.T("p.search", Items.Containers.Label(_spot.FurnitureKind)) + (Items.Containers.Searched(SaveWorld, _spot.Id) ? Core.Lang.T("p.searched") : "");
 			_bars.QueueRedraw();
 			return;
 		}
 		_prompt!.Visible = c != null;
-		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? "F: search the body" : c.Key.StartsWith("death:") ? "F: take your things" : c.Keep ? "F: take the stash" : "F: open the crate" + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
+		if (c != null) _prompt.Text = c.Key.StartsWith("drop:") ? Core.Lang.T("p.body") : c.Key.StartsWith("death:") ? Core.Lang.T("p.your_things") : c.Keep ? Core.Lang.T("p.stash") : Core.Lang.T("p.crate") + (string.IsNullOrEmpty(c.Place) ? "" : $" ({c.Place})");
 		else if (!WoodAndWater(now)) UpdateClaim(now, (float)GetProcessDeltaTime());
 		_bars.QueueRedraw();
 	}
@@ -669,7 +682,7 @@ public partial class Main : Node3D
 			if (float.IsNaN(_world.Water(wx, wz))) continue;
 			_waterHere = true;
 			_prompt!.Visible = true;
-			_prompt.Text = pack.Count("empty_bottle") > 0 ? $"F: fill a bottle with river water ({pack.Count("empty_bottle")} empty)" : "Water · an empty bottle would hold some";
+			_prompt.Text = pack.Count("empty_bottle") > 0 ? Core.Lang.T("p.fill", pack.Count("empty_bottle")) : Core.Lang.T("p.water_nobottle");
 			return true;
 		}
 		if (now >= _nextWoodLook)
@@ -683,7 +696,7 @@ public partial class Main : Node3D
 		bool axe = pack.CountMatching("tag:chopping") > 0, used = Power.Woodland.Used(SaveWorld, Power.Woodland.Key(t));
 		if (!axe && !used) return false;   // no axe: trees are just trees
 		_prompt!.Visible = true;
-		_prompt.Text = used ? "This tree has no more dead wood" : $"F: chop firewood ({ChopTime:0} s)";
+		_prompt.Text = used ? Core.Lang.T("p.tree_done") : Core.Lang.T("p.chop", ChopTime.ToString("0"));
 		return true;
 	}
 	private Trees.TreePlacement.Tree? _woodLook;
@@ -708,7 +721,7 @@ public partial class Main : Node3D
 		_range = new OnFoot.ShootingRange();
 		AddChild(_range);
 		_range.Build(_walker.GlobalPosition, _walker.Yaw);
-		ShowNote("Range set up: cans and bottles at 8 m, a paper target at 15 m, plates at 25, 50 and 100 m");
+		ShowNote(Core.Lang.T("n.range"));
 		return _range;
 	}
 	/// <summary>Walking (D38): the walker has the controls.</summary>
@@ -746,17 +759,17 @@ public partial class Main : Node3D
 			try
 			{
 				string path = DebugDump.Take(this);
-				ShowNote($"Dump saved: {path}");
+				ShowNote(Core.Lang.T("n.dump", path));
 				Core.Log.Info("Dump", path);
 			}
-			catch (Exception ex) { ShowNote($"Dump failed: {ex.Message}"); }
+			catch (Exception ex) { ShowNote(Core.Lang.T("n.dump_failed", ex.Message)); }
 			GetViewport().SetInputAsHandled();
 			return;
 		}
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.G } && _world != null)
 		{
 			_grass.On = !_grass.On;
-			ShowNote(_grass.On ? "Grass on (G)" : "Grass off (G)");
+			ShowNote(Core.Lang.T(_grass.On ? "n.grass_on" : "n.grass_off"));
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -767,7 +780,7 @@ public partial class Main : Node3D
 			Map.BadBuildingAdapter.Enabled = true;
 			Map.BadBuildingAdapter.ResetStats();
 			_content.Configure(_world);
-			ShowNote(Map.BadBuildingAdapter.Preset != null ? "Buildings: Brutalist Warsaw" : "Buildings: BadBuilding");
+			ShowNote(Core.Lang.T(Map.BadBuildingAdapter.Preset != null ? "n.bld_brutal" : "n.bld_bb"));
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -777,7 +790,7 @@ public partial class Main : Node3D
 			Map.BadBuildingAdapter.Enabled = !Map.BadBuildingAdapter.Enabled;
 			Map.BadBuildingAdapter.ResetStats();
 			_content.Configure(_world);
-			ShowNote(Map.BadBuildingAdapter.Enabled ? "Buildings: BadBuilding" : "Buildings: classic");
+			ShowNote(Core.Lang.T(Map.BadBuildingAdapter.Enabled ? "n.bld_bb" : "n.bld_classic"));
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -790,7 +803,7 @@ public partial class Main : Node3D
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.B } && OnFoot && _bandits != null)
 		{
 			int n = _bandits.SpawnAhead(_walker!.GlobalPosition, _walker.Yaw);
-			ShowNote(n > 0 ? $"{n} bandits ahead!" : "No room for bandits here");
+			ShowNote(n > 0 ? Core.Lang.T("n.bandits", n) : Core.Lang.T("n.no_bandits"));
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -820,9 +833,9 @@ public partial class Main : Node3D
 				if (OnFoot && _fireHere != null)
 				{
 					var pack = _walker!.Body.Pack;
-					if (pack.Count("firewood") == 0) ShowNote("No firewood", 3);
-					else if (!_fireHere.Burning && pack.CountMatching("tag:fire") == 0) ShowNote("Nothing to light it with", 3);
-					else { pack.Remove("firewood", 1); bool was = _fireHere.Burning; _fires!.AddWood(_fireHere); ShowNote(was ? $"You feed the fire: {Power.Campfires.Left(_fireHere)} of wood" : "The fire catches again", 3); }
+					if (pack.Count("firewood") == 0) ShowNote(Core.Lang.T("n.no_wood"), 3);
+					else if (!_fireHere.Burning && pack.CountMatching("tag:fire") == 0) ShowNote(Core.Lang.T("n.no_light"), 3);
+					else { pack.Remove("firewood", 1); bool was = _fireHere.Burning; _fires!.AddWood(_fireHere); ShowNote(was ? Core.Lang.T("n.feed", Power.Campfires.Left(_fireHere)) : Core.Lang.T("n.catches"), 3); }
 					GetViewport().SetInputAsHandled(); return;
 				}
 				if (OnFoot && _canHere != null) { _generators!.TakeCan(_canHere, _walker!.Body.Pack, out var took); ShowNote(took, 4); _canHere = null; GetViewport().SetInputAsHandled(); return; }
@@ -832,14 +845,14 @@ public partial class Main : Node3D
 				{
 					// river water (D111): one empty bottle filled per press
 					var pack = _walker!.Body.Pack;
-					if (pack.Count("empty_bottle") == 0) ShowNote("No empty bottle to fill", 3);
-					else { pack.Remove("empty_bottle", 1); pack.Add("dirty_water", 1); ShowNote($"You fill a bottle with river water ({pack.Count("dirty_water")}). Boil it before you drink it.", 4); }
+					if (pack.Count("empty_bottle") == 0) ShowNote(Core.Lang.T("n.no_bottle"), 3);
+					else { pack.Remove("empty_bottle", 1); pack.Add("dirty_water", 1); ShowNote(Core.Lang.T("n.filled", pack.Count("dirty_water")), 4); }
 					GetViewport().SetInputAsHandled(); return;
 				}
 				if (OnFoot && _treeHere is { } tree)
 				{
-					if (_walker!.Body.Pack.CountMatching("tag:chopping") == 0) ShowNote("You need an axe", 3);
-					else if (Power.Woodland.Used(SaveWorld, Power.Woodland.Key(tree))) ShowNote("You've taken what this tree had to give", 3);
+					if (_walker!.Body.Pack.CountMatching("tag:chopping") == 0) ShowNote(Core.Lang.T("n.need_axe"), 3);
+					else if (Power.Woodland.Used(SaveWorld, Power.Woodland.Key(tree))) ShowNote(Core.Lang.T("n.tree_taken"), 3);
 					else { _chopT = 0; _chopTree = tree; _chopFrom = _walker.GlobalPosition; _chopHealth = _walker.Body.Health; _nextThunk = 0; }
 					GetViewport().SetInputAsHandled(); return;
 				}
@@ -851,7 +864,7 @@ public partial class Main : Node3D
 			{
 				// a tap: on or off
 				_genHold = -1;
-				if (_genHere != null && _generators!.Toggle(_genHere, out var said)) ShowNote(said, 4); else if (_genHere != null) ShowNote("No petrol in it" + (_walker!.Body.Pack.Count("petrol_can") > 0 ? ": pour some in from your pack (Tab)" : ""), 4);
+				if (_genHere != null && _generators!.Toggle(_genHere, out var said)) ShowNote(said, 4); else if (_genHere != null) ShowNote(Core.Lang.T("n.no_petrol") + (_walker!.Body.Pack.Count("petrol_can") > 0 ? Core.Lang.T("n.pour_hint") : ""), 4);
 			}
 			else if (_fHeld >= 0)
 			{
@@ -887,13 +900,13 @@ public partial class Main : Node3D
 	public static string? WontGo(Vehicle.Car c)
 	{
 		var p = c.Parts;
-		if (p["engine"].Missing) return "there's no engine";
-		if (p["engine"].Health <= 0) return "the engine is wrecked";
-		if (p["battery"].Missing) return "there's no battery";
-		if (p["battery"].Health <= 0.08f) return "the battery is flat";
+		if (p["engine"].Missing) return Core.Lang.T("car.no_engine");
+		if (p["engine"].Health <= 0) return Core.Lang.T("car.engine_wrecked");
+		if (p["battery"].Missing) return Core.Lang.T("car.no_battery");
+		if (p["battery"].Health <= 0.08f) return Core.Lang.T("car.battery_flat");
 		int wheels = 0;
 		for (int i = 0; i < 4; i++) if (p.Tyre(i).Missing) wheels++;
-		if (wheels > 0) return wheels == 1 ? "a wheel is missing" : $"{wheels} wheels are missing";
+		if (wheels > 0) return wheels == 1 ? Core.Lang.T("car.wheel_missing") : Core.Lang.T("car.wheels_missing", wheels);
 		return null;
 	}
 
@@ -901,7 +914,7 @@ public partial class Main : Node3D
 	/// stays parked where it stands for the rest of the session.</summary>
 	public void TryTakeCar(Vehicle.Car c)
 	{
-		if (WontGo(c) is { } why) { ShowNote($"It won't start: {why}. Hold F to work on it"); return; }
+		if (WontGo(c) is { } why) { ShowNote(Core.Lang.T("n.wont_start", why)); return; }
 		if (_car != null && _car != c)
 		{
 			_car.Driving = false;
@@ -917,7 +930,7 @@ public partial class Main : Node3D
 		_walker?.Deactivate();
 		c.Driving = true;
 		c.SetView(false);
-		ShowNote(c.Parts.Report() is { Length: > 0 } r ? $"It starts. {r}" : "It starts");
+		ShowNote(c.Parts.Report() is { Length: > 0 } r ? Core.Lang.T("n.starts", r) : Core.Lang.T("n.starts_clean"));
 		Core.Log.Info("Main", $"took the car {c.Name} ({c.Model.GetFile()}, drives as '{c.Spec.Id}')");
 	}
 
@@ -927,13 +940,13 @@ public partial class Main : Node3D
 		if (_car == null || Flying) return false;
 		if (OnFoot)
 		{
-			if (_walker!.GlobalPosition.DistanceTo(_car.GlobalPosition) > 4.5f) { ShowNote("Walk up to the car to get in (E)"); return false; }
+			if (_walker!.GlobalPosition.DistanceTo(_car.GlobalPosition) > 4.5f) { ShowNote(Core.Lang.T("p.walk_to_car")); return false; }
 			_walker.Deactivate();
 			_car.Driving = true;
 			_car.SetView(false);
 			return true;
 		}
-		if (MathF.Abs(_car.Speed) > 2f) { ShowNote("Stop the car first"); return false; }
+		if (MathF.Abs(_car.Speed) > 2f) { ShowNote(Core.Lang.T("p.stop_car")); return false; }
 		_walker ??= CreateWalker();
 		_car.Driving = false;
 		var t = _car.GlobalTransform;
@@ -1064,7 +1077,7 @@ public partial class Main : Node3D
 			if (_walker.Body.Health < _chopHealth - 0.5f || (_walker.GlobalPosition - _chopFrom).Length() > 0.8f || !OnFoot || PlayerDown)
 			{
 				_chopT = -1;
-				ShowNote(_walker.Body.Health < _chopHealth - 0.5f ? "You're hit! The axe can wait" : "You stop chopping", 3);
+				ShowNote(Core.Lang.T(_walker.Body.Health < _chopHealth - 0.5f ? "n.hit_axe" : "n.stop_chop"), 3);
 			}
 			else
 			{
@@ -1083,8 +1096,8 @@ public partial class Main : Node3D
 					int y = Power.Woodland.Yield(_chopTree) + (Items.Skills.Level("woodcraft") >= 3 ? 1 : 0), n = _walker.Body.Pack.Add("firewood", y);
 					Items.Skills.Add("woodcraft", 10);
 					Power.Woodland.Use(SaveWorld, Power.Woodland.Key(_chopTree));
-					string got = n == 1 ? "an armful" : $"{n} armfuls";
-					ShowNote(n == y ? $"You chop {got} of firewood" : n > 0 ? $"You chop {y} armfuls; you can carry {got}, the rest stays" : "You chop it, but you can't carry any more", 4);
+					string got = n == 1 ? Core.Lang.T("n.armful") : Core.Lang.T("n.armfuls", n);
+					ShowNote(n == y ? Core.Lang.T("n.chopped", got) : n > 0 ? Core.Lang.T("n.chopped_some", y, got) : Core.Lang.T("n.chopped_none"), 4);
 					Core.Log.Info("Wood", $"chopped {n} at {Power.Woodland.Key(_chopTree)}");
 				}
 			}
@@ -1097,7 +1110,7 @@ public partial class Main : Node3D
 				_genHold = -1;
 				_generators!.PickUp(_genHere);
 				_walker.Burden = 1;
-				ShowNote("You lift the generator: heavy. Slow going, and no hand free for a gun.", 4);
+				ShowNote(Core.Lang.T("n.lift_gen"), 4);
 			}
 		}
 		if (_fHeld >= 0)
@@ -1125,17 +1138,15 @@ public partial class Main : Node3D
 		var (lat, lon) = Core.Projection.ToGeo(fx, fz);
 		// where am I (D33): street and number, district, town; worked out twice a second
 		if (Time.GetTicksMsec() > _whereAt) { _where = _world.WhereAmI(fx, fz); _whereAt = Time.GetTicksMsec() + 500; }
-		string speed = OnFoot ? $"on foot, {_walker!.Speed * 3.6f:F0} km/h{(_walker.Crouching ? ", crouching" : "")}   "
-			: !Flying && _car != null ? $"{MathF.Abs(_car.Speed) * 3.6f:F0} km/h{(_car.OnRoad ? "" : " (off road)")}   " : "";
-		string carState = !OnFoot && !Flying && _car != null && _car.Parts.Report() is { Length: > 0 } rep ? "car: " + rep + "\n" : "";
+		string speed = OnFoot ? Core.Lang.T("hud.on_foot", (_walker!.Speed * 3.6f).ToString("F0"), _walker.Crouching ? Core.Lang.T("hud.crouching") : "")
+			: !Flying && _car != null ? $"{MathF.Abs(_car.Speed) * 3.6f:F0} km/h{(_car.OnRoad ? "" : Core.Lang.T("hud.off_road"))}   " : "";
+		string carState = !OnFoot && !Flying && _car != null && _car.Parts.Report() is { Length: > 0 } rep ? Core.Lang.T("hud.car", rep) : "";
 		_hud.Text = $"{speed}{Engine.GetFramesPerSecond()} fps   {lat:F5}° N  {lon:F5}° E   {_where}\n" + carState +
 					$"x {fx:F0}  z {fz:F0}  alt {_camera.GlobalPosition.Y:F0} m (ground {_camera.GroundHeight:F1})\n" +
 					$"terrain {_terrain.Resident} tiles, {_terrain.Missing} missing, {_terrain.Pending} building, commit {_terrain.FrameCommitMs:F1} ms (max {_terrain.MaxCommitMs:F1})\n" +
 					$"map {_content.Cells} cells, {_content.Pending} building, trees {_trees.Instances3D} near + {_trees.ImpostorInstances} far ({_trees.Missing} missing)\n" +
 					(Map.BadBuildingAdapter.Enabled ? Map.BadBuildingAdapter.Stats() + "   (F7: classic buildings)\n" : "") +
-					($"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00} ([ ] time, F9 dump, F10 settings, N radar)   " + (Flying ? "F8: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster"
-						: OnFoot ? "F: get in (hold F: workshop)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim (Shift: hold breath), R reload, T targets, B bandits, H medkit, F crates"
-						: "F: get out   F8: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road"));
+					(Core.Lang.T("hud.keys_top", $"{(int)_atmosphere.Hour:00}:{(int)(_atmosphere.Hour % 1 * 60):00}") + Core.Lang.T(Flying ? "hud.keys_fly" : OnFoot ? "hud.keys_foot" : "hud.keys_car"));
 		_nav?.Update(new Vector2((float)fx, (float)fz), Time.GetTicksMsec() / 1000.0);
 		UpdateSurvival(Time.GetTicksMsec() / 1000.0);
 		_tests?.Process(delta);

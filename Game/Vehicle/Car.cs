@@ -70,7 +70,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             };
             Shot?.Invoke(h.Damage * exposure / 0.2f);   // Main takes a fifth of it (D52)
         }
-        return $"car: {part.Name.ToLowerInvariant()}";
+        return Core.Lang.T("car.hit", part.Name.ToLowerInvariant());
     }
 
     /// <summary>Wears a part; says so when it breaks.</summary>
@@ -78,11 +78,11 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     {
         if (Parts.Wear(p, amount)) Said?.Invoke(p.Kind switch
         {
-            PartKind.Tyre => $"{p.Name}: flat",
-            PartKind.Windshield or PartKind.Window => $"{p.Name}: shattered",
-            PartKind.Engine => "The engine is wrecked",
-            PartKind.Battery => "The battery is dead",
-            _ => $"{p.Name}: broken",
+            PartKind.Tyre => Core.Lang.T("car.flat", p.Name),
+            PartKind.Windshield or PartKind.Window => Core.Lang.T("car.shattered", p.Name),
+            PartKind.Engine => Core.Lang.T("car.engine_wrecked_cap"),
+            PartKind.Battery => Core.Lang.T("car.battery_dead"),
+            _ => Core.Lang.T("car.broken", p.Name),
         });
     }
 
@@ -674,7 +674,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
         if (Driving && throttle > 0.02f && !Parts.EngineRuns && Time.GetTicksMsec() / 1000.0 > _saidAt)
         {
             _saidAt = Time.GetTicksMsec() / 1000.0 + 4;
-            Said?.Invoke(Parts["engine"].Health <= 0 ? "The engine is wrecked: it won't start" : "The battery is flat: the engine won't start");
+            Said?.Invoke(Core.Lang.T(Parts["engine"].Health <= 0 ? "car.wont_engine" : "car.wont_battery"));
         }
         _cough -= dt;
         if (_cough <= 0) _cough = Parts["engine"].Health < 0.35f && GD.Randf() < (0.35f - Parts["engine"].Health) * 2.5f ? -0.25f : 0.3f;
