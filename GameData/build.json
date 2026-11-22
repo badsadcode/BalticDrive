@@ -1,0 +1,9 @@
+{
+  "_about": "Things you build (D128). Each: id (never change it once used), name, size [width, height, depth] in metres (the placing ghost and the fit check; the shape is a stand-in until Tom's models: docs/BUILD_MODELS_BRIEF.md), kind (workbench: some recipes need one within 2.5 m; crate: a container holding 'holds' kg; collector: fills with rain, a bottle every 'minutes_per_bottle' minutes of play, up to 'bottles', outdoors only; barricade: stops people and bullets, 'hp' bullets' worth of hits), and name_pl. The recipe that builds it says places: 'build:<id>' (recipes.json).",
+  "pieces": [
+    {"id": "workbench", "name": "workbench", "name_pl": "stół warsztatowy", "size": [1.6, 0.95, 0.7], "kind": "workbench"},
+    {"id": "crate", "name": "wooden crate", "name_pl": "drewniana skrzynia", "size": [0.9, 0.6, 0.6], "kind": "crate", "holds": 50},
+    {"id": "rain_collector", "name": "rain collector", "name_pl": "zbieracz deszczówki", "size": [1.2, 1.8, 1.2], "kind": "collector", "bottles": 8, "minutes_per_bottle": 6},
+    {"id": "barricade", "name": "barricade", "name_pl": "barykada", "size": [1.3, 1.6, 0.12], "kind": "barricade", "hp": 12}
+  ]
+}

@@ -12,7 +12,7 @@ namespace BalticDrive.Items;
 public sealed record Recipe(string Id, string Name, string Category, (string Item, int Count)[] Inputs,
     string[][] Tools, (string Item, int Count)[] Outputs, string About, float Seconds,
     bool Heat = false, string? Places = null, bool Leftovers = true, string? Book = null, string? Skill = null,
-    string? Evolve = null, string? Adds = null);
+    string? Evolve = null, string? Adds = null, bool Bench = false);
 
 /// <summary>
 /// Crafting (D106, D107), Project Zomboid style and our own data: <c>GameData/recipes.json</c>. A recipe can be made when the
@@ -37,6 +37,12 @@ public static class Recipes
     /// <summary>Puts a recipe's <see cref="Recipe.Places"/> on the ground (a campfire): null when it went down, else why
     /// not ("Not indoors").</summary>
     public static Func<string, string?>? Place;
+    /// <summary>A workbench within reach (D128): recipes with "bench" need one. Set by the game.</summary>
+    public static Func<bool>? BenchHere;
+    /// <summary>A build recipe (places "build:&lt;piece&gt;", D128) was picked: the game starts placing it; null when it
+    /// did, else why not.</summary>
+    public static Func<Recipe, string?>? Build;
+    public static bool IsBuild(Recipe r) => r.Places?.StartsWith("build:") == true;
     /// <summary>What stands in for heat in the lists: "a fire or a camping stove".</summary>
     public static string HeatName => Core.Lang.T("heat.any");
 
@@ -62,7 +68,8 @@ public static class Recipes
                     r.TryGetProperty("book", out var bk) ? bk.GetString() : null,
                     r.TryGetProperty("skill", out var sk) ? sk.GetString() : null,
                     r.TryGetProperty("evolve", out var ev) ? ev.GetString() : null,
-                    r.TryGetProperty("adds", out var ad) ? ad.GetString() : null);
+                    r.TryGetProperty("adds", out var ad) ? ad.GetString() : null,
+                    r.TryGetProperty("bench", out var bn) && bn.GetBoolean());
                 if (rec.Skill != null && !Skills.All.ContainsKey(rec.Skill)) Log.Error("Recipes", $"{rec.Id}: unknown skill '{rec.Skill}'");
                 if (rec.Book != null && ItemDb.Get(rec.Book) is not { } bookDef) Log.Error("Recipes", $"{rec.Id}: unknown book '{rec.Book}'");
                 else if (rec.Book != null && !ItemDb.Def(rec.Book).Teaches.Contains(rec.Id)) Log.Error("Recipes", $"{rec.Id}: {rec.Book} doesn't teach it (items.json teaches)");
@@ -88,6 +95,7 @@ public static class Recipes
         foreach (var alts in r.Tools)
             if (!alts.Any(a => pack.CountMatching(a) > 0)) miss.Add(string.Join(" or ", alts.Select(ItemDb.Say)));
         if (r.Heat && HeatHere?.Invoke(pack) == null) miss.Add(HeatName);
+        if (r.Bench && BenchHere?.Invoke() != true) miss.Add(Core.Lang.T("craft.bench"));   // D128
         if (r.Evolve != null && Evolved.Missing(pack, r.Evolve, r.Adds ?? "") is { } pot) miss.Add(pot);   // D114, D116
         return miss;
     }
@@ -97,6 +105,7 @@ public static class Recipes
     {
         var miss = Missing(r, pack);
         if (miss.Count > 0) { said = Core.Lang.T("inv.you_need", string.Join(", ", miss)); return false; }
+        if (IsBuild(r)) { said = Build?.Invoke(r) ?? ""; return said.Length == 0; }   // placed and built in the world (D128)
         // the weight after: what's used up goes, what's made comes
         // (for a tag, the first matching item in the pack is what goes, less what it leaves behind)
         float InW(string key)

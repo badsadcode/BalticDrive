@@ -121,6 +121,12 @@ public partial class InventoryScreen : Control
         if (_mine == null || _making != null) return;
         var miss = Recipes.Missing(r, _mine);
         if (miss.Count > 0) { Flash(Core.Lang.T("inv.you_need", string.Join(", ", miss))); return; }
+        if (Recipes.IsBuild(r))
+        {
+            // built where you put it (D128): the window closes and its ghost follows your look
+            if (Recipes.Build?.Invoke(r) is { } why) Flash(why); else Close();
+            return;
+        }
         if (r.Seconds <= 0) { Finish(r); return; }
         _making = r with { Seconds = Recipes.SecondsFor(r) }; _makingT = 0; _lastHealth = Health?.Invoke() ?? 0;   // skill makes it quicker (D113)
         Core.Log.Info("Recipes", $"{r.Id}: started, {r.Seconds:0} s");
@@ -468,6 +474,7 @@ public partial class CraftingColumn : PanelContainer, ICraftColumn
             string Part(string label, bool ok) => $"[color=#{(ok ? Have : Lack).ToHtml(false)}]{label}[/color]";
             var parts = r.Inputs.Select(p => Part(p.Count > 1 ? $"{p.Count} × {ItemDb.Say(p.Item)}" : ItemDb.Say(p.Item), pack.CountMatching(p.Item) >= p.Count)).ToList();
             var tools = r.Tools.Select(alts => Part(string.Join(" or ", alts.Select(ItemDb.Say)), alts.Any(a => pack.CountMatching(a) > 0))).ToList();
+            if (r.Bench) tools.Add(Part(Core.Lang.T("craft.bench"), Recipes.BenchHere?.Invoke() == true));   // D128
             if (r.Heat)
             {
                 var heat = Recipes.HeatHere?.Invoke(pack);

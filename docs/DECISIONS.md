@@ -1966,3 +1966,29 @@ started and stopped several times while a fridge stayed shut counts only its las
 old, the one left out 1.00), and the interior test's `--interior-fridge` opens a real fridge in a block at
 71500,641500 (the test block at 68600,639300 turned out to hold only studios, no kitchens; BadBuilding's narrow blocks
 keep small flats, D37 there, so no fridge to find).
+
+
+## D128 — Building, part one: workbench, crate, rain collector, barricade
+
+Tom: "fridges first then building", and for part one all four pieces, placed with a ghost, placeholders until his
+models. `Build.Built` keeps what you build per world (`user://built.json`), built around you within 250 m;
+`Build.PieceDef` reads `GameData/build.json` (size, kind, and per kind: a crate's kilograms, a collector's bottles and
+minutes per bottle, a barricade's hits). Building is a recipe like any other (D106) with `places: "build:<piece>"`:
+picking it in the notebook (new tab "Building", *Budowanie*) closes the window and `Build.Placer` shows a see-through
+ghost where you look, within 4 m: green where it fits, red with the reason where it doesn't (no ground, too steep, too
+close, in the water, something in the way; a collector only outdoors). A barricade lies flat against a wall you aim
+at and may touch walls; the wheel lifts it up to 1.2 m, over a window. R turns it 22.5° (Shift+R back); left click or F
+builds; Esc or right click puts it away. While placing, the mouse and R belong to the placer: no shooting, no
+reloading. Then you build: the recipe's seconds (woodcraft makes it quicker, D113), a hammer's knock, the ghost rising;
+a step away or a hit stops it, and the materials are only used when it's done. Woodcraft practice for each.
+
+The pieces: a **workbench** (4 planks, nails, a hammer; 40 s); recipes with `"bench": true` need one within 2.5 m:
+the first is **barricade boards** (3 planks and nails, cut to size there). A **barricade** (a set of boards, a hammer;
+15 s) blocks people and bullets (it's on the props layer, which bullets and bandits' eyes stop at) and gives way after
+12 hits; F takes it down and gives the boards back. A **crate** (4 planks, nails; 25 s) holds 50 kg, kept with the
+containers. A **rain collector** (a plastic barrel, a sheet, rope, 2 planks; 30 s; outdoors) fills with a bottle of
+clean water every 6 minutes of play, up to 8; F fills an empty bottle. New items: plank (*deska*, shelves, boots,
+storage rooms), plastic barrel (*plastikowa beczka*, shelves, storage rooms), barricade boards. Stand-in shapes from
+boxes; a GLB at `Assets/Props/Built/<piece>.glb` replaces one with no code change (docs/BUILD_MODELS_BRIEF.md has the
+sizes for Tom). Found on the way: `--autotest=build` also ran the UI test, since "build" contains "ui" and tests are
+matched by substring; the UI test now ignores it. Self-test `--autotest=build`, English and Polish.

@@ -79,6 +79,175 @@ public sealed class Tests
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
     private bool _bigos, _fresh, _ui, _wells;
+    private double _buildT = -1, _buildStepAt;
+    private bool _build;
+    private int _buildStep, _buildHeading;
+    private string? _buildBackup;
+
+    /// <summary>--autotest=build (D128): the four things you build, one after another: materials in the pack, the build
+    /// recipe picked (the ghost appears), turned round until it fits (a red ghost first, aimed at the car), built with F
+    /// (the hammering, then the thing); the barricade boards cut at the workbench (only there); the crate opened and
+    /// something put in; half an hour of rain in the collector and a bottle filled; the barricade shot to pieces. The
+    /// player's containers file is put back (a copy on disk if the test dies), nothing else is saved.</summary>
+    private bool BuildTest(double delta)
+    {
+        string file = ProjectSettings.GlobalizePath("user://containers.json");
+        var built = _main.Built;
+        if (_buildT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null || built == null) return true;
+            _buildT = 0;
+            string keep = file + ".selftest";
+            if (System.IO.File.Exists(keep)) { System.IO.File.Copy(keep, file, true); Log.Info("Test", "build: the containers file from a test that died put back"); }
+            _buildBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
+            if (_buildBackup != null) System.IO.File.WriteAllText(keep, _buildBackup);
+            built.Frozen = true;
+            Items.Skills.Add("woodcraft", 400);   // a practised hand: shorter waits in the test
+            Log.Info("Test", $"build: woodcraft level {Items.Skills.Level("woodcraft")}, times x{Items.Skills.TimeFactor("woodcraft"):0.00}; {built.All.Count} built before");
+            _main.ToggleOnFoot();
+            return true;
+        }
+        _buildT += delta;
+        var w = _main.Walker!;
+        var pack = w.Body.Pack;
+        var placer = _main.Placer!;
+        var world = _main.World!;
+        Items.Recipe R(string id) => Items.Recipes.All.First(r => r.Id == id);
+        string[] order = { "build_workbench", "build_barricade", "build_crate", "build_rain_collector" };
+        void Look(float yaw)
+        {
+            var at = w.GlobalPosition + new Vector3(-MathF.Sin(yaw), 0, -MathF.Cos(yaw)) * 2.7f;
+            var (x, _, z) = WorldOrigin.ToWorld(at);
+            w.Face(at with { Y = world.Height(x, z) + 0.2f });
+        }
+        bool Wait(double s) => _buildT - _buildStepAt < s;
+        void Next() { _buildStep++; _buildStepAt = _buildT; }
+        int piece = _buildStep / 10, sub = _buildStep % 10;
+        if (piece < order.Length)
+        {
+            var r = R(order[piece]);
+            switch (sub)
+            {
+                case 0:
+                    if (Wait(1)) return true;
+                    w.SetView(true);
+                    pack.Stacks.Clear();
+                    pack.Add("hammer", 1); pack.Add("nails", 2);
+                    if (r.Id == "build_workbench") pack.Add("plank", 4);
+                    if (r.Id == "build_crate") pack.Add("plank", 4);
+                    if (r.Id == "build_rain_collector") { pack.Add("plastic_barrel", 1); pack.Add("sheet", 1); pack.Add("rope", 1); pack.Add("plank", 2); }
+                    if (r.Id == "build_barricade")
+                    {
+                        // the boards first: only at the workbench
+                        pack.Add("plank", 3);
+                        var boards = R("barricade_boards");
+                        bool at = Items.Recipes.BenchHere?.Invoke() == true;
+                        bool made = Items.Recipes.Make(boards, pack, out var said);
+                        Log.Info("Test", $"build: cutting barricade boards by the workbench ({at}): {made}, {said}");
+                    }
+                    var why = Items.Recipes.Build?.Invoke(r);
+                    Log.Info("Test", $"build: {r.Id}: ghost {(why == null ? "up" : why)}; pack {Items.Inventory.Say(pack.Stacks)}");
+                    _buildHeading = 0;
+                    if (piece == 0) { Look(MathF.Atan2(-(_main.Car!.GlobalPosition - w.GlobalPosition).X, -(_main.Car.GlobalPosition - w.GlobalPosition).Z)); }   // at the car first: red
+                    Next();
+                    return true;
+                case 1:
+                    if (Wait(0.6)) return true;
+                    if (piece == 0 && _buildHeading == 0 && !placer.Fits) { Log.Info("Test", $"build: aimed at the car: fits {placer.Fits}, \"{placer.Why}\""); Shot("build_red"); }
+                    if (placer.Fits)
+                    {
+                        Log.Info("Test", $"build: {r.Id}: fits at heading {_buildHeading}; \"{_main.PromptText}\"");
+                        if (piece == 0) Shot("build_ghost");
+                        Next();
+                    }
+                    else if (_buildHeading >= 16) { Log.Info("Test", $"build: {r.Id}: nowhere fits ({placer.Why})"); placer.Cancel(); _buildStep = (piece + 1) * 10; _buildStepAt = _buildT; }
+                    else { Look(w.Yaw + MathF.PI / 4 * (_buildHeading % 2 == 0 ? 1 : 1)); _buildHeading++; _buildStepAt = _buildT; }
+                    return true;
+                case 2:
+                    if (Wait(0.3)) return true;
+                    PressF();
+                    Next();
+                    return true;
+                case 3:
+                    if (Wait(0.3)) return true;
+                    if (placer.Job != null)
+                    {
+                        if (piece == 0 && _buildT - _buildStepAt > 2.5 && _buildT - _buildStepAt < 2.6) Shot("build_building");
+                        return true;
+                    }
+                    Log.Info("Test", $"build: {r.Id}: done: {built.All.Count} built; pack {Items.Inventory.Say(pack.Stacks)}");
+                    _buildStep = (piece + 1) * 10; _buildStepAt = _buildT;
+                    return true;
+            }
+            return true;
+        }
+        // all four up: use them
+        int u = _buildStep - order.Length * 10;
+        if (Wait(1)) return true;
+        switch (u)
+        {
+            case 0:
+            {
+                // the overview: step back and look at them all
+                var mid = built.All.Where(p => p.Node != null).Select(p => p.Node!.GlobalPosition).Aggregate(Vector3.Zero, (a, b) => a + b) / Math.Max(1, built.All.Count);
+                var away = (w.GlobalPosition - mid) with { Y = 0 };
+                var car = _main.Car!;
+                car.Warp(new Transform3D(car.GlobalBasis, car.GlobalPosition + (car.GlobalPosition - mid).Normalized() * 25f + Vector3.Up * 0.5f));   // out of the picture
+                w.GlobalPosition = mid + (away.LengthSquared() < 0.01f ? Vector3.Back : away.Normalized()) * 5f + Vector3.Up * 0.5f;
+                w.Face(mid + Vector3.Up * 0.5f);
+                Log.Info("Test", $"build: built: {string.Join(", ", built.All.Select(p => $"{p.Def} at {p.X:0.0},{p.Z:0.0}"))}");
+                Next(); return true;
+            }
+            case 1: Shot("build_all"); Next(); return true;
+            case 2:
+            {
+                // the crate: open it with F, put a tin of beans in
+                var crate = built.All.First(p => p.Def == "crate");
+                w.GlobalPosition = crate.Node!.GlobalPosition + crate.Node.GlobalBasis.Z * 0.9f + Vector3.Up * 0.3f;
+                w.Face(crate.Node.GlobalPosition + Vector3.Up * 0.3f);
+                pack.Add("beans", 2);
+                Next(); return true;
+            }
+            case 3: Log.Info("Test", $"build: by the crate: \"{_main.PromptText}\""); PressF(); Next(); return true;
+            case 4:
+            {
+                var inv = _main.InventoryWindow!;
+                var crate = built.All.First(p => p.Def == "crate");
+                int moved = pack.MoveTo(built.Crate(crate), "beans", 2); inv.Refresh();
+                Log.Info("Test", $"build: crate open {inv.IsOpen}; beans moved {moved}: crate {Items.Inventory.Say(built.Crate(crate).Stacks)}");
+                Shot("build_crate"); Next(); return true;
+            }
+            case 5:
+            {
+                _main.InventoryWindow!.Close();
+                var col = built.All.First(p => p.Def == "rain_collector");
+                Core.WorldClock.Skip(1800);
+                w.GlobalPosition = col.Node!.GlobalPosition + col.Node.GlobalBasis.Z * 1.2f + Vector3.Up * 0.3f;
+                w.Face(col.Node.GlobalPosition + Vector3.Up * 0.8f);
+                pack.Add("empty_bottle", 2);
+                Next(); return true;
+            }
+            case 6: Log.Info("Test", $"build: half an hour later by the collector: {Build.Built.Bottles(built.All.First(p => p.Def == "rain_collector"))} bottles; \"{_main.PromptText}\""); Shot("build_collector"); PressF(); Next(); return true;
+            case 7:
+            {
+                Log.Info("Test", $"build: pack: water {pack.Count("water")}, empty {pack.Count("empty_bottle")}; collector {Build.Built.Bottles(built.All.First(p => p.Def == "rain_collector"))}");
+                // the barricade: shot until it gives way
+                var bar = built.All.First(p => p.Def == "barricade");
+                int hits = 0;
+                while (built.All.Contains(bar) && hits < 50) { bar.Node!.GetChildren().OfType<Build.BarricadeBody>().First().Hit(default); hits++; }
+                Log.Info("Test", $"build: the barricade gave way after {hits} hits; {built.All.Count} left");
+                Next(); return true;
+            }
+            case 8:
+                if (_buildBackup != null) System.IO.File.WriteAllText(file, _buildBackup); else if (System.IO.File.Exists(file)) System.IO.File.Delete(file);
+                if (System.IO.File.Exists(file + ".selftest")) System.IO.File.Delete(file + ".selftest");
+                w.SetView(false);
+                Log.Info("Test", "build: done (containers file put back)");
+                return false;
+        }
+        return true;
+    }
+
     private double _fridgeT = -1;
     private bool _fridge;
     private Power.Generators.Gen? _fridgeGen;
@@ -1151,12 +1320,13 @@ public sealed class Tests
         _skills = Main.Args.GetValueOrDefault("autotest", "").Contains("skills");
         _bigos = Main.Args.GetValueOrDefault("autotest", "").Contains("bigos");
         _fresh = Main.Args.GetValueOrDefault("autotest", "").Contains("fresh");
-        _ui = Main.Args.GetValueOrDefault("autotest", "").Contains("ui");
+        _ui = Main.Args.GetValueOrDefault("autotest", "").Contains("ui") && Main.Args.GetValueOrDefault("autotest", "") != "build";   // "build" has "ui" in it (D128)
         _wells = Main.Args.GetValueOrDefault("autotest", "").Contains("wells");
         _fuel = Main.Args.GetValueOrDefault("autotest", "").Contains("fuel");
         _pumps = Main.Args.GetValueOrDefault("autotest", "").Contains("pumps");
         _boot = Main.Args.GetValueOrDefault("autotest", "").Contains("boot");
         _fridge = Main.Args.GetValueOrDefault("autotest", "").Contains("fridge");
+        _build = Main.Args.GetValueOrDefault("autotest", "") == "build";
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2745,6 +2915,12 @@ public sealed class Tests
         {
             if (WellsTest(delta)) return;
             _wells = false;
+        }
+        if (_build)
+        {
+            if (BuildTest(delta)) return;
+            _build = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
         }
         if (_fridge)
         {

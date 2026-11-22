@@ -253,12 +253,13 @@ public partial class Weapons : Node3D
             if (k.Keycode == Key.Key1) Equip("mosin");
             else if (k.Keycode == Key.Key2) Equip("ak");
             else if (k.Keycode == Key.Key3) Equip("pistol");
-            else if (k.Keycode == Key.R) StartReload();
+            else if (k.Keycode == Key.R && Main.Instance?.Placing != true) StartReload();   // R turns what you're placing (D128)
         }
         if (e is InputEventMouseButton mb && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
-            if (mb.ButtonIndex == MouseButton.Left) _triggerHeld = mb.Pressed && _w.Burden <= 0;   // arms full (D109): no gun
-            if (mb.ButtonIndex == MouseButton.Right) Aiming = mb.Pressed;
+            bool placing = Main.Instance?.Placing == true;   // placing something you build (D128): the mouse is for that
+            if (mb.ButtonIndex == MouseButton.Left) _triggerHeld = mb.Pressed && _w.Burden <= 0 && !placing;   // arms full (D109): no gun
+            if (mb.ButtonIndex == MouseButton.Right) Aiming = mb.Pressed && !placing;
         }
         if (e is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {

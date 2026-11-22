@@ -510,6 +510,18 @@
     {
      "item": "siphon_hose",
      "weight": 0.4
+    },
+    {
+     "item": "plank",
+     "weight": 0.8,
+     "count": [
+      1,
+      2
+     ]
+    },
+    {
+     "item": "plastic_barrel",
+     "weight": 0.2
     }
    ]
   },
@@ -566,6 +578,14 @@
     {
      "item": "bandage",
      "weight": 0.8
+    },
+    {
+     "item": "plank",
+     "weight": 0.5,
+     "count": [
+      1,
+      2
+     ]
     }
    ]
   }
@@ -597,7 +617,9 @@
    "gas_canister": 3,
    "sauerkraut": 2,
    "siphon_hose": 3,
-   "empty_petrol_can": 3
+   "empty_petrol_can": 3,
+   "plank": 6,
+   "plastic_barrel": 4
   },
   "bedroom": {
    "photo_album": 2,

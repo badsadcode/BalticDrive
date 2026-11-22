@@ -229,6 +229,7 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         string Mark(string label, bool ok) => ok ? $"[color=#{Green.ToHtml(false)}]{label}[/color] {Pencil_("tick")}" : $"{Pencil_("cross")} [color=#{Red.ToHtml(false)}]{label}[/color]";
         var parts = r.Inputs.Select(p => Mark(p.Count > 1 ? $"{p.Count} × {ItemDb.Say(p.Item)}" : ItemDb.Say(p.Item), pack.CountMatching(p.Item) >= p.Count)).ToList();
         var tools = r.Tools.Select(alts => Mark(string.Join(" or ", alts.Select(ItemDb.Say)), alts.Any(a => pack.CountMatching(a) > 0))).ToList();
+        if (r.Bench) tools.Add(Mark(Core.Lang.T("craft.bench"), Recipes.BenchHere?.Invoke() == true));   // D128
         if (r.Heat) { var heat = Recipes.HeatHere?.Invoke(pack); tools.Add(Mark(heat != null ? Core.Lang.T("nb.heat", heat) : Recipes.HeatName, heat != null)); }
         if (r.Evolve != null && miss.FirstOrDefault(m => m.Contains(ItemDb.Get(r.Evolve)?.Name ?? r.Evolve)) is { } potMiss) tools.Add(Mark(potMiss, false));
         string makes = r.Places != null ? Core.Lang.T("nb.on_ground", Core.Lang.Pl ? "ognisko" : r.Places) : r.Evolve != null ? Core.Lang.T("nb.better", r.Evolve) : Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count)));

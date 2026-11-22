@@ -77,7 +77,7 @@ public partial class Main : Node3D
 		// another language (D119): everything that keeps names reads them again
 		Core.Lang.Changed += () =>
 		{
-			Items.ItemDb.Reload(); Items.Recipes.Reload(); Items.Evolved.Reload(); Items.Skills.ReloadDefs(); Core.Sandbox.ReloadLabels();
+			Items.ItemDb.Reload(); Items.Recipes.Reload(); Build.PieceDef.Reload(); Items.Evolved.Reload(); Items.Skills.ReloadDefs(); Core.Sandbox.ReloadLabels();
 			// the F10 window is built once: build it again in the new language (it's open: that's where the switch is)
 			if (_sandboxMenu != null && _ui != null)
 			{
@@ -213,6 +213,15 @@ public partial class Main : Node3D
 	private Power.Campfires? _fires;
 	private Power.VillageWells? _villageWells;
 	public Power.VillageWells? VillageWells => _villageWells;
+	private Build.Built? _built;
+	public Build.Built? Built => _built;
+	private Build.Placer? _placer;
+	public Build.Placer? Placer => _placer;
+	/// <summary>Placing something you build (D128): the mouse and R are for that.</summary>
+	public bool Placing => _placer?.Placing == true;
+	public bool Indoors => _interiors?.Inside != null;
+	private Build.Built.Piece? _builtHere;
+	private double _nextHammer;
 	private Power.Stations? _stations;
 	public Power.Stations? Stations => _stations;
 	private Power.Stations.Pump? _pumpHere;
@@ -592,6 +601,17 @@ public partial class Main : Node3D
 			_villageWells = new Power.VillageWells(_world); AddChild(_villageWells);   // wells in village yards (D122)
 			_stations = new Power.Stations(_world, SaveWorld) { PoweredAt = (x, z) => _generators?.PoweredAt(x, z, Power.Stations.PowerReach) == true };
 			AddChild(_stations);   // petrol stations that pump (D124)
+			_built = new Build.Built(_world, SaveWorld); AddChild(_built);   // what you build (D128)
+			_built.Said += s => ShowNote(s, 4);
+			_placer = new Build.Placer { Name = "Placer" }; AddChild(_placer);
+			Items.Recipes.BenchHere = () => _walker != null && OnFoot && _built.BenchNear(_walker.GlobalPosition);
+			Items.Recipes.Build = r =>
+			{
+				if (!OnFoot || _walker == null) return Core.Lang.T("build.on_foot");
+				if (Build.PieceDef.Get(r.Places![6..]) is not { } def) return Core.Lang.T("craft.nowhere");
+				_placer.Begin(r, def);
+				return null;
+			};
 			Items.Recipes.HeatHere = pack =>
 				_walker != null && _fires?.Near(_walker.GlobalPosition, Power.Campfires.HeatReach, true) != null ? Core.Lang.T("heat.campfire")
 				: pack.CountMatching("tag:stove") > 0 && pack.CountMatching("tag:fuel_gas") > 0 ? Core.Lang.T("heat.stove") : null;
@@ -674,6 +694,7 @@ public partial class Main : Node3D
 		if (genAt is { } fa) _fires?.Update(fa, now, (float)GetProcessDeltaTime());
 		if (genAt is { } va) _villageWells?.Update(va, now);
 		if (genAt is { } sa) _stations?.Update(sa, now);
+		if (genAt is { } ba) _built?.Update(ba, now);
 		if (_generators?.Carried != null && _walker != null && (PlayerDown || !on)) { _generators.PutDown(_walker.GlobalPosition, _walker.Yaw); _walker.Burden = 0; }   // dropped when you fall or get in a car
 		if (_generators != null && _safehouse is { } sh)
 		{
@@ -695,6 +716,32 @@ public partial class Main : Node3D
 		{
 			_prompt!.Visible = true;
 			_prompt.Text = Core.Lang.T("p.chopping", Mathf.Clamp(_chopT / ChopTime, 0, 1).ToString("P0"));
+			_bars.QueueRedraw();
+			return;
+		}
+		// placing and building (D128)
+		if (_placer is { Recipe: not null, Def: { } pd } pl)
+		{
+			_prompt!.Visible = true;
+			_prompt.Text = pl.Job != null ? Core.Lang.T("build.building", pd.Name, pl.Progress.ToString("P0"))
+				: pl.Fits ? Core.Lang.T("build.placing", char.ToUpper(pd.Name[0]) + pd.Name[1..]) + (pd.Kind == "barricade" ? Core.Lang.T("build.placing_lift") : "")
+				: Core.Lang.T("build.placing_bad", char.ToUpper(pd.Name[0]) + pd.Name[1..], pl.Why);
+			_bars.QueueRedraw();
+			return;
+		}
+		_builtHere = _built?.InReach(_walker!.GlobalPosition);
+		if (_builtHere is { } bp && Build.PieceDef.Get(bp.Def) is { } bd)
+		{
+			var pack = _walker!.Body.Pack;
+			_prompt!.Visible = true;
+			_prompt.Text = bd.Kind switch
+			{
+				"crate" => _built!.Crate(bp) is var ci ? Core.Lang.T("p.crate", ci.Weight.ToString("0.0"), ci.MaxWeight.ToString("0")) : "",
+				"collector" => Build.Built.Bottles(bp) is var nb && nb == 0 ? Core.Lang.T("p.collector_empty")
+					: pack.Count("empty_bottle") > 0 ? Core.Lang.T("p.collector", nb, pack.Count("empty_bottle")) : Core.Lang.T("p.collector_nobottle", nb),
+				"barricade" => Core.Lang.T("p.barricade", bp.Hp, bd.Hp),
+				_ => Core.Lang.T("p.workbench"),
+			};
 			_bars.QueueRedraw();
 			return;
 		}
@@ -865,6 +912,25 @@ public partial class Main : Node3D
 		Flying = false;
 	}
 
+	/// <summary>While placing something you build (D128): R turns it, the wheel lifts a barricade, a left click builds,
+	/// a right click or Esc puts it away. Before anything else sees those.</summary>
+	public override void _Input(InputEvent e)
+	{
+		if (_placer == null || !_placer.Placing || _walker == null) return;
+		if (e is InputEventKey { Pressed: true, Echo: false } k)
+		{
+			if (k.Keycode == Key.R) { _placer.Turn(k.ShiftPressed ? -1 : 1); GetViewport().SetInputAsHandled(); }
+			else if (k.Keycode == Key.Escape) { _placer.Cancel(); GetViewport().SetInputAsHandled(); }
+		}
+		else if (e is InputEventMouseButton { Pressed: true } mb)
+		{
+			if (mb.ButtonIndex == MouseButton.Left) { if (!_placer.Confirm(_walker)) ShowNote(_placer.Why, 3); GetViewport().SetInputAsHandled(); }
+			else if (mb.ButtonIndex == MouseButton.Right) { _placer.Cancel(); GetViewport().SetInputAsHandled(); }
+			else if (mb.ButtonIndex == MouseButton.WheelUp) { _placer.Lift(0.1f); GetViewport().SetInputAsHandled(); }
+			else if (mb.ButtonIndex == MouseButton.WheelDown) { _placer.Lift(-0.1f); GetViewport().SetInputAsHandled(); }
+		}
+	}
+
 	public override void _UnhandledInput(InputEvent e)
 	{
 		if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F10 } && _world != null && !(_sandboxMenu?.IsOpen ?? false))
@@ -947,6 +1013,14 @@ public partial class Main : Node3D
 		{
 			if (fk.Pressed)
 			{
+				// building (D128): F builds where the ghost stands; by something you built, F uses it
+				if (OnFoot && _placer?.Placing == true) { if (!_placer.Confirm(_walker!)) ShowNote(_placer.Why, 3); GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _placer?.Job != null) { GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _builtHere is { } bh && Build.PieceDef.Get(bh.Def) is { } bhd && bhd.Kind != "workbench")
+				{
+					UseBuilt(bh, bhd);
+					GetViewport().SetInputAsHandled(); return;
+				}
 				// petrol pumps (D124), before crates (the prompt shows the pump first): F stops the filling; at a working pump, fills the car beside it, else a can
 				if (OnFoot && _stations?.Filling != null) { ShowNote(_stations.StopFilling(), 4); GetViewport().SetInputAsHandled(); return; }
 				if (OnFoot && _pumpHere is { } pump)
@@ -1196,6 +1270,28 @@ public partial class Main : Node3D
 	public Vehicle.WreckField? Wrecks => _wrecks;
 
 	/// <summary>The car (yours or a wreck, D69) the walker stands by, within 4.5 m.</summary>
+	/// <summary>F at something you built (D128): a crate opens, a collector fills a bottle, a barricade comes down.</summary>
+	private void UseBuilt(Build.Built.Piece p, Build.PieceDef d)
+	{
+		var pack = _walker!.Body.Pack;
+		switch (d.Kind)
+		{
+			case "crate":
+				OpenInventoryOn(_built!.Crate(p), d.Name, () => Items.Containers.Save());
+				break;
+			case "collector":
+				if (Build.Built.Bottles(p) == 0) ShowNote(Core.Lang.T("p.collector_empty"), 3);
+				else if (pack.Count("empty_bottle") == 0) ShowNote(Core.Lang.T("n.no_bottle"), 3);
+				else { _built!.TakeBottle(p); pack.Remove("empty_bottle", 1); pack.Add("water", 1); ShowNote(Core.Lang.T("n.collector_filled", pack.Count("water")), 4); }
+				break;
+			case "barricade":
+				if (pack.Room("barricade_boards") < 1) { ShowNote(Core.Lang.T("inv.too_heavy"), 3); break; }
+				_built!.Remove(p); pack.Add("barricade_boards", 1);
+				ShowNote(Core.Lang.T("n.barricade_down"), 4);
+				break;
+		}
+	}
+
 	/// <summary>The car standing at a pump (D124): yours or any other, within the hose's reach.</summary>
 	public Vehicle.Car? PumpCar(Power.Stations.Pump p)
 	{
@@ -1242,6 +1338,25 @@ public partial class Main : Node3D
 	public override void _Process(double delta)
 	{
 		if (_world != null) Core.WorldClock.Tick(delta);   // food ages while you play (D115)
+		if (_placer is { Recipe: not null } && _walker != null)
+		{
+			// what you build (D128)
+			if (!OnFoot || PlayerDown || (_inventory?.IsOpen ?? false) && _placer.Job == null) _placer.Cancel();
+			else if (_placer.Job == null) { if (GetViewport().GetCamera3D() is { } cam) _placer.Follow(_walker, cam); }
+			else
+			{
+				if (_placer.Work(_walker, _built!, (float)delta) is { } done) ShowNote(done, 4);
+				else if (Time.GetTicksMsec() / 1000.0 >= _nextHammer)
+				{
+					_nextHammer = Time.GetTicksMsec() / 1000.0 + 0.55;
+					var knock = new AudioStreamPlayer3D { Stream = Audio.SoundBank.Get("chop", Power.Woodland.Thunk), Bus = Audio.Buses.Sfx, UnitSize = 4f, MaxDistance = 80f, PitchScale = 1.6f };
+					AddChild(knock);
+					knock.GlobalPosition = _walker.GlobalPosition + Vector3.Up;
+					knock.Play();
+					knock.Finished += knock.QueueFree;
+				}
+			}
+		}
 		// holding F by the car: the workshop (D68)
 		if (_chopT >= 0 && _walker != null)
 		{
