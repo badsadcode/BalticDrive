@@ -1932,3 +1932,15 @@ the layout first (`RemoveChild`, then `QueueFree`), in the rucksack, the noteboo
 never showed it. The test died before putting the player's containers file back, so the searched-furniture state of
 the Baltic world was lost (it was test data); the boot test now keeps its copy on disk (`containers.json.selftest`)
 and the next run puts it back if a run dies. Self-test `--autotest=boot`, English and Polish.
+
+
+## D126 — Tom's petrol pump
+
+Tom modelled a petrol pump in Blender ("work in progress, I will try to make it better later"):
+`Assets/Props/GasPump/gas_pump.glb` (moved there from `Assets/`, with a README; the studio's own work). Modelled 4.32 m
+tall, 2.6 m along its long side; the game scales it by 0.535 (about 2.3 m) and stands it on the concrete island of
+D124, its long side along the island as the boxes were, so the faces look at the cars. The bollards and kerb stay; the
+box dispenser stays only as a stand-in if the file is missing. Its screen is on the +X face only (the -X face has none
+yet): the "powered" panel is laid exactly over it (model 0.42 m out, 2.6-3.36 m up, 1.16 m wide), dark without power,
+green with. Collider fitted to the new size. When Tom improves the model, keeping the same size, origin and the screen
+in the same place means nothing in the code changes; a screen on the other face would need one line.

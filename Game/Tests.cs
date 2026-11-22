@@ -230,7 +230,7 @@ public sealed class Tests
             Stand(n.GlobalPosition + (n.GlobalBasis.X + n.GlobalBasis.Z) * 9f + Vector3.Up * 0.5f, n.GlobalPosition + Vector3.Up * 1f);   // the forecourt
         }
         if (At(5.8)) Shot("pumps_forecourt");
-        if (At(5.9) && _pump?.Node is { } pb) Stand(pb.GlobalPosition + pb.GlobalBasis.X * 1.15f - pb.GlobalBasis.Z * 0.6f, pb.GlobalPosition + Vector3.Up * 1.2f);   // beside it
+        if (At(5.9) && _pump?.Node is { } pb) Stand(pb.GlobalPosition + pb.GlobalBasis.X * 1.4f - pb.GlobalBasis.Z * 0.9f, pb.GlobalPosition + Vector3.Up * 1.2f);   // beside it, its screen side
         if (At(6.3) && _pump != null) { Log.Info("Test", $"pumps: at the pump: \"{_main.PromptText}\""); Shot("pumps_station"); }
         if (At(6.5) && _pump?.Node is { } pn)
         {

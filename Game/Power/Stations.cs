@@ -23,6 +23,11 @@ namespace BalticDrive.Power;
 public sealed partial class Stations : Node3D
 {
     public const float Near = 220f, Far = 300f, Reach = 1.9f, CarReach = 7f, PowerReach = 30f, Flow = 1.5f;
+    /// <summary>Tom's pump (D126), modelled 4.32 m tall: scaled to about 2.3 m. Boxes stand in when it's missing.</summary>
+    public const string ModelPath = "res://Assets/Props/GasPump/gas_pump.glb";
+    public const float ModelScale = 0.535f;
+    private static PackedScene? _model;
+    private static bool _modelTried;
     private const string FilePath = "user://stations.json";
 
     public sealed class Pump
@@ -286,22 +291,35 @@ public sealed partial class Stations : Node3D
         }
         // local: the island runs along Z; the dispenser faces ±X, where the cars stand
         Part(0, 0.09f, 0, 1.3f, 0.18f, 4.2f, _kerb);
-        Part(0, 1.0f, 0, 0.5f, 1.65f, 1.0f, _body);
-        Part(0, 1.93f, 0, 0.56f, 0.24f, 1.06f, band);
         var screens = new List<MeshInstance3D>();
-        foreach (float side in new[] { -1f, 1f })
+        if (!_modelTried) { _modelTried = true; _model = ResourceLoader.Exists(ModelPath) ? GD.Load<PackedScene>(ModelPath) : null; }
+        if (_model?.Instantiate<Node3D>() is { } model)
         {
-            screens.Add(Part(side * 0.255f, 1.42f, 0, 0.02f, 0.28f, 0.55f, _dark));
-            Part(side * 0.27f, 0.95f, -0.3f, 0.06f, 0.22f, 0.1f, _black);   // the nozzles in their holsters
-            Part(side * 0.27f, 0.95f, 0.3f, 0.06f, 0.22f, 0.1f, _black);
-            Part(side * 0.3f, 0.55f, -0.3f, 0.03f, 0.6f, 0.03f, _black);   // their hoses hanging down
+            // Tom's pump (D126) on the island; screens on its two faces light up with power
+            model.Scale = Vector3.One * ModelScale;
+            model.Position = new Vector3(0, 0.18f, 0);
+            root.AddChild(model);
+            // over the screen Tom modelled on its +X face (model 0.42 m out, 2.6-3.36 m up, 1.16 m wide)
+            screens.Add(Part(0.43f * ModelScale + 0.004f, 0.18f + 2.98f * ModelScale, 0, 0.012f, 0.76f * ModelScale, 1.16f * ModelScale, _dark));
+        }
+        else
+        {
+            Part(0, 1.0f, 0, 0.5f, 1.65f, 1.0f, _body);
+            Part(0, 1.93f, 0, 0.56f, 0.24f, 1.06f, band);
+            foreach (float side in new[] { -1f, 1f })
+            {
+                screens.Add(Part(side * 0.255f, 1.42f, 0, 0.02f, 0.28f, 0.55f, _dark));
+                Part(side * 0.27f, 0.95f, -0.3f, 0.06f, 0.22f, 0.1f, _black);   // the nozzles in their holsters
+                Part(side * 0.27f, 0.95f, 0.3f, 0.06f, 0.22f, 0.1f, _black);
+                Part(side * 0.3f, 0.55f, -0.3f, 0.03f, 0.6f, 0.03f, _black);   // their hoses hanging down
+            }
         }
         Part(0, 0.62f, -1.95f, 0.16f, 0.9f, 0.16f, _yellow);   // bollards at the ends
         Part(0, 0.62f, 1.95f, 0.16f, 0.9f, 0.16f, _yellow);
         p.Screens = screens.ToArray();
         var body = new StaticBody3D { CollisionLayer = Bodies.Props, CollisionMask = 0 };
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(1.3f, 0.3f, 4.2f) }, Position = new Vector3(0, 0.15f, 0) });
-        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.6f, 2f, 1.1f) }, Position = new Vector3(0, 1.05f, 0) });
+        body.AddChild(new CollisionShape3D { Shape = _model != null ? new BoxShape3D { Size = new Vector3(0.8f, 2.2f, 1.45f) } : new BoxShape3D { Size = new Vector3(0.6f, 2f, 1.1f) }, Position = new Vector3(0, _model != null ? 1.28f : 1.05f, 0) });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.2f, 1.1f, 4.1f) }, Position = new Vector3(0, 0.6f, 0) });   // the bollards
         root.AddChild(body);
         float y = _world.Height(p.X, p.Z);
