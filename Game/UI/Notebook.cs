@@ -32,6 +32,24 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
     private float _progressK;
     private string _tab = "all";
     private Inventory? _pack;
+    private readonly StyleBoxTexture? _page;
+    private static StyleBoxTexture? _ring, _ringHover, _ringOff, _underline;
+    private static StyleBoxTexture? Ring
+    {
+        get
+        {
+            if (_ring == null && Skin.Box("icons/notebook/pencil_circle.png") is { } r)
+            {
+                // the ring's corners are wide; the words sit closer to it than its nine-slice margins say
+                r.ContentMarginLeft = 22; r.ContentMarginRight = 22; r.ContentMarginTop = 6; r.ContentMarginBottom = 6;
+                _ring = r;
+            }
+            return _ring;
+        }
+    }
+    /// <summary>A pencil mark inline in handwriting: a tick for what you have, a cross for what you lack.</summary>
+    private static string Pencil_(string mark) => ResourceLoader.Exists($"res://Assets/UI/icons/notebook/pencil_{mark}.png")
+        ? $"[img=18x18]res://Assets/UI/icons/notebook/pencil_{mark}.png[/img]" : mark == "tick" ? "✓" : "✗";
 
     // ink on paper: the paper's light, so these are fixed colours (not the dark UI's)
     public static readonly Color Paper = new(0.95f, 0.93f, 0.86f), Grid = new(0.62f, 0.7f, 0.78f, 0.45f), Margin = new(0.8f, 0.3f, 0.28f, 0.75f),
@@ -53,7 +71,10 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
     {
         _screen = screen;
         CustomMinimumSize = new Vector2(560, 560);
-        AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        // the painted page (D118, Codex's set); else squared paper drawn here
+        _page = Skin.Box("icons/notebook/page_left.png", 6, 0);
+        if (_page != null) AddThemeStyleboxOverride("panel", _page);
+        else AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = Paper, ContentMarginLeft = 52, ContentMarginRight = 16, ContentMarginTop = 12, ContentMarginBottom = 12,
             CornerRadiusTopLeft = 3, CornerRadiusBottomLeft = 3, CornerRadiusTopRight = 6, CornerRadiusBottomRight = 6,
@@ -64,6 +85,11 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         AddChild(v);
         var title = new Label { Text = "Przepisy" };
         Handwrite(title, 36, Ink);
+        title.Draw += () =>
+        {
+            _underline ??= Skin.Box("icons/notebook/pencil_underline.png");
+            if (_underline != null) title.DrawStyleBox(_underline, new Rect2(0, title.Size.Y - 10, 150, 12));
+        };
         v.AddChild(title);
         _tabs = new HFlowContainer();
         _tabs.AddThemeConstantOverride("h_separation", 6);
@@ -97,6 +123,12 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
     public override void _Draw()
     {
         var size = Size;
+        if (_page != null)
+        {
+            // the painted page has its own squares and margin: a coffee ring someone left, and that's all
+            if (Skin.Tex("icons/notebook/coffee_ring.png") is { } ring) DrawTextureRect(ring, new Rect2(size.X - 132, 14, 110, 110), false, new Color(1, 1, 1, 0.4f));   // top right, by the title
+            return;
+        }
         for (float x = 6 + 16; x < size.X; x += 16) DrawLine(new Vector2(x, 0), new Vector2(x, size.Y), Grid, 1);
         for (float y = 16; y < size.Y; y += 16) DrawLine(new Vector2(6, y), new Vector2(size.X, y), Grid, 1);
         DrawLine(new Vector2(44, 0), new Vector2(44, size.Y), Margin, 1.5f);
@@ -132,7 +164,10 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         {
             if (id != "all" && !cats.Contains(id)) continue;
             var b = new Button { Text = pl, ToggleMode = true, ButtonPressed = id == _tab, CustomMinimumSize = new Vector2(0, 30) };
-            var sb = new StyleBoxFlat { BgColor = id == _tab ? sticker : new Color(sticker, 0.55f), ContentMarginLeft = 10, ContentMarginRight = 10, CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2 };
+            string art = id switch { "Cooking" => "cooking", "Medicine" => "medicine", "Fire" => "fire", "Bigos" => "bigos", "Trouble" => "trouble", _ => "materials" };
+            StyleBox sb = Skin.Box($"icons/notebook/tab_{art}.png", 8, 0, id == _tab ? Colors.White : new Color(1, 1, 1, 0.6f)) as StyleBox
+                ?? new StyleBoxFlat { BgColor = id == _tab ? sticker : new Color(sticker, 0.55f), ContentMarginLeft = 10, ContentMarginRight = 10, CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2 };
+            if (id == "all" && sb is StyleBoxTexture st0) st0.ModulateColor = id == _tab ? new Color(1.15f, 1.12f, 1.05f) : new Color(1, 1, 1, 0.6f);
             foreach (var st in new[] { "normal", "hover", "pressed", "focus" }) b.AddThemeStyleboxOverride(st, sb);
             Handwrite(b, 20, id == "Trouble" ? new Color(0.95f, 0.95f, 0.9f) : Ink);
             b.AddThemeColorOverride("font_hover_color", id == "Trouble" ? Colors.White : Ink);
@@ -182,12 +217,13 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
             {
                 // a pencil ring round it
                 var s = name.Size; float w = MathF.Min(s.X, name.GetThemeFont("font").GetStringSize(r.Name, HorizontalAlignment.Left, -1, 27).X + 14);
+                if (Ring != null) { name.DrawStyleBox(Ring, new Rect2(-8, 0, w + 10, s.Y + 2)); return; }
                 var pts = new List<Vector2>();
                 for (int i = 0; i <= 40; i++) { float a = i / 40f * MathF.Tau * 1.04f; pts.Add(new Vector2(w / 2 - 4 + MathF.Cos(a) * (w / 2 + 2), s.Y / 2 + 2 + MathF.Sin(a) * (s.Y / 2 - 2))); }
                 name.DrawPolyline(pts.ToArray(), new Color(Pencil, 0.7f), 1.4f);
             };
         text.AddChild(name);
-        string Mark(string label, bool ok) => ok ? $"[color=#{Green.ToHtml(false)}]{label} ✓[/color]" : $"[color=#{Red.ToHtml(false)}]{label}[/color]";
+        string Mark(string label, bool ok) => ok ? $"[color=#{Green.ToHtml(false)}]{label}[/color] {Pencil_("tick")}" : $"{Pencil_("cross")} [color=#{Red.ToHtml(false)}]{label}[/color]";
         var parts = r.Inputs.Select(p => Mark(p.Count > 1 ? $"{p.Count} × {ItemDb.Say(p.Item)}" : ItemDb.Say(p.Item), pack.CountMatching(p.Item) >= p.Count)).ToList();
         var tools = r.Tools.Select(alts => Mark(string.Join(" or ", alts.Select(ItemDb.Say)), alts.Any(a => pack.CountMatching(a) > 0))).ToList();
         if (r.Heat) { var heat = Recipes.HeatHere?.Invoke(pack); tools.Add(Mark(heat != null ? $"heat ({heat})" : Recipes.HeatName, heat != null)); }
@@ -205,12 +241,22 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
             text.AddChild(about);
         }
         row.AddChild(text);
-        var make = new Button { Text = r.Seconds > 0 ? $"Make · {Recipes.SecondsFor(r):0} s" : "Make", Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(104, 38), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        var make = new Button { Text = r.Seconds > 0 ? $"Make · {Recipes.SecondsFor(r):0} s" : "Make", Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(124, 40), SizeFlagsVertical = SizeFlags.ShrinkCenter };
         var ring = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0), BorderColor = Ink, BorderWidthBottom = 2, BorderWidthTop = 2, BorderWidthLeft = 2, BorderWidthRight = 2, CornerRadiusTopLeft = 18, CornerRadiusTopRight = 14, CornerRadiusBottomLeft = 14, CornerRadiusBottomRight = 18, ContentMarginLeft = 8, ContentMarginRight = 8 };
         var hover = (StyleBoxFlat)ring.Duplicate(); hover.BgColor = new Color(Amber, 0.15f);
         var off = (StyleBoxFlat)ring.Duplicate(); off.BorderColor = new Color(Pencil, 0.35f);
-        make.AddThemeStyleboxOverride("normal", ring); make.AddThemeStyleboxOverride("hover", hover); make.AddThemeStyleboxOverride("pressed", hover);
-        make.AddThemeStyleboxOverride("disabled", off); make.AddThemeStyleboxOverride("focus", ring);
+        if (Ring != null)
+        {
+            _ringHover ??= (StyleBoxTexture)Ring.Duplicate(); _ringHover.ModulateColor = new Color(0.75f, 0.45f, 0.1f);
+            _ringOff ??= (StyleBoxTexture)Ring.Duplicate(); _ringOff.ModulateColor = new Color(1, 1, 1, 0.3f);
+            make.AddThemeStyleboxOverride("normal", Ring); make.AddThemeStyleboxOverride("hover", _ringHover); make.AddThemeStyleboxOverride("pressed", _ringHover);
+            make.AddThemeStyleboxOverride("disabled", _ringOff); make.AddThemeStyleboxOverride("focus", Ring);
+        }
+        else
+        {
+            make.AddThemeStyleboxOverride("normal", ring); make.AddThemeStyleboxOverride("hover", hover); make.AddThemeStyleboxOverride("pressed", hover);
+            make.AddThemeStyleboxOverride("disabled", off); make.AddThemeStyleboxOverride("focus", ring);
+        }
         Handwrite(make, 22, Ink);
         make.AddThemeColorOverride("font_hover_color", Ink);
         make.AddThemeColorOverride("font_disabled_color", new Color(Pencil, 0.5f));

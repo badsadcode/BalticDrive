@@ -737,5 +737,938 @@
       28
     ],
     "notes": "Flat centre; corner-confined wear. Stretch centre and edge strips; keep corners fixed."
+  },
+  {
+    "file": "icons/items/beans.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/sprats.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/luncheon_meat.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/pate.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/crackers.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/wafer.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/kabanos.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/pickles.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/jam.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/rusks.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/instant_soup.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/rice.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/potatoes.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/onion.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/cooked_rice.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/hot_soup.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/kabanos_rusks.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/kartacze.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/placki.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/sauerkraut.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/cabbage.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/dried_mushrooms.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/prunes.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/kielbasa.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/bigos.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/water.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/mineral_water.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/juice.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/cola.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/compote.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/vodka.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/hot_tea.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/dirty_water.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/medkit.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/bandage.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/painkillers.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/disinfectant.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/plasters.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/makeshift_bandage.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/screwdriver.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/hammer.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/kitchen_knife.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/scissors.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/can_opener.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/torch.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/lighter.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/matches.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/saucepan.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/molotov.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/axe.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/camping_stove.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/rag.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/duct_tape.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/nails.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/batteries.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/candle.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/rope.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/sheet.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/towel.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/thread.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/empty_bottle.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/tea.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/firewood.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/gas_canister.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/petrol_can.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/book_kuchnia_podlaska.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/book_pierwsza_pomoc.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/book_poradnik_przetrwania.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/newspaper.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/book.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/toilet_paper.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/soap.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/toothbrush.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/coffee_mug.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/photo_album.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/radio.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/coins.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/items/empty_petrol_can.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Painted inventory icon. Transparent cutout centred for a 48 px display."
+  },
+  {
+    "file": "icons/categories/food.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/drink.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/medical.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/tool.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/material.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/fuel.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/book.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/junk.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/categories/all.png",
+    "size": [
+      128,
+      128
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/freshness/fresh.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/freshness/stale.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/freshness/rotten.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "White monochrome pictogram. Tint at runtime."
+  },
+  {
+    "file": "icons/notebook/page_left.png",
+    "size": [
+      1024,
+      1400
+    ],
+    "nine_slice": [
+      96,
+      28,
+      96,
+      28
+    ],
+    "notes": "Nine-slice edge and corner art. For a constant 32 px grid at arbitrary sizes, repeat the included paper tile in the page interior with aligned UVs."
+  },
+  {
+    "file": "icons/notebook/tab_cooking.png",
+    "size": [
+      160,
+      72
+    ],
+    "nine_slice": null,
+    "notes": "Blank paper tab. Apply the localized label at runtime."
+  },
+  {
+    "file": "icons/notebook/tab_medicine.png",
+    "size": [
+      160,
+      72
+    ],
+    "nine_slice": null,
+    "notes": "Blank paper tab. Apply the localized label at runtime."
+  },
+  {
+    "file": "icons/notebook/tab_materials.png",
+    "size": [
+      160,
+      72
+    ],
+    "nine_slice": null,
+    "notes": "Blank paper tab. Apply the localized label at runtime."
+  },
+  {
+    "file": "icons/notebook/tab_fire.png",
+    "size": [
+      160,
+      72
+    ],
+    "nine_slice": null,
+    "notes": "Blank paper tab. Apply the localized label at runtime."
+  },
+  {
+    "file": "icons/notebook/tab_bigos.png",
+    "size": [
+      160,
+      72
+    ],
+    "nine_slice": null,
+    "notes": "Blank paper tab. Apply the localized label at runtime."
+  },
+  {
+    "file": "icons/notebook/tab_trouble.png",
+    "size": [
+      160,
+      72
+    ],
+    "nine_slice": null,
+    "notes": "Blank paper tab. Apply the localized label at runtime."
+  },
+  {
+    "file": "icons/notebook/pencil_tick.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "Hand-drawn graphite mark on alpha."
+  },
+  {
+    "file": "icons/notebook/pencil_cross.png",
+    "size": [
+      64,
+      64
+    ],
+    "nine_slice": null,
+    "notes": "Hand-drawn graphite mark on alpha."
+  },
+  {
+    "file": "icons/notebook/pencil_underline.png",
+    "size": [
+      512,
+      24
+    ],
+    "nine_slice": [
+      48,
+      7,
+      48,
+      7
+    ],
+    "notes": "Stretch horizontally to fit localized labels."
+  },
+  {
+    "file": "icons/notebook/pencil_circle.png",
+    "size": [
+      256,
+      96
+    ],
+    "nine_slice": [
+      63,
+      24,
+      63,
+      24
+    ],
+    "notes": "Preserve the curved ends when expanding horizontally."
+  },
+  {
+    "file": "icons/notebook/coffee_ring.png",
+    "size": [
+      256,
+      256
+    ],
+    "nine_slice": null,
+    "notes": "Translucent staining with open centre, for layering onto paper."
   }
 ]

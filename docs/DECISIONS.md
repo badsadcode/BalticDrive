@@ -1792,3 +1792,19 @@ lack in red; what it makes in amber; its flavour line in pencil; "Make · 27 s" 
 and reading show as a line of ink over a hatched pencil bar. Self-test `--autotest=ui` photographs the Tab window,
 an item's card and a cupboard beside the rucksack; craft, books and bigos tests pass on it, and craft on
 `--ui=classic`. Next: Codex's icons and notebook art in place of the drawn ones.
+
+
+## D118 — Codex's icons and notebook art in place
+
+Tom brought `baltic_drive_icons_v1.zip` (Codex, from docs/ICON_ASSETS_BRIEF.md): all 78 item icons (none missing,
+none extra), 9 category icons, 3 freshness badges and 20 notebook pieces, transparent PNGs at the asked sizes, with a
+manifest; one painted family (a glass of tea in its koszyczek, kartacze, the kiełbasa horseshoe, a folk-pattern
+Kuchnia podlaska). In `Assets/UI/icons/` (README: Tom's own art) are the pieces the game uses: every icon and badge,
+and of the notebook the left page, the six sticker tabs, the pencil tick, cross, ring and underline, and the coffee
+ring; their nine-slice margins are merged into Assets/UI/manifest.json, so `Skin.Box` dresses them like the rest. The
+rest (the other page, spine, cover edge, strike, question mark, sticky note, stamp, tileable paper) stays in
+data/inbox until something needs it. Icons are shrunk once to the size they're drawn at (smooth, no shimmer). The
+rucksack: item icons on the tiles (stale and rotten wear the wilted leaf or the fly), category icons on the tabs.
+The notebook: the painted page (its own squares and red margin), sticker tabs, "Przepisy" underlined in pencil,
+pencil ticks for what you have and crosses for what you lack, the pencil ring round what you can make and as the Make
+button, a faint coffee ring by the title. The drawn versions remain as the fallback when an image is missing.

@@ -23,17 +23,33 @@ public static class ItemIcons
     public static Texture2D? Get(string id)
     {
         if (id.IndexOf(':') is var c && c > 0) id = id[..c];
-        if (_cache.TryGetValue(id, out var t)) return t;
-        string path = $"res://Assets/UI/icons/items/{id}.png";
-        return _cache[id] = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+        return Small($"res://Assets/UI/icons/items/{id}.png", 112);
     }
 
-    public static Texture2D? Category(string cat)
+    public static Texture2D? Category(string cat) => Small($"res://Assets/UI/icons/categories/{cat}.png", 20);
+
+    /// <summary>A freshness badge (D115): fresh, stale, rotten.</summary>
+    public static Texture2D? Freshness(int stage) => stage switch
     {
-        string key = "cat:" + cat;
+        Items.Freshness.Fresh => Small("res://Assets/UI/icons/freshness/fresh.png", 22),
+        Items.Freshness.Stale => Small("res://Assets/UI/icons/freshness/stale.png", 22),
+        Items.Freshness.Rotten => Small("res://Assets/UI/icons/freshness/rotten.png", 22),
+        _ => null,
+    };
+
+    /// <summary>A picture shrunk once to the size it's drawn at (smooth, no shimmering), or null if it isn't there.</summary>
+    private static Texture2D? Small(string path, int size)
+    {
+        string key = path + "@" + size;
         if (_cache.TryGetValue(key, out var t)) return t;
-        string path = $"res://Assets/UI/icons/categories/{cat}.png";
-        return _cache[key] = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+        t = null;
+        if (ResourceLoader.Exists(path) && GD.Load<Texture2D>(path)?.GetImage() is { } img)
+        {
+            if (img.IsCompressed()) img.Decompress();
+            img.Resize(size, size, Image.Interpolation.Lanczos);
+            t = ImageTexture.CreateFromImage(img);
+        }
+        return _cache[key] = t;
     }
 
     /// <summary>A category's colour (the placeholder badges and the names in lists).</summary>
@@ -283,7 +299,9 @@ public partial class ItemTile : Control
         if (label.Length > 13) label = label[..12] + "…";
         DrawString(font, new Vector2(2, Size.Y - 12), label, HorizontalAlignment.Center, Size.X - 4, 12, new Color(Skin.Text, 0.85f));
         if (_n > 1) DrawString(font, new Vector2(Size.X - 34, 20), $"×{_n}", HorizontalAlignment.Right, 30, 14, Skin.Text);
-        // freshness strip (D115)
+        // freshness: a badge for stale and rotten (D115), and the strip
+        if (_stage is Items.Freshness.Stale or Items.Freshness.Rotten && ItemIcons.Freshness(_stage) is { } badge)
+            DrawTextureRect(badge, new Rect2(6, 6, 22, 22), false, _stage == Items.Freshness.Stale ? new Color(0.95f, 0.78f, 0.35f) : new Color(0.7f, 0.75f, 0.35f));
         if (_stage > 0)
         {
             var fc = _stage switch { Freshness.Fresh => new Color(0.45f, 0.75f, 0.4f), Freshness.Stale => new Color(0.9f, 0.72f, 0.3f), _ => new Color(0.55f, 0.5f, 0.3f) };
