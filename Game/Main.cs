@@ -283,6 +283,7 @@ public partial class Main : Node3D
 			Bar(0, "health", "icon_health", b.Health, new Color(0.85f, 0.22f, 0.2f));
 			Bar(1, "food", "icon_food", b.Hunger, new Color(0.9f, 0.6f, 0.2f));
 			Bar(2, "water", "icon_water", b.Thirst, new Color(0.25f, 0.55f, 0.95f));
+			if (!OnFoot && _car != null && IsInstanceValid(_car)) Bar(-1, "petrol", "icon_fuel", _car.Fuel / _car.Tank * 100, new Color(0.88f, 0.72f, 0.25f));   // D123
 			_bars.DrawString(font, new Vector2(-170, 74), Core.Lang.T("hud.carry", b.Pack.Weight.ToString("0.0"), BalticDrive.OnFoot.Survival.MaxCarry.ToString("0"), b.Food, b.Water, b.Medkits), HorizontalAlignment.Right, 380, 13, new Color(1, 1, 1, 0.8f));
 		};
 		_ui.AddChild(_bars);
@@ -524,7 +525,12 @@ public partial class Main : Node3D
 			_wrecks = new Vehicle.WreckField(_world); AddChild(_wrecks);   // cars to strip (D69)
 			_parked = new Vehicle.ParkedCars(_world, _wrecks); AddChild(_parked);   // car parks and kerbs (D100)
 			_generators = new Power.Generators(_world, SaveWorld); AddChild(_generators);   // portable generators (D109)
-			BalticDrive.OnFoot.Survival.PourFuel = litres => _walker != null && _generators?.InReach(_walker.GlobalPosition) is { } g ? _generators.Pour(g, litres) : -1;
+			// a can pours into the car in the workshop, else a generator in reach, else a car beside you (D123)
+			BalticDrive.OnFoot.Survival.PourFuel = litres =>
+				_walker == null ? -1
+				: _workshop?.Car is { } wc && IsInstanceValid(wc) ? wc.Pour(litres)
+				: _generators?.InReach(_walker.GlobalPosition) is { } g ? _generators.Pour(g, litres)
+				: OnFoot && NearestCar() is { } nc ? nc.Pour(litres) : -1;
 			_fires = new Power.Campfires(_world); AddChild(_fires);   // campfires (D111)
 			_villageWells = new Power.VillageWells(_world); AddChild(_villageWells);   // wells in village yards (D122)
 			Items.Recipes.HeatHere = pack =>
@@ -593,6 +599,7 @@ public partial class Main : Node3D
 		bool on = OnFoot && _walker != null;
 		_leads!.Update(on ? _walker!.GlobalPosition : _car != null && _car.Driving ? _car.GlobalPosition : null);
 		_bars!.Visible = (on || (_car != null && _car.Driving && !Flying && _walker != null)) && !PlayerDown;   // health in the car too (D52)
+		if (!on && _bars.Visible) _bars.QueueRedraw();   // the petrol gauge moves (D123)
 		if (!_safehouseLoaded) { _safehouseLoaded = true; _safehouse = BalticDrive.OnFoot.Safehouse.Get(SaveWorld); }
 		// wrecks along the way, on foot or driving (D69)
 		if (on) _wrecks?.Update(_walker!.GlobalPosition, now);
@@ -938,6 +945,7 @@ public partial class Main : Node3D
 		int wheels = 0;
 		for (int i = 0; i < 4; i++) if (p.Tyre(i).Missing) wheels++;
 		if (wheels > 0) return wheels == 1 ? Core.Lang.T("car.wheel_missing") : Core.Lang.T("car.wheels_missing", wheels);
+		if (c.Dry) return Core.Lang.T("car.tank_empty");   // D123
 		return null;
 	}
 
@@ -1092,6 +1100,7 @@ public partial class Main : Node3D
 			_workshop = new Vehicle.Workshop { Name = "Workshop" };
 			_ui.AddChild(_workshop);
 			_workshop.Said += s => ShowNote(s);
+			_workshop.Body = () => _walker?.Body;
 		}
 		_walker.Autopilot = _ => (Vector2.Zero, false);
 		_workshop.Begin(on);

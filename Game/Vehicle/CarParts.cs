@@ -36,6 +36,8 @@ public enum PartKind { Engine, Battery, Tyre, Brakes, Suspension, Windshield, Wi
 public sealed class CarParts
 {
     public readonly List<CarPart> All = new();
+    /// <summary>Petrol in the tank, litres (D123); below 0: not set yet (the car fills it from its spec).</summary>
+    public float Fuel = -1;
     public static string[] Corner => new[] { Core.Lang.T("corner.0"), Core.Lang.T("corner.1"), Core.Lang.T("corner.2"), Core.Lang.T("corner.3") };
     public static string[] Side => new[] { Core.Lang.T("side.0"), Core.Lang.T("side.1") };
 
@@ -67,6 +69,7 @@ public sealed class CarParts
     public void CopyFrom(CarParts o)
     {
         foreach (var p in All) { var q = o[p.Id]; p.Condition = q.Condition; p.Missing = q.Missing; }
+        Fuel = o.Fuel;
     }
     public CarPart Tyre(int corner) => this[$"tyre.{corner}"];
 

@@ -79,6 +79,83 @@ public sealed class Tests
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
     private bool _bigos, _fresh, _ui, _wells;
+    private double _fuelT = -1, _fuelX0, _fuelZ0;
+    private float _fuel0;
+    private bool _fuel;
+    private Transform3D _fuelStart;
+
+    /// <summary>--autotest=fuel (D123): the car burns petrol driving (litres per 100 km logged), runs dry and stops
+    /// pulling; then on foot in the workshop a siphon hose and an empty can take 5 litres out, the can goes back in, and a
+    /// can poured from the pack beside the car; the petrol in the wrecks around is logged. Screenshots of each.</summary>
+    private bool FuelTest(double delta)
+    {
+        var car = _main.Car;
+        if (_fuelT < 0)
+        {
+            if (_settledFor < 2.0 || car == null) return true;
+            _fuelT = 0;
+            car.Fuel = 20; _fuel0 = car.Fuel; _fuelStart = car.GlobalTransform;
+            (_fuelX0, _, _fuelZ0) = WorldOrigin.ToWorld(car.GlobalPosition);
+            Log.Info("Test", $"fuel: {car.Spec.Id}: tank {car.Tank:0} L, {car.Spec.Consumption:0.0} L/100 km; {car.Fuel:0.0} L in");
+            car.Autopilot = _ => (0.55f, 0f, 0f);
+            return true;
+        }
+        double before = _fuelT;
+        _fuelT += delta;
+        bool At(double t) => before < t && _fuelT >= t;
+        var w = _main.Walker!;
+        var pack = w.Body.Pack;
+        var ws = _main.Workshop;
+        if (At(11.5)) Shot("fuel_driving");
+        if (At(12))
+        {
+            var (x, _, z) = WorldOrigin.ToWorld(car!.GlobalPosition);
+            double km = Math.Sqrt((x - _fuelX0) * (x - _fuelX0) + (z - _fuelZ0) * (z - _fuelZ0)) / 1000;
+            float used = _fuel0 - car.Fuel;
+            Log.Info("Test", $"fuel: 12 s at 55 % throttle: {km * 1000:0} m, {used:0.000} L used, {(km > 0.01 ? used / km * 100 : 0):0.0} L/100 km, {car.Speed * 3.6f:0} km/h now");
+            car.Warp(_fuelStart);   // back to the start, standing
+            car.Fuel = 0.005f;   // a splash, about 60 m: floored, gone in a few seconds
+            car.Autopilot = _ => (1f, 0f, 0f);
+        }
+        if (At(22)) { Log.Info("Test", $"fuel: floored from a standstill on the last 0.005 L: dry {car!.Dry}, {car.Speed * 3.6f:0} km/h after 10 s"); Shot("fuel_dry"); }
+        if (At(22.2)) car!.Autopilot = c => (0f, c.Speed > 0.5f ? 1f : 0f, 0f);   // brake, but don't reverse
+        if (At(25))
+        {
+            car!.Autopilot = null;
+            Log.Info("Test", $"fuel: stopped, {car.Speed * 3.6f:0} km/h; floored again: won't go? \"{Main.WontGo(car) ?? "-"}\"");
+            _main.ToggleOnFoot();
+        }
+        if (At(26))
+        {
+            pack.Stacks.Clear(); pack.Add("siphon_hose", 1); pack.Add("empty_petrol_can", 1);
+            car!.Fuel = 18;
+            _main.OpenWorkshop();
+        }
+        if (At(28)) { Log.Info("Test", $"fuel: workshop: {car!.Fuel:0.0} L, can siphon {ws!.CanSiphon}, can pour {ws.CanPour}"); Shot("fuel_workshop"); }
+        if (At(28.3)) Log.Info("Test", $"fuel: siphon started: {ws!.StartSiphon()}");
+        if (At(32)) Shot("fuel_siphoning");
+        if (At(40))
+        {
+            Log.Info("Test", $"fuel: after siphoning: {car!.Fuel:0.0} L in the tank; pack: petrol {pack.Count("petrol_can")}, empty {pack.Count("empty_petrol_can")}");
+            Shot("fuel_siphoned");
+            Log.Info("Test", $"fuel: pour started: {ws!.StartPour()}");
+        }
+        if (At(47))
+        {
+            Log.Info("Test", $"fuel: after pouring: {car!.Fuel:0.0} L; pack: petrol {pack.Count("petrol_can")}, empty {pack.Count("empty_petrol_can")}");
+            ws!.End();
+            car.Fuel = 0;
+            w.GlobalPosition = car.GlobalPosition + car.GlobalBasis.X * 2.2f + Vector3.Up * 0.3f;   // beside the door
+            pack.Add("petrol_can", 1);
+            w.Body.UseItem("petrol_can");
+            Log.Info("Test", $"fuel: a can from the pack beside the dry car: {car.Fuel:0.0} L; won't go? \"{Main.WontGo(car) ?? "-"}\"; pack: petrol {pack.Count("petrol_can")}, empty {pack.Count("empty_petrol_can")}");
+            var found = _main.Wrecks?.Live.Where(c => c != car).ToList() ?? new();
+            Log.Info("Test", $"fuel: {found.Count} found cars around: " + string.Join("; ", found.Take(12).Select(c => $"{c.Spec.Id} {c.Fuel:0.0}/{c.Tank:0} L")));
+        }
+        if (At(48)) { Log.Info("Test", "fuel: done"); return false; }
+        return true;
+    }
+
     private double _wellsT = -1;
     private List<(byte Kind, double X, double Z)>? _wellSpots;
     private (double X, double Z) _wellStart;
@@ -830,6 +907,7 @@ public sealed class Tests
         _fresh = Main.Args.GetValueOrDefault("autotest", "").Contains("fresh");
         _ui = Main.Args.GetValueOrDefault("autotest", "").Contains("ui");
         _wells = Main.Args.GetValueOrDefault("autotest", "").Contains("wells");
+        _fuel = Main.Args.GetValueOrDefault("autotest", "").Contains("fuel");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2418,6 +2496,12 @@ public sealed class Tests
         {
             if (WellsTest(delta)) return;
             _wells = false;
+        }
+        if (_fuel)
+        {
+            if (FuelTest(delta)) return;
+            _fuel = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
         }
         if (_take)
         {

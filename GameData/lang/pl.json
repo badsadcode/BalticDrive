@@ -254,7 +254,7 @@
  "loot.too_heavy": " (za ciężkie, żeby wziąć wszystko)",
  "loot.your_things": "twoje rzeczy",
  "loot.pockets": "kieszenie bandyty",
- "loot.pour_none": "Nie ma tu do czego wlać: stań przy agregacie",
+ "loot.pour_none": "Nie ma tu do czego wlać: stań przy aucie albo agregacie",
  "loot.tank_full": "Bak jest pełny",
  "loot.top_up": "Dolane {0} l; w kanistrze zostało sporo",
  "loot.pour_dregs": "Wlane {0} l; resztki nie warto trzymać",
@@ -319,5 +319,14 @@
  "water.spring": "źródło",
  "p.well_fill": "F: napełnij butelkę ({0}: czysta woda; puste: {1})",
  "p.well_nobottle": "{0} · przydałaby się pusta butelka",
- "n.well_filled": "Butelka napełniona czystą wodą ({0}; masz: {1})"
+ "n.well_filled": "Butelka napełniona czystą wodą ({0}; masz: {1})",
+ "car.out_of_fuel": "Skończyła się benzyna: silnik gaśnie",
+ "car.tank_empty": "bak jest pusty",
+ "ws.petrol": "Benzyna: {0} z {1} l",
+ "ws.siphon": "Spuść do kanistra ({0} s)",
+ "ws.siphon_need": "Wężyk i pusty kanister: dałoby się spuścić benzynę",
+ "ws.pour": "Wlej kanister ({0} s)",
+ "ws.siphoning": "Spuszczam benzynę... {0} z {1} s",
+ "ws.pouring": "Wlewam benzynę... {0} z {1} s",
+ "ws.siphoned": "Spuszczone do kanistra: {0} l (w baku zostało {1} l)"
 }

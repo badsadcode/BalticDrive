@@ -26,6 +26,10 @@ public sealed partial class Workshop : Control
     /// <summary>Parts the player carries (the car's boot, for now: a spare tyre to start with).</summary>
     public readonly List<LoosePart> Carried = new() { new LoosePart(PartKind.Tyre, Core.Lang.T("part.spare"), 100) };
     public event Action<string>? Said;
+    /// <summary>The walker's body (Main sets it): its pack for the siphon hose and the cans (D123).</summary>
+    public Func<OnFoot.Survival?>? Body;
+    public const float SiphonTime = 10, PourTime = 5, CanLitres = 5, Trickle = 2.5f;
+    private (bool Siphon, float Time, float Done)? _fuelJob;
 
     private Camera3D _cam = null!;
     private Camera3D? _before;
@@ -55,7 +59,7 @@ public sealed partial class Workshop : Control
         _yaw = MathF.Atan2(fl.X, fl.Z);
         _cam.Current = true;
         Visible = true;
-        _picked = null; _job = null;
+        _picked = null; _job = null; _fuelJob = null;
         Input.MouseMode = Input.MouseModeEnum.Visible;
         Log.Info("Workshop", "open");
     }
@@ -66,7 +70,7 @@ public sealed partial class Workshop : Control
         Car.ShowGhost(null);
         Car = null;
         Visible = false;
-        _job = null;
+        _job = null; _fuelJob = null;
         if (_before != null && IsInstanceValid(_before)) _before.Current = true;
         if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
     }
@@ -89,7 +93,47 @@ public sealed partial class Workshop : Control
         return true;
     }
 
-    public bool Busy => _job != null;
+    public bool Busy => _job != null || _fuelJob != null;
+
+    // ---- petrol (D123) ----
+    private Items.Inventory? Pack => Body?.Invoke()?.Pack;
+    /// <summary>A hose and an empty can, and enough in the tank to be worth it.</summary>
+    public bool CanSiphon => Car != null && Pack is { } p && p.Count("siphon_hose") > 0 && p.Count("empty_petrol_can") > 0 && Car.Fuel >= Trickle;
+    public bool CanPour => Car != null && Pack is { } p && p.Count("petrol_can") > 0;
+
+    /// <summary>Siphons the tank into an empty can (self-tests call it directly).</summary>
+    public bool StartSiphon()
+    {
+        if (Busy || !CanSiphon) return false;
+        _fuelJob = (true, SiphonTime * Items.Skills.TimeFactor("mechanics"), 0);
+        return true;
+    }
+
+    /// <summary>Pours a can into the tank (self-tests call it directly).</summary>
+    public bool StartPour()
+    {
+        if (Busy || !CanPour) return false;
+        _fuelJob = (false, PourTime * Items.Skills.TimeFactor("mechanics"), 0);
+        return true;
+    }
+
+    private void FinishFuel(bool siphon)
+    {
+        if (Car == null || Pack is not { } pack) return;
+        if (siphon)
+        {
+            if (!CanSiphon) return;
+            pack.Remove("empty_petrol_can", 1);
+            if (pack.Room("petrol_can") < 1) { pack.Add("empty_petrol_can", 1); Said?.Invoke(Core.Lang.T("gen.too_heavy")); return; }
+            float took = MathF.Min(CanLitres, Car.Fuel);
+            Car.Fuel -= took;
+            pack.Add("petrol_can", 1);   // a can isn't measured (D109): over half full counts as a can
+            Said?.Invoke(Core.Lang.T("ws.siphoned", took.ToString("0.0"), Car.Fuel.ToString("0.0")));
+            Log.Info("Workshop", $"siphoned {took:0.0} L, {Car.Fuel:0.0} L left");
+        }
+        else Body?.Invoke()?.UseItem("petrol_can");   // pours into this car (Main's PourFuel hook), the can's rules as anywhere
+        Items.Skills.Add("mechanics", 3);
+    }
 
     public override void _Process(double delta)
     {
@@ -109,6 +153,12 @@ public sealed partial class Workshop : Control
             j.Done += dt;
             if (j.Done >= j.Time) { Finish(j.Part, j.Fit); _job = null; }
             else _job = j;
+        }
+        if (_fuelJob is { } fj)
+        {
+            fj.Done += dt;
+            if (fj.Done >= fj.Time) { _fuelJob = null; FinishFuel(fj.Siphon); }
+            else _fuelJob = fj;
         }
         // the part under the mouse
         _hover = null;
@@ -174,7 +224,7 @@ public sealed partial class Workshop : Control
         }
         else if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode is Key.Escape or Key.F)
         {
-            if (_job != null && k.Keycode == Key.Escape) _job = null;   // Esc cancels a job first
+            if (Busy && k.Keycode == Key.Escape) { _job = null; _fuelJob = null; }   // Esc cancels a job first
             else End();
         }
         GetViewport().SetInputAsHandled();   // nothing else gets input while the workshop is open
@@ -217,6 +267,7 @@ public sealed partial class Workshop : Control
             y += 30;
         }
         Line(Core.Lang.T("ws.help"), new Color(0.75f, 0.78f, 0.72f), 13);
+        Line(Core.Lang.T("ws.petrol", Car.Fuel.ToString("0.0"), Car.Tank.ToString("0")), Car.Dry ? new Color(0.9f, 0.55f, 0.4f) : new Color(0.95f, 0.8f, 0.45f), 15);
         if (_job is { } j)
         {
             Line(Core.Lang.T(j.Fit == null ? "ws.removing" : "ws.fitting", j.Part.Name.ToLowerInvariant(), j.Done.ToString("0"), j.Time.ToString("0")), Colors.White, 16);
@@ -236,7 +287,23 @@ public sealed partial class Workshop : Control
                 foreach (var f in fits) Button(Core.Lang.T("ws.fit", f.Name.ToLowerInvariant(), f.Condition.ToString("0"), (JobTime(p.Kind) * Items.Skills.TimeFactor("mechanics")).ToString("0")), () => StartJob(p, f));
             }
         }
-        else Line(Core.Lang.T("ws.click"), new Color(0.8f, 0.8f, 0.75f));
+        else if (_fuelJob is { } fj)
+        {
+            Line(Core.Lang.T(fj.Siphon ? "ws.siphoning" : "ws.pouring", fj.Done.ToString("0"), fj.Time.ToString("0")), Colors.White, 16);
+            var bar = new Rect2(panel.Position.X + 14, y - 8, 490, 12);
+            DrawRect(bar, new Color(0.15f, 0.15f, 0.15f));
+            DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * fj.Done / fj.Time, bar.Size.Y)), new Color(0.85f, 0.7f, 0.3f));
+            y += 22;
+        }
+        else
+        {
+            Line(Core.Lang.T("ws.click"), new Color(0.8f, 0.8f, 0.75f));
+            // petrol (D123)
+            float tf = Items.Skills.TimeFactor("mechanics");
+            if (CanSiphon) Button(Core.Lang.T("ws.siphon", (SiphonTime * tf).ToString("0")), () => StartSiphon());
+            else if (Car.Fuel >= Trickle) Line(Core.Lang.T("ws.siphon_need"), new Color(0.7f, 0.68f, 0.6f), 13);
+            if (CanPour) Button(Core.Lang.T("ws.pour", (PourTime * tf).ToString("0")), () => StartPour());
+        }
         // what you carry
         var inv = new Rect2(size.X - 300, size.Y - 210, 280, 190);
         DrawRect(inv, new Color(0.05f, 0.06f, 0.07f, 0.85f));

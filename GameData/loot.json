@@ -506,6 +506,10 @@
     {
      "item": "sauerkraut",
      "weight": 0.3
+    },
+    {
+     "item": "siphon_hose",
+     "weight": 0.4
     }
    ]
   }
@@ -535,7 +539,9 @@
    "axe": 5,
    "camping_stove": 3,
    "gas_canister": 3,
-   "sauerkraut": 2
+   "sauerkraut": 2,
+   "siphon_hose": 3,
+   "empty_petrol_can": 3
   },
   "bedroom": {
    "photo_album": 2,

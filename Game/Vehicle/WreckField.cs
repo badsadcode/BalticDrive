@@ -173,6 +173,11 @@ public sealed partial class WreckField : Node3D
                     p.Condition = Math.Max(p.Condition, (float)Math.Round(35 + 45 * rng.NextDouble()));
                 }
             }
+            // petrol (D123): a third bone dry (siphoned or run out), the rest a little, mostly near empty; one that still
+            // runs has enough to get somewhere. The sandbox's "Petrol in found cars" scales it.
+            double level = rng.NextDouble() < 0.33 ? 0 : 0.02 + 0.33 * Math.Pow(rng.NextDouble(), 2);
+            if (runner) level = Math.Max(level, 0.08 + 0.2 * rng.NextDouble());
+            car.Parts.Fuel = (float)Math.Round(Math.Min(1, level * Sandbox.Get("fuel.found")) * car.Spec.Tank, 1);
         }
     }
 

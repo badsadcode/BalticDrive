@@ -1,42 +1,42 @@
 {
-  "_about": "How each car drives (D98). A car takes the first entry whose 'models' match its model file's name (a part of it is enough), else 'default'. mass kg; power: the engine's pull in newtons (all driven wheels together); top_kmh on roads (off road a little over half); grip front/rear: tyre friction, about the g of cornering (1.4 slides, 2 grips hard; over ~2.5 a tall car tips without the anti-roll helper); drive: front, rear or all; steer: the wheels' lock at parking speed, radians; brakes: brake torque per wheel; suspension: spring stiffness, and damping [compression, rebound]; com_y: the centre of mass moved up (+) or down (-) from just above the sills, m; antiroll: the arcade anti-roll strength (1 normal, 0 off); engine: where it sits (front, rear), for the lids (D96).",
+  "_about": "How each car drives (D98). A car takes the first entry whose 'models' match its model file's name (a part of it is enough), else 'default'. mass kg; power: the engine's pull in newtons (all driven wheels together); top_kmh on roads (off road a little over half); grip front/rear: tyre friction, about the g of cornering (1.4 slides, 2 grips hard; over ~2.5 a tall car tips without the anti-roll helper); drive: front, rear or all; steer: the wheels' lock at parking speed, radians; brakes: brake torque per wheel; suspension: spring stiffness, and damping [compression, rebound]; com_y: the centre of mass moved up (+) or down (-) from just above the sills, m; antiroll: the arcade anti-roll strength (1 normal, 0 off); engine: where it sits (front, rear), for the lids (D96); tank: litres of petrol; consumption: litres per 100 km at a steady cruise (more with your foot down, a little while idling; the sandbox's 'Petrol use' scales it, D123).",
   "default": "sedan",
   "cars": [
     {
       "id": "sedan", "name": "Sedan", "models": ["Sedan"],
       "mass": 1300, "power": 8500, "top_kmh": 180, "drive": "front",
       "grip": [1.75, 1.6], "steer": 0.6, "brakes": 45,
-      "suspension": 32, "damping": [2.8, 3.8], "com_y": 0.0, "antiroll": 1.0, "engine": "front"
+      "suspension": 32, "damping": [2.8, 3.8], "com_y": 0.0, "antiroll": 1.0, "engine": "front", "tank": 50, "consumption": 8
     },
     {
       "id": "pickup", "name": "Pickup", "models": ["Pickup"],
       "mass": 1850, "power": 10500, "top_kmh": 160, "drive": "rear",
       "grip": [1.65, 1.5], "steer": 0.55, "brakes": 50,
-      "suspension": 28, "damping": [2.6, 3.6], "com_y": 0.1, "antiroll": 1.1, "engine": "front"
+      "suspension": 28, "damping": [2.6, 3.6], "com_y": 0.1, "antiroll": 1.1, "engine": "front", "tank": 75, "consumption": 11
     },
     {
       "id": "muscle", "name": "Muscle and sports cars", "models": ["Muscle", "Sports"],
       "mass": 1450, "power": 12500, "top_kmh": 210, "drive": "rear",
       "grip": [1.75, 1.55], "steer": 0.55, "brakes": 50,
-      "suspension": 36, "damping": [3.0, 4.0], "com_y": -0.05, "antiroll": 1.0, "engine": "front"
+      "suspension": 36, "damping": [3.0, 4.0], "com_y": -0.05, "antiroll": 1.0, "engine": "front", "tank": 65, "consumption": 14
     },
     {
       "id": "van", "name": "Vans and ambulances", "models": ["Ambo", "Van", "Bus"],
       "mass": 2400, "power": 11000, "top_kmh": 145, "drive": "rear",
       "grip": [1.55, 1.5], "steer": 0.5, "brakes": 60,
-      "suspension": 26, "damping": [2.6, 3.6], "com_y": 0.25, "antiroll": 1.3, "engine": "front"
+      "suspension": 26, "damping": [2.6, 3.6], "com_y": 0.25, "antiroll": 1.3, "engine": "front", "tank": 80, "consumption": 12
     },
     {
       "id": "truck", "name": "Lorries and rigs (D101)", "models": ["Truck"],
       "mass": 7500, "power": 32000, "top_kmh": 100, "drive": "rear",
       "grip": [1.3, 1.25], "steer": 0.45, "brakes": 140,
-      "suspension": 30, "damping": [3.2, 4.2], "com_y": 0.45, "antiroll": 1.6, "engine": "front"
+      "suspension": 30, "damping": [3.2, 4.2], "com_y": 0.45, "antiroll": 1.6, "engine": "front", "tank": 300, "consumption": 30
     },
     {
       "id": "small_classic", "name": "Small classic (for Tom's Maluch-like car, D96)", "models": ["Maluch", "Small_Classic"],
       "mass": 600, "power": 2600, "top_kmh": 105, "drive": "rear",
       "grip": [1.5, 1.45], "steer": 0.65, "brakes": 22,
-      "suspension": 24, "damping": [2.2, 3.0], "com_y": -0.05, "antiroll": 0.9, "engine": "rear"
+      "suspension": 24, "damping": [2.2, 3.0], "com_y": -0.05, "antiroll": 0.9, "engine": "rear", "tank": 21, "consumption": 5.5
     }
   ]
 }

@@ -18,7 +18,7 @@ public partial class SandboxMenu : Control
     {
         ("sb.group.find", new[] { "loot.", "caches." }),
         ("sb.group.bandits", new[] { "bandits." }),
-        ("sb.group.cars", new[] { "parked.", "wrecks." }),
+        ("sb.group.cars", new[] { "parked.", "wrecks.", "fuel." }),
         ("sb.group.world", new[] { "food.", "generators." }),   // D119: these two had no group, so the window never showed them
     };
 

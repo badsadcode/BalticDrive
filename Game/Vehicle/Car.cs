@@ -329,6 +329,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     {
         Spec = Main.Args.TryGetValue("carspec", out var cs) ? CarSpec.ById(cs) : CarSpec.For(Model);
         Mass = Spec.Mass;
+        if (Parts.Fuel < 0) Parts.Fuel = Spec.Tank * StartFuel;   // your own car; found ones get theirs rolled (D123)
         Core.Log.Info("Car", $"{Model.GetFile()}: drives as '{Spec.Id}' ({Spec.Mass:0} kg, {Spec.Drive} drive, grip {Spec.GripFront:0.00}/{Spec.GripRear:0.00})");
         CollisionLayer = Bodies.Vehicles;
         CollisionMask = Bodies.Ground | Bodies.Roads | Bodies.Buildings | Bodies.Props | Bodies.Vehicles;
@@ -384,6 +385,21 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
     }
 
     public string Model = ModelPath;
+
+    // ---- petrol (D123) ----
+    /// <summary>How full a car starts that nobody rolled petrol for (yours): a bit under half.</summary>
+    public const float StartFuel = 0.4f;
+    public float Tank => Spec.Tank;
+    public float Fuel { get => MathF.Max(0, Parts.Fuel); set => Parts.Fuel = Mathf.Clamp(value, 0, Spec.Tank); }
+    public bool Dry => Parts.Fuel <= 0.001f;
+    /// <summary>Pours petrol in; returns the litres that went in (the rest would overflow).</summary>
+    public float Pour(float litres)
+    {
+        float put = MathF.Max(0, MathF.Min(litres, Spec.Tank - Fuel));
+        Fuel += put;
+        Core.Log.Info("Car", $"{Name}: poured {put:0.0} L, now {Fuel:0.0} of {Tank:0} L");
+        return put;
+    }
     private float _bodyLength = 4.5f;
 
     /// <summary>Transform of a node relative to an ancestor (inclusive of the ancestor's own transform).</summary>
@@ -671,13 +687,22 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
 
         Impacts(dt);
         // parts (D67): an engine that won't start, coughs when it's bad
-        if (Driving && throttle > 0.02f && !Parts.EngineRuns && Time.GetTicksMsec() / 1000.0 > _saidAt)
+        if (Driving && throttle > 0.02f && (!Parts.EngineRuns || Dry) && Time.GetTicksMsec() / 1000.0 > _saidAt)
         {
             _saidAt = Time.GetTicksMsec() / 1000.0 + 4;
-            Said?.Invoke(Core.Lang.T(Parts["engine"].Health <= 0 ? "car.wont_engine" : "car.wont_battery"));
+            Said?.Invoke(Core.Lang.T(!Parts.EngineRuns ? (Parts["engine"].Health <= 0 ? "car.wont_engine" : "car.wont_battery") : "car.out_of_fuel"));
+        }
+        // petrol (D123): litres per 100 km at a cruise, more with your foot down, a little while it idles; the sandbox scales it
+        if (Driving && Parts.EngineRuns && !Dry)
+        {
+            float perMetre = Spec.Consumption / 100000f;
+            float burn = perMetre * absSpeed * (0.6f + 0.8f * throttle) + Spec.Consumption * 0.00004f;
+            Parts.Fuel = MathF.Max(0, Parts.Fuel - burn * Sandbox.Get("fuel.burn") * dt);
+            if (Dry) Core.Log.Info("Car", $"{Name}: out of petrol");
         }
         _cough -= dt;
-        if (_cough <= 0) _cough = Parts["engine"].Health < 0.35f && GD.Randf() < (0.35f - Parts["engine"].Health) * 2.5f ? -0.25f : 0.3f;
+        if (_cough <= 0) _cough = Parts["engine"].Health < 0.35f && GD.Randf() < (0.35f - Parts["engine"].Health) * 2.5f
+            || Parts.Fuel < 0.6f && GD.Randf() < 0.45f ? -0.25f : 0.3f;   // the last half litre: it splutters
         UpdateSmoke();
 
         // steering: quick at parking speed, calm at speed
@@ -708,7 +733,7 @@ public partial class Car : VehicleBody3D, OnFoot.IHittable
             if (absSpeed < 1.2f) brake = Spec.Brakes;  // a stopped car stays put on a slope
         }
         if (handbrake) { force = 0; brake = MathF.Max(brake, 4f); }
-        if (!Parts.EngineRuns || _cough < 0) force = 0;
+        if (!Parts.EngineRuns || Dry || _cough < 0) force = 0;
         else force *= Parts.Power;
 
         float grip = OnRoad ? 1f : 0.8f;

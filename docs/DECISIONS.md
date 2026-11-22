@@ -1870,3 +1870,23 @@ fills a bottle with clean water (the mapped ones win when both are near). Cohere
 `--autotest=wells` now also stands by a village well and fills a bottle (`--map=podlaskie_wells --place=Trześcianka`:
 three village wells within 160 m). The test had a bug of its own on the way: with no mapped well near, its first F
 press found nothing to use and put the walker back in the car; it presses F only by a well now.
+
+
+## D123 — Petrol: tanks, running dry, siphoning
+
+Tom: "Fuel for cars and siphoning next." Every car in `cars.json` has a `tank` (litres) and a `consumption` (litres per
+100 km at a cruise): the sedan 50 L at 8, the pickup 75 at 11, muscle cars 65 at 14, vans 80 at 12, lorries 300 at 30,
+the small classic (the Maluch slot) 21 at 5.5. Real numbers, because a coherent world is the rule (Tom's); the sandbox's
+new "Petrol use" scales them (0: never runs out), so a player who wants fuel to bite harder turns it up. The burn: per
+metre driven, × 0.6-1.4 with the throttle, plus a little idling (the measured run: 10 L/100 km with the acceleration from
+standstill in it). The petrol lives with the car's parts (`CarParts.Fuel`), so a wreck put away and met again has what
+it had. The last half litre splutters; dry, the engine stops pulling and says so, and someone else's dry car won't
+start ("the tank is empty"). Your own car starts at 40 %. Found cars (wrecks and parked): a third bone dry, the rest
+2-35 %, mostly near the bottom; a runner has at least 8-28 % so it can get somewhere; "Petrol in found cars" scales it
+(presets: Scavenger 1.6, Apocalypse 0.5, Road trip 2 with half the burn). A petrol gauge sits above the health bars in
+the car (Tom's `icon_fuel`, D102). In the workshop (D68): the tank in litres; with a siphon hose and an empty can,
+"Siphon into a can" (10 s, faster with mechanics, D113) takes 5 litres out of any car, running or not, if there's
+over 2.5 L in it; "Pour a can in" (5 s). A can from the pack also pours into a car beside you (the inventory's Use;
+the workshop's car first, then a generator in reach, then a car): the cans keep their D109 rules (unmeasured; over
+half poured, it's used up and leaves the empty can). New item: siphon hose (*wężyk do benzyny*), found in storage
+rooms and on shelves; empty cans in storage too. Self-test `--autotest=fuel`, run in English and Polish.
