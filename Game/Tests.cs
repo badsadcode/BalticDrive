@@ -81,6 +81,7 @@ public sealed class Tests
     private bool _bigos, _fresh, _ui, _wells;
     private double _wellsT = -1;
     private List<(byte Kind, double X, double Z)>? _wellSpots;
+    private (double X, double Z) _wellStart;
 
     /// <summary>--autotest=wells (D121; a map built with wells, e.g. --map=podlaskie_wells --place=Trześcianka): the
     /// wells, hand pumps and springs within 3 km counted; the nearest of each photographed up close; a bottle filled at
@@ -110,6 +111,7 @@ public sealed class Tests
         if (At(1))
         {
             var (px, _, pz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            _wellStart = (px, pz);
             var ctx = new Map.MapContext(world);
             ctx.Reset(px - 3000, pz - 3000, 0, 0, 6000, 6000, withPoints: true);
             _wellSpots = ctx.Points.Where(p => p.Kind is Map.MapPointKind.Well or Map.MapPointKind.Pump or Map.MapPointKind.Spring)
@@ -128,7 +130,7 @@ public sealed class Tests
                 pack.Stacks.Clear(); pack.Add("empty_bottle", 2);
             }
         }
-        if (At(4.9)) PressF();
+        if (At(4.9) && _wellSpots!.Any(p => p.Kind == Map.MapPointKind.Well)) PressF();   // only with a well there: else F would get you in the car
         if (At(5.4))
         {
             Log.Info("Test", $"wells: at the well: water {pack.Count("water")}, empty {pack.Count("empty_bottle")}");
@@ -137,7 +139,43 @@ public sealed class Tests
         if (At(8)) Shot("wells_pump");
         if (At(8.3) && _wellSpots!.FirstOrDefault(p => p.Kind == Map.MapPointKind.Spring) is { Kind: Map.MapPointKind.Spring } sp) StandBy(sp);
         if (At(11)) Shot("wells_spring");
-        if (At(11.3)) { w.SetView(false); return false; }
+        if (At(11.3))
+        {
+            // the village's own (D122): walk back to the start and look around (on foot)
+            if (!_main.OnFoot) _main.ToggleOnFoot();
+            var (sx, _, sz) = WorldOrigin.ToWorld(_genFrom == Vector3.Zero ? w.GlobalPosition : _genFrom);
+            w.GlobalPosition = WorldOrigin.ToLocal(_wellStart.X, world.Height(_wellStart.X, _wellStart.Z) + 0.3, _wellStart.Z);
+        }
+        if (At(15))
+        {
+            var all = _main.VillageWells!.Live.ToList();
+            Log.Info("Test", $"wells: village wells within 160 m of the start: {all.Count(v => !v.Pump)} wells, {all.Count(v => v.Pump)} hand pumps");
+            if (all.OrderBy(v => (WorldOrigin.ToLocal(v.X, 0, v.Z) - w.GlobalPosition with { Y = 0 }).Length()).FirstOrDefault() is { } vw)
+            {
+                StandBy((vw.Pump ? Map.MapPointKind.Pump : Map.MapPointKind.Well, vw.X, vw.Z));
+                _wellStart = (vw.X, vw.Z);
+            }
+        }
+        if (At(17.5)) Shot("wells_village");
+        if (At(17.8))
+        {
+            double x = _wellStart.X - 1.0, z = _wellStart.Z;
+            w.GlobalPosition = WorldOrigin.ToLocal(x, world.Height(x, z) + 0.1, z);
+            pack.Stacks.Clear(); pack.Add("empty_bottle", 1);
+        }
+        if (At(18.3))
+        {
+            var near = _main.VillageWells!.Near_(w.GlobalPosition, Power.Wells.Reach);
+            var vwp = near?.Node?.GlobalPosition ?? Vector3.Zero;
+            Log.Info("Test", $"wells: by the village well: in reach {near != null}, {(vwp - w.GlobalPosition with { Y = vwp.Y }).Length():0.0} m away; the prompt: \"{_main.PromptText}\"");
+        }
+        if (At(18.4)) PressF();
+        if (At(19))
+        {
+            Log.Info("Test", $"wells: at the village well: water {pack.Count("water")}, empty {pack.Count("empty_bottle")}");
+            w.SetView(false);
+            return false;
+        }
         return true;
     }
     private double _uiT = -1;

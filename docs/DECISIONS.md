@@ -1856,3 +1856,17 @@ both are near (`Power.Wells`). In both languages (studnia, pompa, źródło). Da
 run again into data/work/poland2 (Saturday's data/work/poland kept), and the all-Poland build now reads poland2.
 Self-test `--autotest=wells` (with `--map=podlaskie_wells --start=214000,536000`): 6 wells, 11 hand pumps and a spring
 within 3 km; a bottle filled at the well; photographed.
+
+
+## D122 — Village wells
+
+OSM maps few wells (D121: 79 in all Podlaskie), real villages have one in half the yards; Tom: "Yes, add village
+wells". `Power.VillageWells`, placed in the game like the generators (D109), no map rebuild: beside rural houses
+(about one in six) and farms (one in three), seldom by a town house (a 192 m square with over 45 houses is a town:
+3 %), never where there are blocks of flats; small plain "building"s count as houses in the countryside (most village
+houses are mapped that way: D104). From the building's OSM id, so always the same; 3-5 m out from a wall, not on a
+road or in water. Three in four are bucket wells, the rest hand pumps, drawn like the mapped ones, with a collider. F
+fills a bottle with clean water (the mapped ones win when both are near). Coherent over exact. Self-test
+`--autotest=wells` now also stands by a village well and fills a bottle (`--map=podlaskie_wells --place=Trześcianka`:
+three village wells within 160 m). The test had a bug of its own on the way: with no mapped well near, its first F
+press found nothing to use and put the walker back in the car; it presses F only by a well now.

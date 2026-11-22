@@ -205,10 +205,14 @@ public partial class Main : Node3D
 	public Car? Car => _car;
 	public OnFoot.Walker? Walker => _walker;
 	public OnFoot.BanditField? Bandits => _bandits;
+	/// <summary>Self-tests: what the prompt says, or "" when there's none.</summary>
+	public string PromptText => _prompt is { Visible: true } p ? p.Text : "";
 	public Power.Generators? Generators => _generators;
 	private Power.Generators? _generators;
 	private Power.Generators.Gen? _genHere, _canHere;
 	private Power.Campfires? _fires;
+	private Power.VillageWells? _villageWells;
+	public Power.VillageWells? VillageWells => _villageWells;
 	public Power.Campfires? Fires => _fires;
 	private Power.Campfires.Fire? _fireHere;
 	private Trees.TreePlacement.Tree? _treeHere;
@@ -522,6 +526,7 @@ public partial class Main : Node3D
 			_generators = new Power.Generators(_world, SaveWorld); AddChild(_generators);   // portable generators (D109)
 			BalticDrive.OnFoot.Survival.PourFuel = litres => _walker != null && _generators?.InReach(_walker.GlobalPosition) is { } g ? _generators.Pour(g, litres) : -1;
 			_fires = new Power.Campfires(_world); AddChild(_fires);   // campfires (D111)
+			_villageWells = new Power.VillageWells(_world); AddChild(_villageWells);   // wells in village yards (D122)
 			Items.Recipes.HeatHere = pack =>
 				_walker != null && _fires?.Near(_walker.GlobalPosition, Power.Campfires.HeatReach, true) != null ? Core.Lang.T("heat.campfire")
 				: pack.CountMatching("tag:stove") > 0 && pack.CountMatching("tag:fuel_gas") > 0 ? Core.Lang.T("heat.stove") : null;
@@ -601,6 +606,7 @@ public partial class Main : Node3D
 		if (genAt is { } ga) _generators?.Update(ga, now, (float)GetProcessDeltaTime());
 		if (_bandits != null) _bandits.NoiseBoost = _generators?.Loud == true ? 2f : 1f;
 		if (genAt is { } fa) _fires?.Update(fa, now, (float)GetProcessDeltaTime());
+		if (genAt is { } va) _villageWells?.Update(va, now);
 		if (_generators?.Carried != null && _walker != null && (PlayerDown || !on)) { _generators.PutDown(_walker.GlobalPosition, _walker.Yaw); _walker.Burden = 0; }   // dropped when you fall or get in a car
 		if (_generators != null && _safehouse is { } sh)
 		{
@@ -677,7 +683,12 @@ public partial class Main : Node3D
 		var pack = _walker.Body.Pack;
 		// a well, a hand pump or a spring (D121): clean water, before any river
 		var (qx, _, qz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
-		if (now >= _nextWellLook) { _nextWellLook = now + 0.25; _wellLook = Power.Wells.Nearest(_world, qx, qz); }
+		if (now >= _nextWellLook)
+		{
+			_nextWellLook = now + 0.25;
+			_wellLook = Power.Wells.Nearest(_world, qx, qz)
+				?? (_villageWells?.Near_(_walker.GlobalPosition, Power.Wells.Reach) is { } vw ? (vw.Pump ? Map.MapPointKind.Pump : Map.MapPointKind.Well) : null);
+		}
 		if (_wellLook is { } wk)
 		{
 			_wellHere = wk;
