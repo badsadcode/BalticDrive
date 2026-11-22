@@ -1944,3 +1944,25 @@ box dispenser stays only as a stand-in if the file is missing. Its screen is on 
 yet): the "powered" panel is laid exactly over it (model 0.42 m out, 2.6-3.36 m up, 1.16 m wide), dark without power,
 green with. Collider fitted to the new size. When Tom improves the model, keeping the same size, origin and the screen
 in the same place means nothing in the code changes; a screen on the other face would need one line.
+
+
+## D127 — Fridges on generator power; generators run while you're away
+
+Tom: "fridges first." With the grid dead (D108) a fridge is a cupboard, unless a running generator stands within 40 m
+of it (an extension lead out of the window): then the food inside ages three times slower. `Power.Fridges` works it
+out when the fridge is opened: the time since it was last shut that a generator near it ran is the cold time, and
+every perishable stack inside is made two thirds of that younger (its `Made` moves on). When each fridge was last shut
+is kept per world in `user://fridges.json`. The prompt says "it hums: cold inside" while one runs, and opening it says
+how long it kept things cold.
+
+For that to mean anything at a safehouse, a generator had to keep running after you walked off: until now, one more
+than 200 m away was simply put away and paused. Now each generator remembers when its fuel was last counted (`At`),
+when it was last started (`OnSince`) and stopped (`OffAt`), all on the play clock (D115); coming back near one left
+running (or a fridge asking about it), the play time since is burned, and if that's more than it had, it stopped when
+it ran dry (`OffAt` set to then). A full 6-litre tank runs 24 minutes of play, about ten hours of the game's day
+(D115: a day is an hour), roughly what a real small generator does. Only each generator's last run is remembered: one
+started and stopped several times while a fridge stayed shut counts only its last run. Self-test `--autotest=fridge`
+(a generator left running for an hour of play: it ran its 24 minutes and stopped; the kabanos in the fridge 0.74 days
+old, the one left out 1.00), and the interior test's `--interior-fridge` opens a real fridge in a block at
+71500,641500 (the test block at 68600,639300 turned out to hold only studios, no kitchens; BadBuilding's narrow blocks
+keep small flats, D37 there, so no fridge to find).

@@ -16,7 +16,9 @@ namespace BalticDrive.Power;
 /// a little petrol or none. F starts and stops one; hold F to pick it up and carry it (slowly, no gun) and F again to put
 /// it down; petrol cans go in from the pack (Tab, "Pour"). Running, it burns a litre every four minutes, lights a work
 /// lamp, puffs smoke, thrums, and is heard: bandits within 110 m come to look, and more turn up near it. Kept per world
-/// in <c>user://generators.json</c> once touched (moved, filled, started).
+/// in <c>user://generators.json</c> once touched (moved, filled, started). One left running keeps burning while you're
+/// away (D127): when you come back near it, the play time since is burned, and if it ran dry meanwhile it stopped then.
+/// Each remembers when it was last started and stopped, which the fridges near it go by.
 /// </summary>
 public sealed partial class Generators : Node3D
 {
@@ -33,6 +35,8 @@ public sealed partial class Generators : Node3D
         public double X, Z;
         public float Yaw, Fuel;
         public bool On, Touched;
+        /// <summary>Play-clock seconds (D127): when its fuel was last counted, when it was last started and stopped (-1: never).</summary>
+        public double At = -1, OnSince = -1, OffAt = -1;
         /// <summary>A can of petrol stands beside it, to take (D109).</summary>
         public bool Can;
         [System.Text.Json.Serialization.JsonIgnore] public Node3D? Node;
@@ -124,10 +128,12 @@ public sealed partial class Generators : Node3D
         foreach (var g in Live.Where(g => g.On).ToList())
         {
             g.Fuel = MathF.Max(0, g.Fuel - BurnPerSecond * dt);
+            g.At = WorldClock.Seconds;
             g.Touched = true; _dirty = true;
             if (g.Fuel <= 0)
             {
                 SetOn(g, false);
+                g.OffAt = WorldClock.Seconds;
                 if (g.Node != null && g.Node.GlobalPosition.DistanceTo(at) < 40) Main.Instance?.ShowNote(Core.Lang.T("gen.dies"));
                 Log.Info("Power", $"{g.Id}: out of petrol");
             }
@@ -171,10 +177,45 @@ public sealed partial class Generators : Node3D
                 foreach (var g in Spots(cx, cz, freq)) if (!_saved.ContainsKey(g.Id)) list.Add(g);
                 // touched ones standing in this square now
                 foreach (var g in _saved.Values)
-                    if (g != Carried && (long)Math.Floor(g.X / Cell) == cx && (long)Math.Floor(g.Z / Cell) == cz) list.Add(g);
+                    if (g != Carried && (long)Math.Floor(g.X / Cell) == cx && (long)Math.Floor(g.Z / Cell) == cz) { CatchUp(g); list.Add(g); }
                 foreach (var g in list) Build(g);
                 _cells[(cx, cz)] = list;
                 made++;
+            }
+    }
+
+    /// <summary>Back near one left running (D127): the play time since it was last counted is burned; if that's more
+    /// than it had, it stopped when it ran dry.</summary>
+    private static void CatchUp(Gen g)
+    {
+        double now = WorldClock.Seconds;
+        if (!g.On || g.At < 0 || now <= g.At) { g.At = now; return; }
+        double burn = (now - g.At) * BurnPerSecond;
+        if (burn >= g.Fuel)
+        {
+            g.OffAt = g.At + g.Fuel / BurnPerSecond;
+            g.Fuel = 0; g.On = false;
+            Log.Info("Power", $"{g.Id}: ran dry while you were away, {(now - g.OffAt) / 60:0} min ago");
+        }
+        else
+        {
+            g.Fuel -= (float)burn;
+            Log.Info("Power", $"{g.Id}: still running; {burn:0.0} L burned while you were away, {g.Fuel:0.0} L left");
+        }
+        g.At = now;
+    }
+
+    /// <summary>When generators within <paramref name="r"/> m of a world spot ran lately (D127): each one's last run, from
+    /// when it was started to when it stopped (or now). For fridges.</summary>
+    public IEnumerable<(double From, double To)> RunsNear(double x, double z, float r)
+    {
+        double now = WorldClock.Seconds;
+        foreach (var g in Live.Concat(_saved.Values).Distinct())
+            if (g.OnSince >= 0 && (g.X - x) * (g.X - x) + (g.Z - z) * (g.Z - z) < r * r)
+            {
+                CatchUp(g);   // not built again yet after you were away: counted now
+                _dirty = true;
+                yield return (g.OnSince, g.On ? now : g.OffAt < 0 ? g.OnSince : g.OffAt);
             }
     }
 
@@ -255,6 +296,7 @@ public sealed partial class Generators : Node3D
         if (g.On) { SetOn(g, false); said = Core.Lang.T("gen.off"); }
         else if (g.Fuel <= 0) { said = Core.Lang.T("n.no_petrol"); return false; }
         else { SetOn(g, true); said = Core.Lang.T("gen.on"); }
+        if (g.On) { g.OnSince = g.At = WorldClock.Seconds; g.OffAt = -1; } else g.OffAt = WorldClock.Seconds;   // D127
         g.Touched = true; Remember(g);
         Log.Info("Power", $"{g.Id}: {(g.On ? "on" : "off")}, {g.Fuel:0.0} L");
         return true;
@@ -274,7 +316,7 @@ public sealed partial class Generators : Node3D
     public void PickUp(Gen g)
     {
         if (Carried != null) return;
-        if (g.On) SetOn(g, false);
+        if (g.On) { SetOn(g, false); g.OffAt = WorldClock.Seconds; }
         foreach (var list in _cells.Values) list.Remove(g);
         Carried = g; g.Touched = true; Remember(g);
         foreach (var co in g.Node?.FindChildren("*", "CollisionObject3D", true, false) ?? new Godot.Collections.Array<Node>()) ((CollisionObject3D)co).CollisionLayer = 0;

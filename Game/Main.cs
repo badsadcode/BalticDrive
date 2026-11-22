@@ -325,7 +325,16 @@ public partial class Main : Node3D
 	{
 		if (_walker == null || _inventory == null || _inventory.IsOpen) return;
 		Items.Inventory? other = spot == null ? null : Items.Containers.Get(SaveWorld, spot.Id, spot.LootKind, spot.Room);
-		OpenInventoryOn(other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind));
+		// a fridge (D127): the food inside kept cold for as long as a generator ran near it since it was last shut
+		Action? shut = null;
+		if (spot is { FurnitureKind: "fridge" } fr && other != null && _generators != null)
+		{
+			var (fx, _, fz) = WorldOrigin.ToWorld(fr.At);
+			double cold = Power.Fridges.Chill(SaveWorld, fr.Id, other, _generators.RunsNear(fx, fz, Power.Fridges.Reach));
+			if (cold >= 60) ShowNote(Core.Lang.T("n.fridge_kept", (cold / 60).ToString("0")), 4);
+			shut = () => Power.Fridges.Shut(SaveWorld, fr.Id);
+		}
+		OpenInventoryOn(other, spot == null ? "" : Items.Containers.Label(spot.FurnitureKind), shut);
 		Core.Log.Info("Items", spot == null ? $"pack: {Items.Inventory.Say(_walker.Body.Pack.Stacks)}" : $"{spot.FurnitureKind} ({spot.LootKind}, {spot.Room}): {Items.Inventory.Say(other!.Stacks)}");
 	}
 
@@ -753,7 +762,8 @@ public partial class Main : Node3D
 		if (_spot != null)
 		{
 			_prompt!.Visible = true;
-			_prompt.Text = Core.Lang.T("p.search", Items.Containers.Label(_spot.FurnitureKind)) + (Items.Containers.Searched(SaveWorld, _spot.Id) ? Core.Lang.T("p.searched") : "");
+			_prompt.Text = Core.Lang.T("p.search", Items.Containers.Label(_spot.FurnitureKind)) + (Items.Containers.Searched(SaveWorld, _spot.Id) ? Core.Lang.T("p.searched") : "")
+				+ (_spot.FurnitureKind == "fridge" && WorldOrigin.ToWorld(_spot.At) is var (sx, _, sz) && _generators?.PoweredAt(sx, sz, Power.Fridges.Reach) == true ? Core.Lang.T("p.fridge_on") : "");   // D127
 			_bars.QueueRedraw();
 			return;
 		}

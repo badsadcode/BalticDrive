@@ -342,5 +342,7 @@
  "n.pump_can": "You fill a can at the pump ({0})",
  "p.boot": "F: open the boot ({0} of {1} kg)",
  "boot.title": "boot and back seat",
- "n.boot_moving": "Stop first: the boot's behind you"
+ "n.boot_moving": "Stop first: the boot's behind you",
+ "p.fridge_on": " · it hums: cold inside",
+ "n.fridge_kept": "The fridge kept things cold for {0} min"
 }

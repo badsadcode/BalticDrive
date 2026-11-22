@@ -50,6 +50,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=fuel` (add `--lang=pl` for Polish) — the car burns petrol (litres per 100 km logged), runs dry and stops pulling; in the workshop a siphon hose and an empty can take 5 litres out and the can goes back in; a can from the pack poured into the car beside you; petrol in the found cars around (D123).
 * `--autotest=pumps` (add `--lang=pl` for Polish) — to the nearest petrol station: its pumps dead without power, a generator started beside them, the car filled (F, F to stop), an empty can filled; nothing saved (D124).
 * `--autotest=boot` (add `--lang=pl` for Polish) — F behind the car opens its boot; things moved in, too much refused, the load's weight on the car; Tab from the seat; the boots of found cars logged; the containers file put back, even after a crash (D125).
+* `--autotest=fridge` — a generator left running by a fridge while you're 800 m away for an hour of play: it burns its tank meanwhile and stops; the kabanos in the fridge comes out younger than the one left out (D127). The interior test's `--interior-fridge` opens a real fridge with a generator running (the prompt and the note).
 * `--autotest=takecar` — out of the car, take the nearest wreck if it runs (else why not), drive it, back to the old car (D99). With `--sb.wrecks.runners=1` every wreck runs.
 * Sandbox settings for any run: `--sandbox=apocalypse` (a preset from `GameData/sandbox.json`) or `--sb.loot.abundance=2` (one setting).
 * `--autotest=tip` — double lane changes at 50/70/90 km/h, full-lock turns, a handbrake turn: the worst roll and any flips (D97). `--grip=K` and `--antiroll=0` for tuning.
@@ -62,7 +63,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=roadscan [--radius=3000]` — lists bends tighter than their road is wide, with a `--views=` line (D57).
 * `--autotest=ragdoll` — a bandit and the walker falling as ragdolls, an origin shift under a body (D56).
 * `--autotest=knockdown --start=68600,639300` — the car knocks a bandit down; it lies, gets up, engages; a hurt one dies (D80).
-* `--autotest=interior --start=68600,639300 --buildings=bb` — into a block of flats: the door, the landing, up the stairs on foot, flats, a top-floor window, and out (D81). Options: `--interior-loot` (search furniture, take things, the pack; D89), `--interior-angle=M` (come at the door from the side), `--interior-want=loggia`, `--look=sofa,bed_double` (photograph pieces), `--cams="x,y,z,yaw,pitch;..."` (stand where an F9 dump was taken), `--interior-safehouse` (claim a flat, die, wake in it; D88).
+* `--autotest=interior --start=68600,639300 --buildings=bb` — into a block of flats: the door, the landing, up the stairs on foot, flats, a top-floor window, and out (D81). Options: `--interior-loot` (search furniture, take things, the pack; D89; with `--interior-fridge` a generator runs for the fridge, D127; the block at `--start=71500,641500` has kitchens, the one above only studios), `--interior-angle=M` (come at the door from the side), `--interior-want=loggia`, `--look=sofa,bed_double` (photograph pieces), `--cams="x,y,z,yaw,pitch;..."` (stand where an F9 dump was taken), `--interior-safehouse` (claim a flat, die, wake in it; D88).
 
 ## Layout
 

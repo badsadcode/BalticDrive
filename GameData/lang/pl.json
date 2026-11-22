@@ -342,5 +342,7 @@
  "n.pump_can": "Kanister napełniony ({0})",
  "p.boot": "F: otwórz bagażnik ({0} z {1} kg)",
  "boot.title": "bagażnik i tylna kanapa",
- "n.boot_moving": "Najpierw się zatrzymaj: bagażnik jest z tyłu"
+ "n.boot_moving": "Najpierw się zatrzymaj: bagażnik jest z tyłu",
+ "p.fridge_on": " · szumi: w środku zimno",
+ "n.fridge_kept": "Lodówka chłodziła przez {0} min"
 }

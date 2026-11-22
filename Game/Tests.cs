@@ -79,6 +79,64 @@ public sealed class Tests
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
     private bool _bigos, _fresh, _ui, _wells;
+    private double _fridgeT = -1;
+    private bool _fridge;
+    private Power.Generators.Gen? _fridgeGen;
+    private Vector3 _fridgeHome;
+    private readonly Items.Inventory _fridgeIn = new(), _fridgeOut = new();
+
+    /// <summary>--autotest=fridge (D127): a generator started with a full tank beside a "fridge" (an inventory with
+    /// kabanos in it, another kabanos left out); you walk 800 m away, an hour of play passes, you come back: the generator
+    /// burned its tank while you were gone and stopped when it ran dry, and the fridge's kabanos aged for the hour less two
+    /// thirds of the 24 minutes it ran. Nothing is saved.</summary>
+    private bool FridgeTest(double delta)
+    {
+        var gens = _main.Generators;
+        if (_fridgeT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null || gens == null) return true;
+            _fridgeT = 0;
+            gens.Frozen = true; Power.Fridges.Frozen = true;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _fridgeT;
+        _fridgeT += delta;
+        bool At(double t) => before < t && _fridgeT >= t;
+        var w = _main.Walker!;
+        if (At(1))
+        {
+            _fridgeHome = w.GlobalPosition;
+            _fridgeGen = gens!.PlaceHere(w.GlobalPosition + new Vector3(3, 0, 0), 0, Power.Generators.Tank);
+            gens.Toggle(_fridgeGen, out _);
+            double now = Core.WorldClock.Seconds;
+            _fridgeIn.Add("kabanos", 1, now); _fridgeOut.Add("kabanos", 1, now);
+            var (x, _, z) = WorldOrigin.ToWorld(w.GlobalPosition);
+            Power.Fridges.Chill(Main.SaveWorld, "fridge_selftest", _fridgeIn, gens.RunsNear(x, z, Power.Fridges.Reach));
+            Log.Info("Test", $"fridge: generator on with {_fridgeGen.Fuel:0.0} L; a kabanos in the fridge and one out; day {Core.WorldClock.Days:0.00}");
+        }
+        if (At(2)) w.GlobalPosition = _fridgeHome + new Vector3(800, 0, 0);
+        if (At(6))
+        {
+            Log.Info("Test", $"fridge: 800 m away; the generator still built: {gens!.Live.Contains(_fridgeGen!)}; an hour passes");
+            Core.WorldClock.Skip(3600);
+        }
+        if (At(7)) w.GlobalPosition = _fridgeHome + Vector3.Up * 0.3f;
+        if (At(11))
+        {
+            var g = _fridgeGen!;
+            Log.Info("Test", $"fridge: back: generator on {g.On}, {g.Fuel:0.0} L; it ran {(g.OffAt - g.OnSince) / 60:0.0} min");
+            var (x, _, z) = WorldOrigin.ToWorld(_fridgeHome);
+            double cold = Power.Fridges.Chill(Main.SaveWorld, "fridge_selftest", _fridgeIn, gens!.RunsNear(x, z, Power.Fridges.Reach));
+            var a = _fridgeIn.Stacks[0]; var b = _fridgeOut.Stacks[0];
+            Log.Info("Test", $"fridge: cold {cold / 60:0.0} min; kabanos in the fridge {Items.Freshness.AgeDays(a.Made):0.00} days old, left out {Items.Freshness.AgeDays(b.Made):0.00} days");
+            var (fx, _, fz) = WorldOrigin.ToWorld(_fridgeHome + new Vector3(500, 0, 0));
+            Log.Info("Test", $"fridge: one 500 m away from it would get: {gens.RunsNear(fx, fz, Power.Fridges.Reach).Count()} runs");
+        }
+        if (At(12)) { Log.Info("Test", "fridge: done"); return false; }
+        return true;
+    }
+
     private double _bootT = -1;
     private bool _boot;
     private string? _bootBackup;
@@ -1098,6 +1156,7 @@ public sealed class Tests
         _fuel = Main.Args.GetValueOrDefault("autotest", "").Contains("fuel");
         _pumps = Main.Args.GetValueOrDefault("autotest", "").Contains("pumps");
         _boot = Main.Args.GetValueOrDefault("autotest", "").Contains("boot");
+        _fridge = Main.Args.GetValueOrDefault("autotest", "").Contains("fridge");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2687,6 +2746,12 @@ public sealed class Tests
             if (WellsTest(delta)) return;
             _wells = false;
         }
+        if (_fridge)
+        {
+            if (FridgeTest(delta)) return;
+            _fridge = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
+        }
         if (_boot)
         {
             if (BootTest(delta)) return;
@@ -3271,7 +3336,16 @@ public sealed class Tests
                     _iSafeBackup = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
                     Items.Containers.Forget(Main.SaveWorld);
                     w.Body.Pack.Stacks.Clear();
+                    if (Main.Args.ContainsKey("interior-fridge") && _main.Generators is { } gens)
+                    {
+                        // D127: a generator running by the block (in the test, right under you)
+                        gens.Frozen = true; Power.Fridges.Frozen = true;
+                        var g = gens.PlaceHere(w.GlobalPosition, 0, Power.Generators.Tank);
+                        gens.Toggle(g, out _);
+                        Log.Info("Test", "loot: a generator running for the fridge");
+                    }
                     Log.Info("Test", $"loot: {Items.ItemDb.All.Count} items known");
+                    Log.Info("Test", $"loot: furniture here: {string.Join(", ", mdl.Furniture.GroupBy(f => f.Kind).Select(g => $"{g.Key} {g.Count()}"))}; loot markers {mdl.Markers.Count(k => k.Kind.StartsWith("loot_"))}; rooms: {string.Join(", ", mdl.Rooms.GroupBy(r => r.Kind).Select(g => $"{g.Key} {g.Count()}"))}");
                 }
                 for (int k = 0; k < kinds.Length; k++)
                 {
@@ -3288,6 +3362,13 @@ public sealed class Tests
                         w.SetView(true);
                         Put(P(stand.X, item.Floor + 0.1f, stand.Y), P(c.X, item.Floor + 0.6f, c.Y));
                     }
+                    if (At(t0 + 0.5) && kinds[k] == "fridge" && Main.Args.ContainsKey("interior-fridge") && ints.ContainerInReach(w.GlobalPosition, w.Yaw) is { } fs)
+                    {
+                        // shut 20 minutes ago (D127)
+                        Power.Fridges.Shut(Main.SaveWorld, fs.Id);
+                        Core.WorldClock.Skip(1200);
+                    }
+                    if (At(t0 + 0.75) && kinds[k] == "fridge") Log.Info("Test", $"loot: the fridge's prompt: \"{_main.PromptText}\"");
                     if (At(t0 + 0.8))
                     {
                         var spot = ints.ContainerInReach(w.GlobalPosition, w.Yaw);
