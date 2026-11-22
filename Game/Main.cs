@@ -213,6 +213,9 @@ public partial class Main : Node3D
 	private Power.Campfires? _fires;
 	private Power.VillageWells? _villageWells;
 	public Power.VillageWells? VillageWells => _villageWells;
+	private Power.Stations? _stations;
+	public Power.Stations? Stations => _stations;
+	private Power.Stations.Pump? _pumpHere;
 	public Power.Campfires? Fires => _fires;
 	private Power.Campfires.Fire? _fireHere;
 	private Trees.TreePlacement.Tree? _treeHere;
@@ -533,6 +536,8 @@ public partial class Main : Node3D
 				: OnFoot && NearestCar() is { } nc ? nc.Pour(litres) : -1;
 			_fires = new Power.Campfires(_world); AddChild(_fires);   // campfires (D111)
 			_villageWells = new Power.VillageWells(_world); AddChild(_villageWells);   // wells in village yards (D122)
+			_stations = new Power.Stations(_world, SaveWorld) { PoweredAt = (x, z) => _generators?.PoweredAt(x, z, Power.Stations.PowerReach) == true };
+			AddChild(_stations);   // petrol stations that pump (D124)
 			Items.Recipes.HeatHere = pack =>
 				_walker != null && _fires?.Near(_walker.GlobalPosition, Power.Campfires.HeatReach, true) != null ? Core.Lang.T("heat.campfire")
 				: pack.CountMatching("tag:stove") > 0 && pack.CountMatching("tag:fuel_gas") > 0 ? Core.Lang.T("heat.stove") : null;
@@ -614,6 +619,7 @@ public partial class Main : Node3D
 		if (_bandits != null) _bandits.NoiseBoost = _generators?.Loud == true ? 2f : 1f;
 		if (genAt is { } fa) _fires?.Update(fa, now, (float)GetProcessDeltaTime());
 		if (genAt is { } va) _villageWells?.Update(va, now);
+		if (genAt is { } sa) _stations?.Update(sa, now);
 		if (_generators?.Carried != null && _walker != null && (PlayerDown || !on)) { _generators.PutDown(_walker.GlobalPosition, _walker.Yaw); _walker.Burden = 0; }   // dropped when you fall or get in a car
 		if (_generators != null && _safehouse is { } sh)
 		{
@@ -635,6 +641,26 @@ public partial class Main : Node3D
 		{
 			_prompt!.Visible = true;
 			_prompt.Text = Core.Lang.T("p.chopping", Mathf.Clamp(_chopT / ChopTime, 0, 1).ToString("P0"));
+			_bars.QueueRedraw();
+			return;
+		}
+		// a petrol pump (D124): filling the car runs by itself until it stops
+		if (_stations?.Filling is { } fl)
+		{
+			if (_stations.Tick(_walker!.GlobalPosition, (float)GetProcessDeltaTime()) is { } stopped) ShowNote(stopped, 4);
+			else
+			{
+				_prompt!.Visible = true;
+				_prompt.Text = Core.Lang.T("p.pumping", fl.Car.Fuel.ToString("0.0"), fl.Car.Tank.ToString("0"));
+				_bars.QueueRedraw();
+				return;
+			}
+		}
+		_pumpHere = _stations?.InReach(_walker!.GlobalPosition);
+		if (_pumpHere != null)
+		{
+			_prompt!.Visible = true;
+			_prompt.Text = Power.Stations.Prompt(_pumpHere, PumpCar(_pumpHere), _walker!.Body.Pack.Count("empty_petrol_can"));
 			_bars.QueueRedraw();
 			return;
 		}
@@ -857,6 +883,30 @@ public partial class Main : Node3D
 		{
 			if (fk.Pressed)
 			{
+				// petrol pumps (D124), before crates (the prompt shows the pump first): F stops the filling; at a working pump, fills the car beside it, else a can
+				if (OnFoot && _stations?.Filling != null) { ShowNote(_stations.StopFilling(), 4); GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _pumpHere is { } pump)
+				{
+					var pack = _walker!.Body.Pack;
+					if (!Power.Stations.Works(pump)) ShowNote(Power.Stations.Prompt(pump, null, 0), 4);
+					else if (PumpCar(pump) is { } pc)
+					{
+						if (pc.Fuel >= pc.Tank - 0.05f) ShowNote(Core.Lang.T("n.pump_full", "0", pc.Fuel.ToString("0.0")), 3);
+						else _stations.StartFilling(pump, pc);
+					}
+					else if (pack.Count("empty_petrol_can") > 0)
+					{
+						if (pump.Station.Litres < Vehicle.Workshop.CanLitres) ShowNote(Core.Lang.T("n.pump_ran_dry"), 3);
+						else
+						{
+							pack.Remove("empty_petrol_can", 1);
+							if (pack.Room("petrol_can") < 1) { pack.Add("empty_petrol_can", 1); ShowNote(Core.Lang.T("gen.too_heavy"), 3); }
+							else { _stations.Draw(pump.Station, Vehicle.Workshop.CanLitres); pack.Add("petrol_can", 1); ShowNote(Core.Lang.T("n.pump_can", pack.Count("petrol_can")), 4); }
+						}
+					}
+					else ShowNote(Power.Stations.Prompt(pump, null, 0), 4);
+					GetViewport().SetInputAsHandled(); return;
+				}
 				if (TryOpenCache()) { GetViewport().SetInputAsHandled(); return; }
 				// generators (D109): put down what you carry; by one, a tap starts or stops it and a hold lifts it
 				if (OnFoot && _generators?.Carried != null) { _generators.PutDown(_walker!.GlobalPosition, _walker.Yaw); _walker.Burden = 0; GetViewport().SetInputAsHandled(); return; }
@@ -1074,6 +1124,17 @@ public partial class Main : Node3D
 	public Vehicle.WreckField? Wrecks => _wrecks;
 
 	/// <summary>The car (yours or a wreck, D69) the walker stands by, within 4.5 m.</summary>
+	/// <summary>The car standing at a pump (D124): yours or any other, within the hose's reach.</summary>
+	public Vehicle.Car? PumpCar(Power.Stations.Pump p)
+	{
+		if (p.Node == null) return null;
+		var at = p.Node.GlobalPosition;
+		Vehicle.Car? best = null; float bd = Power.Stations.CarReach;
+		foreach (var c in (_car != null ? new[] { _car } : Array.Empty<Vehicle.Car>()).Concat(_wrecks?.Live ?? Enumerable.Empty<Vehicle.Car>()))
+			if (IsInstanceValid(c) && c.GlobalPosition.DistanceTo(at) is var d && d < bd) { bd = d; best = c; }
+		return best;
+	}
+
 	public Vehicle.Car? NearestCar()
 	{
 		if (_walker == null) return null;

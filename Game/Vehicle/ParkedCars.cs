@@ -230,6 +230,7 @@ public sealed partial class ParkedCars : Node3D
         bool Clear(float lx, float lz, float roadGap)
         {
             if (ctx.InBuilding(lx, lz, 1.8f) || !float.IsNaN(ctx.Water(lx, lz))) return false;
+            if (ctx.UnderCanopy(lx, lz, 1.5f)) return false;   // the pumps' place (D124)
             foreach (var s in ctx.Segs)
                 if (!s.Road.IsRail && !s.Road.IsTram && s.Distance(lx, lz, out _) < s.Hw + roadGap) return false;
             return true;

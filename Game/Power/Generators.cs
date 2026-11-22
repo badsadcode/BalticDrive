@@ -88,7 +88,9 @@ public sealed partial class Generators : Node3D
             if (bx < 0 || bz < 0 || bx >= Cell || bz >= Cell) continue;   // each building belongs to one square
             double chance = b.Type switch
             {
-                BuildingKind.Farm => 0.15, BuildingKind.Industrial => 0.10, BuildingKind.Shed => 0.06, BuildingKind.House => 0.035, _ => 0,
+                BuildingKind.Farm => 0.15, BuildingKind.Industrial => 0.10, BuildingKind.Shed => 0.06, BuildingKind.House => 0.035,
+                BuildingKind.Canopy => 0.3,   // a station's own, for the pumps (D124); a carport's now and then
+                _ => 0,
             } * freq;
             if (chance <= 0) continue;
             long key = b.OsmId != 0 ? b.OsmId : (long)Hash.Of((int)Math.Floor(ox + bx), (int)Math.Floor(oz + bz), 3);

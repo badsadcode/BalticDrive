@@ -328,5 +328,16 @@
  "ws.pour": "Pour a can in ({0} s)",
  "ws.siphoning": "Siphoning... {0} of {1} s",
  "ws.pouring": "Pouring... {0} of {1} s",
- "ws.siphoned": "You siphon {0} litres into the can ({1} left in the tank)"
+ "ws.siphoned": "You siphon {0} litres into the can ({1} left in the tank)",
+ "p.pump_dry": "Petrol pump · the tanks underground are dry",
+ "p.pump_nopower": "Petrol pump · no power: a running generator nearby would work it",
+ "p.pump_car": "F: fill the car ({0} of {1} L) · {2} L below",
+ "p.pump_can": "F: fill a can ({0} empty) · {1} L below",
+ "p.pump_nothing": "Petrol pump · it works ({0} L below): bring a car or an empty can",
+ "p.pumping": "Filling... {0} of {1} L   F: stop",
+ "n.pump_full": "The tank's full: {1} L",
+ "n.pump_stopped": "You hang up the nozzle: {0} litres in, {1} in the tank",
+ "n.pump_ran_dry": "The pump coughs and stops: the station's tanks are dry",
+ "n.pump_power_lost": "The pump dies: no power ({0} litres in)",
+ "n.pump_can": "You fill a can at the pump ({0})"
 }

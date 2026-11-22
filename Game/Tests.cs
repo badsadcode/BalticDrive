@@ -79,6 +79,109 @@ public sealed class Tests
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
     private bool _bigos, _fresh, _ui, _wells;
+    private double _pumpT = -1;
+    private bool _pumps;
+    private (double X, double Z) _pumpPoi;
+    private Power.Stations.Pump? _pump;
+    private Power.Generators.Gen? _pumpGen;
+
+    /// <summary>--autotest=pumps (D124): to the nearest petrol station; its pumps dead without power; a running
+    /// generator beside them; the car brought up and filled (F, then F to stop); an empty can filled; the generator off
+    /// again. Screenshots of each. Nothing is saved (the stations' and generators' files are left alone).</summary>
+    private bool PumpsTest(double delta)
+    {
+        if (_pumpT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null || _main.Stations == null) return true;
+            _pumpT = 0;
+            _main.Stations.Frozen = true;
+            if (_main.Generators != null) _main.Generators.Frozen = true;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _pumpT;
+        _pumpT += delta;
+        bool At(double t) => before < t && _pumpT >= t;
+        var w = _main.Walker!;
+        var world = _main.World!;
+        var pack = w.Body.Pack;
+        var st = _main.Stations!;
+        var car = _main.Car!;
+        void Stand(Vector3 at, Vector3 look)
+        {
+            w.GlobalPosition = at with { Y = at.Y + 0.2f };
+            w.SetView(true);
+            w.Face(look);
+        }
+        if (At(1))
+        {
+            var (px, _, pz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            double bd = double.MaxValue;
+            int t0x = (int)Math.Floor((px - 4000) / Map.MapTile.Size), t1x = (int)Math.Floor((px + 4000) / Map.MapTile.Size);
+            int t0z = (int)Math.Floor((pz - 4000) / Map.MapTile.Size), t1z = (int)Math.Floor((pz + 4000) / Map.MapTile.Size);
+            int all = 0;
+            for (int tx = t0x; tx <= t1x; tx++)
+                for (int tz = t0z; tz <= t1z; tz++)
+                {
+                    if (!world.Data.HasTile(tx, tz)) continue;
+                    foreach (var p in world.Data.Tile(tx, tz).Pois.Where(p => p.Kind == Map.MapPoiKind.Fuel))
+                    {
+                        all++;
+                        double x = tx * (double)Map.MapTile.Size + p.X, z = tz * (double)Map.MapTile.Size + p.Z, d = (x - px) * (x - px) + (z - pz) * (z - pz);
+                        if (d < bd) { bd = d; _pumpPoi = (x, z); }
+                    }
+                }
+            Log.Info("Test", $"pumps: {all} petrol stations within 4 km; the nearest {Math.Sqrt(bd):0} m away");
+            Stand(WorldOrigin.ToLocal(_pumpPoi.X, world.Height(_pumpPoi.X, _pumpPoi.Z), _pumpPoi.Z), WorldOrigin.ToLocal(_pumpPoi.X + 10, world.Height(_pumpPoi.X, _pumpPoi.Z) + 1, _pumpPoi.Z));
+        }
+        if (At(5))
+        {
+            var s = st.Live.OrderBy(s => (s.X - _pumpPoi.X) * (s.X - _pumpPoi.X) + (s.Z - _pumpPoi.Z) * (s.Z - _pumpPoi.Z)).FirstOrDefault();
+            if (s == null || s.Pumps.Count == 0 || s.Pumps[0].Node == null) { Log.Info("Test", "pumps: no station built"); return false; }
+            Log.Info("Test", $"pumps: {(s.Name.Length > 0 ? s.Name : s.Id)}: {s.Pumps.Count} pumps, canopy {s.Canopy}, {s.Litres:0} L below, powered {s.Powered}; generators within 30 m: {_main.Generators?.Live.Count(g => (g.X - s.X) * (g.X - s.X) + (g.Z - s.Z) * (g.Z - s.Z) < 900) ?? 0}");
+            if (s.Litres < 100) { s.Litres = 800; Log.Info("Test", "pumps: (dry; 800 L put in for the test)"); }
+            _pump = s.Pumps[0];
+            var n = _pump.Node!;
+            Stand(n.GlobalPosition + (n.GlobalBasis.X + n.GlobalBasis.Z) * 9f + Vector3.Up * 0.5f, n.GlobalPosition + Vector3.Up * 1f);   // the forecourt
+        }
+        if (At(5.8)) Shot("pumps_forecourt");
+        if (At(5.9) && _pump?.Node is { } pb) Stand(pb.GlobalPosition + pb.GlobalBasis.X * 1.15f - pb.GlobalBasis.Z * 0.6f, pb.GlobalPosition + Vector3.Up * 1.2f);   // beside it
+        if (At(6.3) && _pump != null) { Log.Info("Test", $"pumps: at the pump: \"{_main.PromptText}\""); Shot("pumps_station"); }
+        if (At(6.5) && _pump?.Node is { } pn)
+        {
+            // a generator beside the island, started
+            var gens = _main.Generators!;
+            _pumpGen = gens.PlaceHere(pn.GlobalPosition + pn.GlobalBasis.Z * 3.4f + pn.GlobalBasis.X * 2.2f, _pump.Yaw, 4f);
+            gens.Toggle(_pumpGen, out var said);
+            Log.Info("Test", $"pumps: generator placed and started: {said}");
+        }
+        if (At(8) && _pump?.Node is { } pn2)
+        {
+            Log.Info("Test", $"pumps: powered {_pump.Station.Powered}; \"{_main.PromptText}\"");
+            // the car brought up on the island's other side, along it
+            car.Fuel = 5;
+            car.Warp(new Transform3D(new Basis(Vector3.Up, _pump.Yaw), pn2.GlobalPosition - pn2.GlobalBasis.X * 2.9f + Vector3.Up * 0.3f));
+        }
+        if (At(9.5)) { Log.Info("Test", $"pumps: car {car.GlobalPosition.DistanceTo(_pump!.Node!.GlobalPosition):0.0} m from the pump; \"{_main.PromptText}\""); Shot("pumps_powered"); }
+        if (At(10)) PressF();
+        if (At(10.3)) Log.Info("Test", $"pumps: filling: {st.Filling != null}");
+        if (At(16)) { Log.Info("Test", $"pumps: after 6 s: {car.Fuel:0.0} L in the car, {_pump!.Station.Litres:0} L below; \"{_main.PromptText}\""); Shot("pumps_filling"); }
+        if (At(16.5)) PressF();
+        if (At(17))
+        {
+            Log.Info("Test", $"pumps: stopped: filling {st.Filling != null}, {car.Fuel:0.0} L in the car");
+            var n = _pump!.Node!;
+            car.Warp(new Transform3D(car.GlobalBasis, n.GlobalPosition - n.GlobalBasis.X * 30f + Vector3.Up * 0.5f));
+            pack.Stacks.Clear(); pack.Add("empty_petrol_can", 2);
+        }
+        if (At(18)) { Log.Info("Test", $"pumps: no car, two empty cans: \"{_main.PromptText}\""); PressF(); }
+        if (At(18.5)) Log.Info("Test", $"pumps: pack: petrol {pack.Count("petrol_can")}, empty {pack.Count("empty_petrol_can")}; {_pump!.Station.Litres:0} L below");
+        if (At(19)) { _main.Generators!.Toggle(_pumpGen!, out var off); Log.Info("Test", $"pumps: generator: {off}"); }
+        if (At(20)) { Log.Info("Test", $"pumps: powered {_pump!.Station.Powered}; \"{_main.PromptText}\""); Shot("pumps_off"); }
+        if (At(20.5)) { w.SetView(false); Log.Info("Test", "pumps: done"); return false; }
+        return true;
+    }
+
     private double _fuelT = -1, _fuelX0, _fuelZ0;
     private float _fuel0;
     private bool _fuel;
@@ -908,6 +1011,7 @@ public sealed class Tests
         _ui = Main.Args.GetValueOrDefault("autotest", "").Contains("ui");
         _wells = Main.Args.GetValueOrDefault("autotest", "").Contains("wells");
         _fuel = Main.Args.GetValueOrDefault("autotest", "").Contains("fuel");
+        _pumps = Main.Args.GetValueOrDefault("autotest", "").Contains("pumps");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2496,6 +2600,12 @@ public sealed class Tests
         {
             if (WellsTest(delta)) return;
             _wells = false;
+        }
+        if (_pumps)
+        {
+            if (PumpsTest(delta)) return;
+            _pumps = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
         }
         if (_fuel)
         {

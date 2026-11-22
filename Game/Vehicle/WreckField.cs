@@ -93,6 +93,7 @@ public sealed partial class WreckField : Node3D
         {
             if (lx < 0 || lz < 0 || lx > Cell || lz > Cell) return false;
             if (ctx.InBuilding(lx, lz, 2.5f) || !float.IsNaN(ctx.Water(lx, lz))) return false;
+            if (ctx.UnderCanopy(lx, lz, 1.5f)) return false;   // the pumps' place (D124)
             foreach (var s in ctx.Segs)
                 if (s.Distance(lx, lz, out _) < s.Hw + 1.1f) return false;   // off every carriageway
             foreach (var jr in ctx.Junctions)

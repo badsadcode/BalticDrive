@@ -48,6 +48,7 @@ godot --path . -- --map=mazowsze --views="68891:639700:60:0:-12;68891:639498:400
 * `--autotest=ui` — the rucksack and the notebook photographed: Tab with a varied pack, an item card, a cupboard beside the rucksack (D117). `--ui=classic` brings back the old lists.
 * `--autotest=wells` (a map built with wells, e.g. `--map=podlaskie_wells --start=214000,536000`) — wells, hand pumps and springs counted and photographed, a bottle filled at a well (D121).
 * `--autotest=fuel` (add `--lang=pl` for Polish) — the car burns petrol (litres per 100 km logged), runs dry and stops pulling; in the workshop a siphon hose and an empty can take 5 litres out and the can goes back in; a can from the pack poured into the car beside you; petrol in the found cars around (D123).
+* `--autotest=pumps` (add `--lang=pl` for Polish) — to the nearest petrol station: its pumps dead without power, a generator started beside them, the car filled (F, F to stop), an empty can filled; nothing saved (D124).
 * `--autotest=takecar` — out of the car, take the nearest wreck if it runs (else why not), drive it, back to the old car (D99). With `--sb.wrecks.runners=1` every wreck runs.
 * Sandbox settings for any run: `--sandbox=apocalypse` (a preset from `GameData/sandbox.json`) or `--sb.loot.abundance=2` (one setting).
 * `--autotest=tip` — double lane changes at 50/70/90 km/h, full-lock turns, a handbrake turn: the worst roll and any flips (D97). `--grip=K` and `--antiroll=0` for tuning.

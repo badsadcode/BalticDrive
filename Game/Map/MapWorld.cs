@@ -273,6 +273,20 @@ public sealed class MapContext
         return !InBuilding(lx, lz, margin);
     }
 
+    /// <summary>Under a canopy (a fuel station's, a carport) or within <paramref name="margin"/> of one: no parked car or
+    /// wreck there, the pump islands stand under them (D124).</summary>
+    public bool UnderCanopy(float lx, float lz, float margin)
+    {
+        foreach (var r in Buildings)
+        {
+            var b = r.B;
+            if (!b.IsCanopy) continue;
+            float x = lx - r.OffX, z = lz - r.OffZ;
+            if (x >= b.MinX - margin && x <= b.MaxX + margin && z >= b.MinZ - margin && z <= b.MaxZ + margin) return true;
+        }
+        return false;
+    }
+
     public bool InBuilding(float lx, float lz, float margin)
     {
         var list = Buildings;

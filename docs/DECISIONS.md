@@ -1890,3 +1890,22 @@ over 2.5 L in it; "Pour a can in" (5 s). A can from the pack also pours into a c
 the workshop's car first, then a generator in reach, then a car): the cans keep their D109 rules (unmeasured; over
 half poured, it's used up and leaves the empty can). New item: siphon hose (*wężyk do benzyny*), found in storage
 rooms and on shelves; empty cans in storage too. Self-test `--autotest=fuel`, run in English and Polish.
+
+
+## D124 — Petrol stations that pump
+
+Tom: "Petrol stations first, then the car boot." `Power.Stations`: every station OSM maps (amenity=fuel, 71 within 4 km
+of central Warsaw) gets pump islands, laid from the map and its id, the same every time. With a canopy within 45 m
+(the mapped roof on posts the map draws), the islands stand in a row along its long side, one per ~6 m, up to four, each running
+across it so cars stand either side; without one, a single island beside the point, clear of buildings and roads. An
+island: a kerb, a dispenser with a coloured band, a screen each side, nozzles, bollards at the ends, a collider. Under
+each station are its tanks: a quarter drained already, the rest 300-5,000 litres (scaled by "Petrol in found cars",
+D123). The grid is dead (D108): a pump works only with a running generator within 30 m (the screens light up green).
+Some stations keep one by the canopy: canopies now get a generator 30 % of the time (D109's placing; a carport's too,
+now and then). F at a working pump fills the car standing within 7 m of it (yours or any), 1.5 L a second, until F
+again, you walk off, the car's full, the tanks run dry or the power goes; with no car there, F fills an empty can from
+the pack (5 L). Litres taken are kept per world in `user://stations.json`. Found on the way: parked cars and wrecks were
+placed under canopies, on top of where the islands go (canopies are open, so `InBuilding` skips them); they're kept
+off canopies now (`MapContext.UnderCanopy`, so carports lose theirs too). F at a pump comes before the crate check, as
+its prompt does (a station's crate stood within reach of the pump and took the first press). The pumps are box
+placeholders like the village wells: Tom may model a proper one. Self-test `--autotest=pumps`, English and Polish.

@@ -328,5 +328,16 @@
  "ws.pour": "Wlej kanister ({0} s)",
  "ws.siphoning": "Spuszczam benzynę... {0} z {1} s",
  "ws.pouring": "Wlewam benzynę... {0} z {1} s",
- "ws.siphoned": "Spuszczone do kanistra: {0} l (w baku zostało {1} l)"
+ "ws.siphoned": "Spuszczone do kanistra: {0} l (w baku zostało {1} l)",
+ "p.pump_dry": "Dystrybutor · zbiorniki pod ziemią są puste",
+ "p.pump_nopower": "Dystrybutor · brak prądu: zadziała przy włączonym agregacie",
+ "p.pump_car": "F: zatankuj auto ({0} z {1} l) · w zbiornikach: {2} l",
+ "p.pump_can": "F: napełnij kanister (pustych: {0}) · w zbiornikach: {1} l",
+ "p.pump_nothing": "Dystrybutor · działa ({0} l w zbiornikach): podjedź autem albo przynieś pusty kanister",
+ "p.pumping": "Tankowanie... {0} z {1} l   F: stop",
+ "n.pump_full": "Bak pełny: {1} l",
+ "n.pump_stopped": "Pistolet odwieszony: wlane {0} l, w baku {1} l",
+ "n.pump_ran_dry": "Dystrybutor charczy i staje: zbiorniki stacji są puste",
+ "n.pump_power_lost": "Dystrybutor gaśnie: brak prądu (wlane {0} l)",
+ "n.pump_can": "Kanister napełniony ({0})"
 }
