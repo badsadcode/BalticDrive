@@ -488,6 +488,9 @@ def main():
     pts['y'] = np.round(np.asarray(py) * 100)
     np.save(os.path.join(work, 'points.npy'), pts)
     print(f'{len(pts)} trees, lamps and poles', flush=True)
+    from common import PT_WELL, PT_PUMP, PT_SPRING
+    for k, n in ((PT_WELL, 'wells'), (PT_PUMP, 'hand pumps'), (PT_SPRING, 'springs')):
+        print(f'{int((pts["kind"] == k).sum())} {n}', flush=True)
     print('Stage 1 done.', flush=True)
 
 

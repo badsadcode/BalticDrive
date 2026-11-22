@@ -1842,3 +1842,17 @@ when the language changes (it's built once, and the switch is in it). Found on t
 "Generators" settings had no group, so the F10 window never showed them; they're under "The world" now. The pack
 line in the corner was too narrow for Polish: wider. Still English by design: the developer overlay (fps, tiles,
 coordinates) and the log. Self-tests ran in Polish (`--lang=pl`: heat, generator, skills, the F10 window) and English.
+
+## D121 — Wells, hand pumps and springs from the map
+
+Promised in D108 (water without the grid) and timed before the all-Poland build. The importer keeps three new point
+kinds (common.py, MapPointKind 7-9): `man_made=water_well` (a well; with `pump=manual` a hand pump; powered pumps
+left out, like drinking-water taps: they need the mains, which are dead) and `natural=spring`. The map mesher draws
+them the village way, turned by their own hash: a concrete-ring well with two posts, a crank and a little roof; a
+green cast-iron hand pump on a slab; a ring of stones round a spring (not drawn when the point lies in water). At one,
+with an empty bottle, F fills it with **clean water** (no boiling, unlike a river: D111); wells win over a river when
+both are near (`Power.Wells`). In both languages (studnia, pompa, źródło). Data: OSM maps few of them: in Podlaskie
+79 wells, 29 hand pumps, 22 springs (a test map, `podlaskie_wells`, was built to see them). Poland's stage 1 is being
+run again into data/work/poland2 (Saturday's data/work/poland kept), and the all-Poland build now reads poland2.
+Self-test `--autotest=wells` (with `--map=podlaskie_wells --start=214000,536000`): 6 wells, 11 hand pumps and a spring
+within 3 km; a bottle filled at the well; photographed.

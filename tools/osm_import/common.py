@@ -195,7 +195,9 @@ def poi_kind(tags):
 
 # small point features (must match MapPointKind in MapData.cs); 5, 6 (D58): a marked pedestrian crossing on a road
 # (painted as a zebra), traffic signals at a junction or crossing
-PT_TREE, PT_LAMP, PT_POLE, PT_PYLON, PT_BOLLARD, PT_ZEBRA, PT_SIGNALS = range(7)
+# 7-9 (D121): water you can still get with the grid dead (D108): a well (bucket or crank), a hand pump, a spring;
+# powered pumps and drinking-water taps run on the mains, which are dead, so they're left out
+PT_TREE, PT_LAMP, PT_POLE, PT_PYLON, PT_BOLLARD, PT_ZEBRA, PT_SIGNALS, PT_WELL, PT_PUMP, PT_SPRING = range(10)
 ZEBRA_CROSSINGS = {'zebra', 'uncontrolled', 'marked', 'traffic_signals'}
 
 
@@ -226,6 +228,10 @@ def barrier_kind(tags):
 def point_kind(tags):
     if tags.get('natural') == 'tree':
         return PT_TREE
+    if tags.get('man_made') == 'water_well' and tags.get('pump') not in ('powered', 'electric', 'yes_powered'):
+        return PT_PUMP if tags.get('pump') in ('manual', 'yes') else PT_WELL
+    if tags.get('natural') == 'spring':
+        return PT_SPRING
     hw = tags.get('highway')
     if hw == 'traffic_signals':
         return PT_SIGNALS

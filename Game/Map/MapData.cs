@@ -50,6 +50,8 @@ public static class MapPointKind
     public const byte Tree = 0, Lamp = 1, Pole = 2, Pylon = 3, Bollard = 4;
     /// <summary>D58: a marked pedestrian crossing on a road (OSM highway=crossing with markings), traffic signals.</summary>
     public const byte Zebra = 5, Signals = 6;
+    /// <summary>Water with the grid dead (D121): a well, a hand pump, a spring.</summary>
+    public const byte Well = 7, Pump = 8, Spring = 9;
 }
 
 /// <summary>Barrier kinds (D25; tools/osm_import/common.py B_*).</summary>

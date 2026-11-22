@@ -1244,6 +1244,50 @@ public static class MapMesher
             if (!StepOffRoad(ctx, ref p.X, ref p.Z)) continue;
             float y = ctx.Height(p.X, p.Z, 0f, out _);
             if (!float.IsNaN(ctx.Water(p.X, p.Z))) continue;
+            if (kind is MapPointKind.Well or MapPointKind.Pump or MapPointKind.Spring)
+            {
+                // water with the grid dead (D121), the village way: a concrete-ring well with a roof over its crank, a
+                // green cast-iron hand pump, or a ring of stones round a spring; turned by the spot's own hash
+                float wy = Hash.F01(Hash.Of((int)(p.X * 10f), (int)(p.Z * 10f), 17)) * MathF.Tau;
+                var concrete = new Color(.6f, .58f, .54f, 0f); var wood = new Color(.38f, .27f, .17f, 0f);
+                var roof = new Color(.3f, .23f, .17f, 0f); var green = new Color(.17f, .36f, .24f, 0f); var stone = new Color(.47f, .46f, .43f, 0f);
+                Vector3 At(float dx, float dy, float dz) { float c = MathF.Cos(wy), sn = MathF.Sin(wy); return new Vector3(p.X + dx * c + dz * sn, y + dy, p.Z - dx * sn + dz * c); }
+                void Part(float dx, float dy, float dz, float hx, float hy, float hz, Color col)
+                {
+                    var c0 = At(dx, dy, dz);
+                    geo.Barriers.Box(c0 - new Vector3(hx, hy, hz), c0 + new Vector3(hx, hy, hz), col, null, wy);
+                }
+                if (kind == MapPointKind.Well)
+                {
+                    Part(0, 0.32f, 0, 0.52f, 0.42f, 0.52f, concrete);          // the ring
+                    Part(0, 0.75f, 0, 0.42f, 0.02f, 0.42f, new Color(.08f, .09f, .1f, 0f));   // dark water inside, seen from above
+                    Part(-0.5f, 0.95f, 0, 0.05f, 0.95f, 0.05f, wood);           // two posts
+                    Part(0.5f, 0.95f, 0, 0.05f, 0.95f, 0.05f, wood);
+                    Part(0, 1.35f, 0, 0.5f, 0.04f, 0.04f, wood);               // the crank's beam
+                    Part(0.62f, 1.25f, 0, 0.02f, 0.14f, 0.02f, wood);          // its handle
+                    Part(0, 1.98f, 0, 0.72f, 0.05f, 0.55f, roof);              // a little roof
+                    if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(p.X, y, p.Z, 0.6f));
+                }
+                else if (kind == MapPointKind.Pump)
+                {
+                    Part(0, 0.08f, 0, 0.35f, 0.08f, 0.35f, concrete);          // a slab under it
+                    Part(0, 0.65f, 0, 0.09f, 0.6f, 0.09f, green);              // the iron column
+                    Part(0, 1.27f, 0, 0.12f, 0.05f, 0.12f, green);             // its cap
+                    Part(0.18f, 0.85f, 0, 0.12f, 0.035f, 0.035f, green);       // the spout
+                    Part(-0.3f, 1.2f, 0, 0.28f, 0.025f, 0.025f, green);        // the handle
+                    if (collide) (geo.Posts ??= new List<Vector4>()).Add(new Vector4(p.X, y, p.Z, 0.15f));
+                }
+                else
+                {
+                    for (int k = 0; k < 7; k++)
+                    {
+                        float a = k / 7f * MathF.Tau;
+                        Part(MathF.Cos(a) * 0.55f, 0.08f, MathF.Sin(a) * 0.55f, 0.14f, 0.1f, 0.12f, stone);
+                    }
+                    Part(0, 0.03f, 0, 0.42f, 0.02f, 0.42f, new Color(.16f, .24f, .26f, 0f));  // a clear little pool
+                }
+                continue;
+            }
             if (kind == MapPointKind.Bollard)
             {
                 // a short concrete or dark steel post (D25); kept off drivable roads like the others

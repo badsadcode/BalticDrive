@@ -313,5 +313,11 @@
  "sb.note": "Nowe ustawienia działają na to, co świat stworzy od teraz; miejsca, które już widziałeś, zostają, jakie były.",
  "sb.reset": "Przywróć zestaw",
  "sb.cancel": "Anuluj",
- "sb.save": "Zapisz"
+ "sb.save": "Zapisz",
+ "water.well": "studnia",
+ "water.pump": "pompa",
+ "water.spring": "źródło",
+ "p.well_fill": "F: napełnij butelkę ({0}: czysta woda; puste: {1})",
+ "p.well_nobottle": "{0} · przydałaby się pusta butelka",
+ "n.well_filled": "Butelka napełniona czystą wodą ({0}; masz: {1})"
 }

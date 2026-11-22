@@ -78,7 +78,68 @@ public sealed class Tests
     // --autotest=takecar (D99): get out, take a wreck that runs, drive it, come back to the old car
     private bool _take, _craft;
     private double _craftT = -1, _genT = -1, _heatT = -1, _booksT = -1, _skillsT = -1, _bigosT = -1;
-    private bool _bigos, _fresh, _ui;
+    private bool _bigos, _fresh, _ui, _wells;
+    private double _wellsT = -1;
+    private List<(byte Kind, double X, double Z)>? _wellSpots;
+
+    /// <summary>--autotest=wells (D121; a map built with wells, e.g. --map=podlaskie_wells --place=Trześcianka): the
+    /// wells, hand pumps and springs within 3 km counted; the nearest of each photographed up close; a bottle filled at
+    /// the well (clean water).</summary>
+    private bool WellsTest(double delta)
+    {
+        if (_wellsT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _wellsT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        double before = _wellsT;
+        _wellsT += delta;
+        bool At(double t) => before < t && _wellsT >= t;
+        var w = _main.Walker!;
+        var world = _main.World!;
+        var pack = w.Body.Pack;
+        void StandBy((byte Kind, double X, double Z) s)
+        {
+            double x = s.X - 2.6, z = s.Z + 1.2;
+            w.GlobalPosition = WorldOrigin.ToLocal(x, world.Height(x, z) + 0.1, z);
+            w.SetView(true);
+            w.Face(WorldOrigin.ToLocal(s.X, world.Height(s.X, s.Z) + 0.6, s.Z));
+        }
+        if (At(1))
+        {
+            var (px, _, pz) = WorldOrigin.ToWorld(w.GlobalPosition);
+            var ctx = new Map.MapContext(world);
+            ctx.Reset(px - 3000, pz - 3000, 0, 0, 6000, 6000, withPoints: true);
+            _wellSpots = ctx.Points.Where(p => p.Kind is Map.MapPointKind.Well or Map.MapPointKind.Pump or Map.MapPointKind.Spring)
+                .Select(p => (p.Kind, ctx.Ox + p.X, ctx.Oz + p.Z)).OrderBy(p => (p.Item2 - px) * (p.Item2 - px) + (p.Item3 - pz) * (p.Item3 - pz)).ToList();
+            Log.Info("Test", $"wells: within 3 km: {_wellSpots.Count(p => p.Kind == Map.MapPointKind.Well)} wells, {_wellSpots.Count(p => p.Kind == Map.MapPointKind.Pump)} hand pumps, {_wellSpots.Count(p => p.Kind == Map.MapPointKind.Spring)} springs");
+            if (_wellSpots.FirstOrDefault(p => p.Kind == Map.MapPointKind.Well) is { Kind: Map.MapPointKind.Well } wl) StandBy(wl);
+        }
+        if (At(4)) Shot("wells_well");
+        if (At(4.3))
+        {
+            if (_wellSpots!.FirstOrDefault(p => p.Kind == Map.MapPointKind.Well) is { Kind: Map.MapPointKind.Well } wl)
+            {
+                double x = wl.X - 1.0, z = wl.Z;
+                w.GlobalPosition = WorldOrigin.ToLocal(x, world.Height(x, z) + 0.1, z);
+                w.Face(WorldOrigin.ToLocal(wl.X, world.Height(wl.X, wl.Z) + 0.6, wl.Z));
+                pack.Stacks.Clear(); pack.Add("empty_bottle", 2);
+            }
+        }
+        if (At(4.9)) PressF();
+        if (At(5.4))
+        {
+            Log.Info("Test", $"wells: at the well: water {pack.Count("water")}, empty {pack.Count("empty_bottle")}");
+            if (_wellSpots!.FirstOrDefault(p => p.Kind == Map.MapPointKind.Pump) is { Kind: Map.MapPointKind.Pump } pm) StandBy(pm);
+        }
+        if (At(8)) Shot("wells_pump");
+        if (At(8.3) && _wellSpots!.FirstOrDefault(p => p.Kind == Map.MapPointKind.Spring) is { Kind: Map.MapPointKind.Spring } sp) StandBy(sp);
+        if (At(11)) Shot("wells_spring");
+        if (At(11.3)) { w.SetView(false); return false; }
+        return true;
+    }
     private double _uiT = -1;
 
     /// <summary>--autotest=ui (D117): the rucksack and the notebook photographed: Tab with a varied pack (fresh and
@@ -730,6 +791,7 @@ public sealed class Tests
         _bigos = Main.Args.GetValueOrDefault("autotest", "").Contains("bigos");
         _fresh = Main.Args.GetValueOrDefault("autotest", "").Contains("fresh");
         _ui = Main.Args.GetValueOrDefault("autotest", "").Contains("ui");
+        _wells = Main.Args.GetValueOrDefault("autotest", "").Contains("wells");
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2313,6 +2375,11 @@ public sealed class Tests
         {
             if (UiTest(delta)) return;
             _ui = false;
+        }
+        if (_wells)
+        {
+            if (WellsTest(delta)) return;
+            _wells = false;
         }
         if (_take)
         {

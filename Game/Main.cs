@@ -617,7 +617,7 @@ public partial class Main : Node3D
 			_bars.QueueRedraw();
 			return;
 		}
-		_waterHere = false; _treeHere = null;
+		_waterHere = false; _treeHere = null; _wellHere = null;
 		if (_chopT >= 0)
 		{
 			_prompt!.Visible = true;
@@ -675,6 +675,16 @@ public partial class Main : Node3D
 	{
 		if (_walker == null || _world == null || _interiors?.Inside != null) return false;
 		var pack = _walker.Body.Pack;
+		// a well, a hand pump or a spring (D121): clean water, before any river
+		var (qx, _, qz) = WorldOrigin.ToWorld(_walker.GlobalPosition);
+		if (now >= _nextWellLook) { _nextWellLook = now + 0.25; _wellLook = Power.Wells.Nearest(_world, qx, qz); }
+		if (_wellLook is { } wk)
+		{
+			_wellHere = wk;
+			_prompt!.Visible = true;
+			_prompt.Text = pack.Count("empty_bottle") > 0 ? Core.Lang.T("p.well_fill", Power.Wells.Name(wk), pack.Count("empty_bottle")) : Core.Lang.T("p.well_nobottle", Power.Wells.Name(wk));
+			return true;
+		}
 		var fwd = new Vector3(-MathF.Sin(_walker.Yaw), 0, -MathF.Cos(_walker.Yaw));
 		foreach (float k in new[] { 0.6f, 1.2f, 1.8f })
 		{
@@ -700,6 +710,8 @@ public partial class Main : Node3D
 		return true;
 	}
 	private Trees.TreePlacement.Tree? _woodLook;
+	private byte? _wellLook, _wellHere;
+	private double _nextWellLook;
 
 	public OnFoot.ShootingRange? Range => _range;
 
@@ -841,6 +853,14 @@ public partial class Main : Node3D
 				if (OnFoot && _canHere != null) { _generators!.TakeCan(_canHere, _walker!.Body.Pack, out var took); ShowNote(took, 4); _canHere = null; GetViewport().SetInputAsHandled(); return; }
 				if (OnFoot && _genHere != null) { _genHold = 0; GetViewport().SetInputAsHandled(); return; }
 				if (OnFoot && _spot != null) { OpenInventory(_spot); GetViewport().SetInputAsHandled(); return; }
+				if (OnFoot && _wellHere is { } well)
+				{
+					// a well (D121): clean water, one empty bottle per press
+					var pack = _walker!.Body.Pack;
+					if (pack.Count("empty_bottle") == 0) ShowNote(Core.Lang.T("n.no_bottle"), 3);
+					else { pack.Remove("empty_bottle", 1); pack.Add("water", 1); ShowNote(Core.Lang.T("n.well_filled", Power.Wells.Name(well), pack.Count("water")), 4); }
+					GetViewport().SetInputAsHandled(); return;
+				}
 				if (OnFoot && _waterHere)
 				{
 					// river water (D111): one empty bottle filled per press

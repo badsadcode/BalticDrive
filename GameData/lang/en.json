@@ -313,5 +313,11 @@
  "sb.note": "New settings apply to what the world makes from now on; places you've already seen keep theirs.",
  "sb.reset": "Reset to preset",
  "sb.cancel": "Cancel",
- "sb.save": "Save"
+ "sb.save": "Save",
+ "water.well": "well",
+ "water.pump": "hand pump",
+ "water.spring": "spring",
+ "p.well_fill": "F: fill a bottle at the {0}: clean water ({1} empty)",
+ "p.well_nobottle": "A {0} · an empty bottle would hold some",
+ "n.well_filled": "You fill a bottle at the {0}: clean water ({1})"
 }
