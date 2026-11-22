@@ -83,8 +83,8 @@ public static class Skills
             using var doc = JsonDocument.Parse(Godot.FileAccess.GetFileAsString(DataPath));
             if (doc.RootElement.TryGetProperty("levels", out var lv)) _levels = lv.EnumerateArray().Select(e => e.GetInt32()).ToArray();
             foreach (var s in doc.RootElement.GetProperty("skills").EnumerateObject())
-                _defs[s.Name] = new Def(s.Name, s.Value.GetProperty("name").GetString()!, s.Value.GetProperty("per_level").GetSingle(),
-                    s.Value.GetProperty("raises").GetString()!, s.Value.GetProperty("effect").GetString()!);
+                _defs[s.Name] = new Def(s.Name, Core.Lang.Pick(s.Value, "name")!, s.Value.GetProperty("per_level").GetSingle(),
+                    s.Value.GetProperty("raises").GetString()!, Core.Lang.Pick(s.Value, "effect")!);
             Log.Info("Skills", $"{_defs.Count} skills");
         }
         catch (Exception e) { Log.Error("Skills", $"{DataPath}: {e.Message}"); }
@@ -119,4 +119,7 @@ public static class Skills
 
     /// <summary>Self-tests: forget what's in memory (the file is the test's to back up and restore).</summary>
     public static void Reset() => _xp = null;
+
+    /// <summary>The language changed (D119): names are read again.</summary>
+    public static void ReloadDefs() => _defs = null;
 }

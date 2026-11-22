@@ -29,6 +29,9 @@ public static class Evolved
     /// <summary>The dishes, from the templates' "evolved" blocks in items.json.</summary>
     public static IReadOnlyDictionary<string, Dish> Dishes => _dishes ??= Load();
 
+    /// <summary>The language changed (D119): names are read again.</summary>
+    public static void Reload() { _dishes = null; _defs.Clear(); }
+
     private static Dictionary<string, Dish> Load()
     {
         var res = new Dictionary<string, Dish>();
@@ -39,10 +42,10 @@ public static class Evolved
             {
                 if (!e.TryGetProperty("evolved", out var ev)) continue;
                 string id = e.GetProperty("id").GetString()!;
-                var ing = ev.GetProperty("ingredients").EnumerateObject().Select(p => (p.Name[0], p.Value.GetString()!)).ToArray();
+                var ing = (Core.Lang.Pl && ev.TryGetProperty("ingredients_pl", out var ipl) ? ipl : ev.GetProperty("ingredients")).EnumerateObject().Select(p => (p.Name[0], p.Value.GetString()!)).ToArray();
                 res[id] = new Dish(id, ing, ev.GetProperty("base").GetString()![0], ev.GetProperty("servings").GetInt32(),
                     ev.GetProperty("max_reheats").GetInt32(), ev.GetProperty("food_per_quality").GetSingle(),
-                    ev.GetProperty("quality_names").EnumerateArray().Select(q => q.GetString()!).ToArray(), ev.GetProperty("empties_to").GetString()!);
+                    (Core.Lang.Pl && ev.TryGetProperty("quality_names_pl", out var qpl) ? qpl : ev.GetProperty("quality_names")).EnumerateArray().Select(q => q.GetString()!).ToArray(), ev.GetProperty("empties_to").GetString()!);
             }
             Log.Info("Items", $"{res.Count} evolved dish(es): {string.Join(", ", res.Keys)}");
         }
@@ -91,8 +94,9 @@ public static class Evolved
             var dish = Dishes[p.Dish];
             var extras = dish.Ingredients.Where(i => i.Letter != dish.Base && p.Has.Contains(i.Letter)).Select(i => i.Name).ToList();
             string baseName = dish.Ingredients.First(i => i.Letter == dish.Base).Name;
-            string reheated = p.Reheats switch { 0 => ", not reheated yet", 1 => ", reheated once", 2 => ", reheated twice", var n => $", reheated {n} times" };
-            string what = $"{p.Servings} serving{(p.Servings == 1 ? "" : "s")}, {QualityName(p)}";
+            string reheated = p.Reheats switch { 0 => Core.Lang.T("evo.reheated0"), 1 => Core.Lang.T("evo.reheated1"), 2 => Core.Lang.T("evo.reheated2"), var n => Core.Lang.T("evo.reheatedN", n) };
+            string servings = Core.Lang.T(Core.Lang.Plural(p.Servings, "evo.servings", "evo.servings_few", "evo.servings_many"), p.Servings);
+            string what = $"{servings}, {QualityName(p)}";
             var next = p.Servings > 1 ? Id(p with { Servings = p.Servings - 1 }) : dish.EmptiesTo;
             def = t with
             {
@@ -115,27 +119,27 @@ public static class Evolved
     {
         var pots = pack.Stacks.Select(s => Parse(s.Id)).Where(p => p != null && p.Value.Dish == dish).Select(p => p!.Value).ToList();
         string pot = ItemDb.Get(dish)?.Name ?? dish;
-        if (pots.Count == 0) return $"a {pot}";
+        if (pots.Count == 0) return Core.Lang.T("evo.no_pot", pot);
         if (pots.Any(p => CanTake(p, adds))) return null;
-        return adds == "reheat" ? $"a {pot} not yet reheated {Dishes[dish].MaxReheats} times" : $"a {pot} without {Name(dish, adds)}";
+        return adds == "reheat" ? Core.Lang.T("evo.not_reheated", pot, Dishes[dish].MaxReheats) : Core.Lang.T("evo.without", pot, Name(dish, adds));
     }
 
     /// <summary>Changes the first pot that can take it; says what became of it. A reheat makes it fresh again (D115).</summary>
     public static bool Evolve(Inventory pack, string dish, string adds, out string said)
     {
         var st = pack.Stacks.FirstOrDefault(s => Parse(s.Id) is { } p && p.Dish == dish && CanTake(p, adds));
-        string pot = ItemDb.Get(dish)?.Name ?? dish, food = pot.Split(' ').Last();
-        if (st.Id == null || Parse(st.Id) is not { } before) { said = $"No {pot} that can take it"; return false; }
+        string pot = ItemDb.Get(dish)?.Name ?? dish, food = Core.Lang.Pl ? char.ToUpper(dish[0]) + dish[1..] : pot.Split(' ').Last();
+        if (st.Id == null || Parse(st.Id) is not { } before) { said = Core.Lang.T("evo.none", pot); return false; }
         var after = adds == "reheat" ? before with { Reheats = before.Reheats + 1 } : before with { Has = before.Has + adds };
         pack.Remove(st.Id, 1);
         pack.Add(Id(after), 1, adds == "reheat" ? double.NaN : st.Made);
         string q = QualityName(after);
         if (adds == "reheat")
-            said = after.Reheats >= Dishes[dish].MaxReheats ? $"The {food}, reheated a last time: now it's right" : $"The {food} simmers again ({q})";
+            said = after.Reheats >= Dishes[dish].MaxReheats ? Core.Lang.T("evo.last_reheat", food) : Core.Lang.T("evo.reheat", food, q);
         else
         {
             string n = Name(dish, adds);
-            said = $"In {(n.EndsWith("s") ? "go" : "goes")} the {n}: " + (q != QualityName(before) ? $"the {food} is {q} now" : $"still {q}, but better");
+            said = Core.Lang.T("evo.add", Core.Lang.T(n.EndsWith("s") ? "evo.go" : "evo.goes"), n) + (q != QualityName(before) ? Core.Lang.T("evo.now", food, q) : Core.Lang.T("evo.still", q));
         }
         return true;
     }

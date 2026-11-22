@@ -63,7 +63,7 @@ public partial class InventoryScreen : Control
         row.AddChild((Control)_left);
         row.AddChild((Control)_craft);
         row.AddChild((Control)_right);
-        _takeAll = new Button { Text = "Take all (E)", CustomMinimumSize = new Vector2(170, 38) };
+        _takeAll = new Button { Text = Core.Lang.T("inv.take_all"), CustomMinimumSize = new Vector2(170, 38) };
         Skin.Button(_takeAll);
         _takeAll.Pressed += TakeAll;
         _left.Footer.AddChild(_takeAll);
@@ -90,7 +90,7 @@ public partial class InventoryScreen : Control
     public void Close()
     {
         if (!Visible) return;
-        if (_making != null) { Note?.Invoke($"You stop: {_making.Name.ToLowerInvariant()} left unfinished"); StopMaking(); }
+        if (_making != null) { Note?.Invoke(Core.Lang.T("inv.stop_left", _making.Name.ToLowerInvariant())); StopMaking(); }
         Visible = false;
         if (Main.CaptureMouse) Input.MouseMode = Input.MouseModeEnum.Captured;
         _closed?.Invoke();
@@ -106,8 +106,10 @@ public partial class InventoryScreen : Control
     {
         if (_mine == null) return;
         if (_other != null) _left.Fill(_other, $"{char.ToUpper(_otherTitle[0]) + _otherTitle[1..]}", $"{_other.Weight:0.0} kg", null);
-        _right.Fill(_mine, "You", $"{_mine.Weight:0.0} / {_mine.MaxWeight:0} kg", _usable);
-        _skills.Text = "Skills: " + Skills.Line();
+        _takeAll.Text = Core.Lang.T("inv.take_all");
+        _hint.Text = HintText;
+        _right.Fill(_mine, Core.Lang.T("inv.you"), $"{_mine.Weight:0.0} / {_mine.MaxWeight:0} kg", _usable);
+        _skills.Text = Core.Lang.T("inv.skills", Skills.Line());
         _takeAll.Disabled = _other == null || _other.IsEmpty;
         if (_other == null) _craft.Fill(_mine);
     }
@@ -118,7 +120,7 @@ public partial class InventoryScreen : Control
     {
         if (_mine == null || _making != null) return;
         var miss = Recipes.Missing(r, _mine);
-        if (miss.Count > 0) { Flash("You need " + string.Join(", ", miss)); return; }
+        if (miss.Count > 0) { Flash(Core.Lang.T("inv.you_need", string.Join(", ", miss))); return; }
         if (r.Seconds <= 0) { Finish(r); return; }
         _making = r with { Seconds = Recipes.SecondsFor(r) }; _makingT = 0; _lastHealth = Health?.Invoke() ?? 0;   // skill makes it quicker (D113)
         Core.Log.Info("Recipes", $"{r.Id}: started, {r.Seconds:0} s");
@@ -130,10 +132,11 @@ public partial class InventoryScreen : Control
         if (r.Id.StartsWith("read:"))
         {
             var book = ItemDb.Get(r.Id[5..]);
-            if (book == null || _mine!.Count(book.Id) == 0) { Flash("The book's gone"); Refresh(); return; }
+            if (book == null || _mine!.Count(book.Id) == 0) { Flash(Core.Lang.T("inv.book_gone")); Refresh(); return; }
             var fresh = Knowledge.Learn(book);
-            Flash(fresh.Count == 0 ? "Nothing new in it" : "You learn: " + string.Join(", ", fresh.Select(x => x.Name)));
-            Note?.Invoke(fresh.Count == 0 ? "Nothing new in it" : "You learn: " + string.Join(", ", fresh.Select(x => x.Name)));
+            string learnt = fresh.Count == 0 ? Core.Lang.T("inv.nothing_new") : Core.Lang.T("inv.you_learn", string.Join(", ", fresh.Select(x => x.Name)));
+            Flash(learnt);
+            Note?.Invoke(learnt);
             Refresh();
             return;
         }
@@ -154,7 +157,7 @@ public partial class InventoryScreen : Control
             Core.Log.Info("Recipes", $"{_making.Id}: interrupted at {Progress:P0} (health {_lastHealth:0} -> {h:0})");
             var name = _making.Name.ToLowerInvariant();
             StopMaking();
-            Note?.Invoke($"You're hit! {char.ToUpper(name[0]) + name[1..]} will have to wait");
+            Note?.Invoke(Core.Lang.T("inv.hit", char.ToUpper(name[0]) + name[1..]));
             Close();
             return;
         }
@@ -173,7 +176,7 @@ public partial class InventoryScreen : Control
         if (_mine == null || _other == null) return;
         var (from, to) = fromLeft ? (_other, _mine) : (_mine, _other);
         int moved = from.MoveTo(to, id, n, stage);
-        if (moved == 0 && fromLeft) Flash("Too heavy to carry");
+        if (moved == 0 && fromLeft) Flash(Core.Lang.T("inv.too_heavy"));
         Containers.Save();
         Refresh();
     }
@@ -183,9 +186,9 @@ public partial class InventoryScreen : Control
         // a book (D112): reading takes time, like crafting, and teaches its recipes
         if (ItemDb.Get(id) is { Category: "book" } book)
         {
-            if (_other != null) { Flash("Read it with your pack open alone (Tab)"); return; }
-            if (Knowledge.Read(book)) { Flash($"You know everything in {book.Name} already"); return; }
-            Craft(new Recipe("read:" + id, $"Reading {book.Name}", "Books", Array.Empty<(string, int)>(), Array.Empty<string[]>(),
+            if (_other != null) { Flash(Core.Lang.T("inv.read_alone")); return; }
+            if (Knowledge.Read(book)) { Flash(Core.Lang.T("inv.know_all", book.Name)); return; }
+            Craft(new Recipe("read:" + id, Core.Lang.T("inv.reading", book.Name), "Books", Array.Empty<(string, int)>(), Array.Empty<string[]>(),
                 Array.Empty<(string, int)>(), "", ReadSeconds));
             return;
         }
@@ -199,13 +202,13 @@ public partial class InventoryScreen : Control
     {
         if (_mine == null || _other == null) return;
         _other.MoveAllTo(_mine);
-        if (!_other.IsEmpty) Flash("You can't carry it all");
+        if (!_other.IsEmpty) Flash(Core.Lang.T("inv.cant_carry_all"));
         Containers.Save();
         Refresh();
     }
 
     public void Flash(string s) { string back = HintText; _hint.Text = s; GetTree().CreateTimer(2.0).Timeout += () => _hint.Text = back; }
-    private static string HintText => Classic ? "drag, or double-click: move the pile · right-click: move one · Esc closes" : "click: what it is · double-click: use it, or move the pile · right-click: move one · drag across · Esc closes";
+    private static string HintText => Core.Lang.T(Classic ? "inv.hint_classic" : "inv.hint");
 
     public override void _Input(InputEvent e)
     {
@@ -213,7 +216,7 @@ public partial class InventoryScreen : Control
         if (_making != null && k.Keycode == Key.Escape)
         {
             // Esc while making something: stop making it, keep the window
-            Flash($"Stopped: {_making.Name.ToLowerInvariant()}"); StopMaking(); GetViewport().SetInputAsHandled(); return;
+            Flash(Core.Lang.T("inv.stopped", _making.Name.ToLowerInvariant())); StopMaking(); GetViewport().SetInputAsHandled(); return;
         }
         if (k.Keycode is Key.Escape or Key.Tab or Key.F) { Close(); GetViewport().SetInputAsHandled(); }
         else if (k.Keycode == Key.E) { TakeAll(); GetViewport().SetInputAsHandled(); }

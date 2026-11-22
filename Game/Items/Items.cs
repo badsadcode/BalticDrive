@@ -11,7 +11,7 @@ namespace BalticDrive.Items;
 public sealed record ItemDef(string Id, string Name, string Plural, string Category, float Weight, int Stack,
     float Food, float Drink, float Heal, string[] Tags, string? Leaves, string[] Teaches, string Note = "", float Fresh = 0, float Stale = 0)
 {
-    public string Count(int n) => n == 1 ? Name : $"{n} {Plural}";
+    public string Count(int n) => n == 1 ? Name : Core.Lang.Pl ? $"{n} × {Name}" : $"{n} {Plural}";   // Polish: no plural forms needed (D119)
     /// <summary>Does it answer to a recipe's need (D107): its own id, or "tag:x" when it has tag x.</summary>
     public bool Matches(string key) => key.StartsWith("tag:") ? Array.IndexOf(Tags, key[4..]) >= 0 : key == Id;
 }
@@ -32,6 +32,9 @@ public static class ItemDb
     private static readonly Dictionary<string, string> _tagNames = new();
 
     public static IReadOnlyDictionary<string, ItemDef> All => _defs ??= Load();
+
+    /// <summary>The language changed (D119): names are read again.</summary>
+    public static void Reload() { _defs = null; _tagNames.Clear(); }
 
     public static ItemDef? Get(string id) => All.TryGetValue(id, out var d) ? d : Evolved.Is(id) ? Evolved.Def(id) : null;   // a pot of an evolved dish is made up from its id (D114, D116)
     public static ItemDef Def(string id) => Get(id) ?? throw new KeyError($"no item '{id}' in {ItemsPath}");
@@ -57,9 +60,9 @@ public static class ItemDb
             using var doc = JsonDocument.Parse(FileAccess.GetFileAsString(ItemsPath));
             foreach (var e in doc.RootElement.GetProperty("items").EnumerateArray())
             {
-                string id = e.GetProperty("id").GetString()!, name = e.GetProperty("name").GetString()!;
+                string id = e.GetProperty("id").GetString()!, name = Core.Lang.Pick(e, "name")!;   // D119
                 float F(string k) => e.TryGetProperty(k, out var v) ? v.GetSingle() : 0f;
-                d[id] = new ItemDef(id, name, e.TryGetProperty("plural", out var pl) ? pl.GetString()! : name + "s",
+                d[id] = new ItemDef(id, name, Core.Lang.Pl ? name : e.TryGetProperty("plural", out var pl) ? pl.GetString()! : name + "s",
                     e.TryGetProperty("category", out var c) ? c.GetString()! : "junk", F("weight"),
                     e.TryGetProperty("stack", out var st) ? st.GetInt32() : 1, F("food"), F("drink"), F("heal"),
                     e.TryGetProperty("tags", out var tg) ? tg.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>(),
@@ -67,7 +70,7 @@ public static class ItemDb
                     e.TryGetProperty("teaches", out var te) ? te.EnumerateArray().Select(t => t.GetString()!).ToArray() : Array.Empty<string>(),
                     "", F("fresh"), F("stale"));
             }
-            if (doc.RootElement.TryGetProperty("tags", out var tags))
+            if (doc.RootElement.TryGetProperty(Core.Lang.Pl ? "tags_pl" : "tags", out var tags) || doc.RootElement.TryGetProperty("tags", out tags))
                 foreach (var t in tags.EnumerateObject()) _tagNames[t.Name] = t.Value.GetString()!;
             foreach (var x in d.Values) if (x.Leaves != null && !d.ContainsKey(x.Leaves)) Log.Error("Items", $"{x.Id} leaves an unknown item '{x.Leaves}'");
             Log.Info("Items", $"{d.Count} items, {_tagNames.Count} tags");
@@ -232,7 +235,7 @@ public sealed class Inventory
     public static string Say(IEnumerable<ItemStack> stacks)
     {
         var parts = stacks.GroupBy(s => s.Id).Select(g => ItemDb.Get(g.Key)?.Count(g.Sum(s => s.Count)) ?? g.Key).ToList();
-        return parts.Count == 0 ? "nothing" : string.Join(", ", parts);
+        return parts.Count == 0 ? Core.Lang.T("say.nothing") : string.Join(", ", parts);
     }
 }
 

@@ -26,6 +26,9 @@ public static class Recipes
 
     public static IReadOnlyList<Recipe> All => _all ??= Load();
 
+    /// <summary>The language changed (D119): names are read again.</summary>
+    public static void Reload() => _all = null;
+
     /// <summary>The heat source within reach, by name ("the campfire", "your camping stove"), or null (D111). Set by the
     /// game: it knows where the fires are.</summary>
     public static Func<Inventory, string?>? HeatHere;
@@ -35,7 +38,7 @@ public static class Recipes
     /// not ("Not indoors").</summary>
     public static Func<string, string?>? Place;
     /// <summary>What stands in for heat in the lists: "a fire or a camping stove".</summary>
-    public const string HeatName = "a fire or a camping stove";
+    public static string HeatName => Core.Lang.T("heat.any");
 
     /// <summary>How long it takes you (D113): its seconds, less with the skill it trains.</summary>
     public static float SecondsFor(Recipe r) => r.Seconds * Skills.TimeFactor(r.Skill);
@@ -50,8 +53,8 @@ public static class Recipes
             {
                 (string, int)[] Pairs(string key) => r.GetProperty(key).EnumerateArray().Select(p => (p[0].GetString()!, p[1].GetInt32())).ToArray();
                 var tools = r.GetProperty("tools").EnumerateArray().Select(t => t.EnumerateArray().Select(x => x.GetString()!).ToArray()).ToArray();
-                var rec = new Recipe(r.GetProperty("id").GetString()!, r.GetProperty("name").GetString()!, r.GetProperty("category").GetString()!,
-                    Pairs("inputs"), tools, Pairs("outputs"), r.TryGetProperty("about", out var a) ? a.GetString() ?? "" : "",
+                var rec = new Recipe(r.GetProperty("id").GetString()!, Core.Lang.Pick(r, "name")!, r.GetProperty("category").GetString()!,
+                    Pairs("inputs"), tools, Pairs("outputs"), Core.Lang.Pick(r, "about") ?? "",
                     r.TryGetProperty("seconds", out var sec) ? sec.GetSingle() : 0f,
                     r.TryGetProperty("heat", out var ht) && ht.GetBoolean(),
                     r.TryGetProperty("places", out var pl) ? pl.GetString() : null,
@@ -79,7 +82,7 @@ public static class Recipes
     public static List<string> Missing(Recipe r, Inventory pack)
     {
         var miss = new List<string>();
-        if (!Knowledge.Known(r)) miss.Add($"to learn it from {ItemDb.Say(r.Book!)}");   // D112
+        if (!Knowledge.Known(r)) miss.Add(Core.Lang.T("craft.learn_from", ItemDb.Say(r.Book!)));   // D112
         foreach (var (item, n) in r.Inputs)
             if (pack.CountMatching(item) < n) miss.Add(n > 1 ? $"{n} × {ItemDb.Say(item)}" : ItemDb.Say(item));
         foreach (var alts in r.Tools)
@@ -93,7 +96,7 @@ public static class Recipes
     public static bool Make(Recipe r, Inventory pack, out string said)
     {
         var miss = Missing(r, pack);
-        if (miss.Count > 0) { said = "You need " + string.Join(", ", miss); return false; }
+        if (miss.Count > 0) { said = Core.Lang.T("inv.you_need", string.Join(", ", miss)); return false; }
         // the weight after: what's used up goes, what's made comes
         // (for a tag, the first matching item in the pack is what goes, less what it leaves behind)
         float InW(string key)
@@ -102,20 +105,20 @@ public static class Recipes
             return d == null ? 0 : d.Weight - (d.Leaves != null ? ItemDb.Get(d.Leaves)?.Weight ?? 0 : 0);
         }
         float after = pack.Weight - r.Inputs.Sum(p => InW(p.Item) * p.Count) + r.Outputs.Sum(p => (ItemDb.Get(p.Item)?.Weight ?? 0) * p.Count);
-        if (after > pack.MaxWeight + 1e-3f) { said = "Too heavy to carry what it makes"; return false; }
+        if (after > pack.MaxWeight + 1e-3f) { said = Core.Lang.T("craft.too_heavy"); return false; }
         string? heat = r.Heat ? HeatHere?.Invoke(pack) : null;
         if (r.Places != null)
         {
             // something on the ground, not in the pack (D111: a campfire)
             if (Place?.Invoke(r.Places) is { } why) { said = why; return false; }
-            if (Place == null) { said = "Nowhere to put it"; return false; }
+            if (Place == null) { said = Core.Lang.T("craft.nowhere"); return false; }
         }
         foreach (var (item, n) in r.Inputs) pack.UseUp(item, n, r.Leftovers);
         if (r.Evolve != null)
         {
             // the pot changes instead of something new being made (D114)
             Evolved.Evolve(pack, r.Evolve, r.Adds ?? "", out said);
-            if (heat != null) { said += $", over {heat}"; HeatUsed?.Invoke(heat, pack); }
+            if (heat != null) { said += Core.Lang.T("craft.over", heat); HeatUsed?.Invoke(heat, pack); }
             Skills.Add(r.Skill, 10);
             Log.Info("Recipes", $"{r.Id}: {said}");
             return true;
@@ -126,10 +129,10 @@ public static class Recipes
             var d = ItemDb.Get(o.Item);
             if (o.Count > 1) return Inventory.Say(new[] { new ItemStack(o.Item, o.Count) });
             string n = d?.Name ?? o.Item;
-            return ("aeiou".Contains(char.ToLowerInvariant(n[0])) ? "an " : "a ") + n;
+            return Core.Lang.Pl ? n : ("aeiou".Contains(char.ToLowerInvariant(n[0])) ? "an " : "a ") + n;
         }
-        said = r.Outputs.Length == 0 ? $"Done: {r.Name.ToLowerInvariant()}" : "You make " + string.Join(" and ", r.Outputs.Select(What));
-        if (heat != null) { said += $", over {heat}"; HeatUsed?.Invoke(heat, pack); }
+        said = r.Outputs.Length == 0 ? Core.Lang.T("craft.done", r.Name.ToLowerInvariant()) : Core.Lang.T("craft.you_make", string.Join(Core.Lang.Pl ? ", " : " and ", r.Outputs.Select(What)));
+        if (heat != null) { said += Core.Lang.T("craft.over", heat); HeatUsed?.Invoke(heat, pack); }
         Skills.Add(r.Skill, r.Book != null ? 15 : 10);   // practice (D113)
         Log.Info("Recipes", $"{r.Id}: {said}");
         return true;

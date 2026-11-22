@@ -1808,3 +1808,21 @@ rucksack: item icons on the tiles (stale and rotten wear the wilted leaf or the 
 The notebook: the painted page (its own squares and red margin), sticker tabs, "Przepisy" underlined in pencil,
 pencil ticks for what you have and crosses for what you lack, the pencil ring round what you can make and as the Make
 button, a faint coffee ring by the title. The drawn versions remain as the fallback when an image is missing.
+
+
+## D119 — Two languages: English and Polski
+
+Tom: "one game, but two versions of the interface"; his friends play in English ("they won't know what Kłopoty
+means, though they cause a lot of trouble"). One build with a switch, not two builds: **English by default**, Polski
+in F10 (a "Language · Język" row at the top), kept in user://settings.json, `--lang=pl` for one run (self-tests never
+write the setting). `Core.Lang`: interface words in `GameData/lang/en.json` and `pl.json` (105 keys: the window, the
+rucksack, the notebook, crafting, bigos, eating, skills; {0} for what goes in); a key missing in Polish falls back to
+English. Data carries its own translations beside the English: `name_pl` on all 86 items, `tags_pl`, `name_pl` and
+`about_pl` on all 21 recipes, `name_pl` and `effect_pl` on the skills, `ingredients_pl` and `quality_names_pl` on the
+bigos; furniture names too. Polish counts use "3 × puszka fasoli" (no plural forms), servings decline properly (1
+porcja, 2-4 porcje, 5+ porcji: `Lang.Plural`), and messages are worded so no noun needs declining ("Zjedzone:
+kiełbasa", "Brakuje: garnek bigosu", "Do garnka: grzyby. Bigos jest teraz: niezły"). Changing language reloads the
+names at once. The notebook stays a squared Polish exercise book in both (it's the game's charm); English players get
+Recipes / Cooking / First aid / Fire / Trouble. Not yet in Polish: the HUD notes and prompts outside the inventory
+(cars, the workshop, generators, campfires, trees, bandits, the map, the F10 window's own settings): the same
+mechanism, key by key, when Tom wants them. Translations are Sage's; Tom may correct any.

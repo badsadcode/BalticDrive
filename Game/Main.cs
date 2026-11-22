@@ -73,7 +73,9 @@ public partial class Main : Node3D
 	{
 		Instance = this;
 		// a skill went up (D113): say so
-		Items.Skills.LevelUp += (d, lvl) => ShowNote($"{d.Name}: level {lvl}. {char.ToUpper(Items.Skills.Says(d, lvl)[0])}{Items.Skills.Says(d, lvl)[1..]}.", 6);
+		Items.Skills.LevelUp += (d, lvl) => ShowNote(Core.Lang.T("skill.level", d.Name, lvl, char.ToUpper(Items.Skills.Says(d, lvl)[0]) + Items.Skills.Says(d, lvl)[1..]), 6);
+		// another language (D119): everything that keeps names reads them again
+		Core.Lang.Changed += () => { Items.ItemDb.Reload(); Items.Recipes.Reload(); Items.Evolved.Reload(); Items.Skills.ReloadDefs(); };
 		// sound (D53): buses with a reverb that follows the space, the listener's acoustics, the world's ambience
 		Audio.Buses.Setup();
 		AddChild(new Audio.Acoustics());
@@ -508,12 +510,12 @@ public partial class Main : Node3D
 			BalticDrive.OnFoot.Survival.PourFuel = litres => _walker != null && _generators?.InReach(_walker.GlobalPosition) is { } g ? _generators.Pour(g, litres) : -1;
 			_fires = new Power.Campfires(_world); AddChild(_fires);   // campfires (D111)
 			Items.Recipes.HeatHere = pack =>
-				_walker != null && _fires?.Near(_walker.GlobalPosition, Power.Campfires.HeatReach, true) != null ? "the campfire"
-				: pack.CountMatching("tag:stove") > 0 && pack.CountMatching("tag:fuel_gas") > 0 ? "your camping stove" : null;
+				_walker != null && _fires?.Near(_walker.GlobalPosition, Power.Campfires.HeatReach, true) != null ? Core.Lang.T("heat.campfire")
+				: pack.CountMatching("tag:stove") > 0 && pack.CountMatching("tag:fuel_gas") > 0 ? Core.Lang.T("heat.stove") : null;
 			Items.Recipes.HeatUsed = (heat, pack) =>
 			{
 				// a canister lasts about four cookings
-				if (heat == "your camping stove" && _heatRng.NextDouble() < 0.25) { pack.UseUp("tag:fuel_gas", 1); ShowNote("The gas canister hisses empty", 4); }
+				if (heat == Core.Lang.T("heat.stove") && _heatRng.NextDouble() < 0.25) { pack.UseUp("tag:fuel_gas", 1); ShowNote(Core.Lang.T("heat.canister_empty"), 4); }
 			};
 			Items.Recipes.Place = what =>
 			{

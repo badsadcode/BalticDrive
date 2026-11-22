@@ -77,7 +77,13 @@ public static class Containers
     public static void Forget(string map) { Load(map); _open!.Clear(); Save(); }
 
     /// <summary>"the wardrobe": how a prompt names a piece of furniture.</summary>
-    public static string Label(string furnitureKind) => furnitureKind switch
+    public static string Label(string furnitureKind) => Core.Lang.Pl ? furnitureKind switch
+    {
+        // D119: in Polish
+        "nightstand" => "szafka nocna", "wardrobe" => "szafa", "desk" => "szuflady biurka", "bookshelf" => "regał z książkami",
+        "tv_unit" => "szafka RTV", "fridge" => "lodówka", "counter" => "szafki kuchenne", "basin" => "szafka z lustrem",
+        "shoe_cabinet" => "szafka na buty", "shelves" => "półki", _ => furnitureKind.Replace('_', ' '),
+    } : furnitureKind switch
     {
         "nightstand" => "the bedside table",
         "wardrobe" => "the wardrobe",

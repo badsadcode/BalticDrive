@@ -53,6 +53,20 @@ public partial class SandboxMenu : Control
         titleBar.AddChild(title);
         v.AddChild(titleBar);
 
+        // the interface's language (D119): English or Polish, saved at once
+        var lr = new HBoxContainer();
+        lr.AddThemeConstantOverride("separation", 12);
+        lr.AddChild(Text("Language · Język", 17, Skin.Text, 120));
+        var lang = new OptionButton { CustomMinimumSize = new Vector2(240, 34) };
+        if (Skin.Box("controls/dropdown_normal.png", 8, 2) is { } ldn) { lang.AddThemeStyleboxOverride("normal", ldn); lang.AddThemeStyleboxOverride("focus", ldn); }
+        if (Skin.Box("controls/dropdown_hover.png", 8, 2) is { } ldh) { lang.AddThemeStyleboxOverride("hover", ldh); lang.AddThemeStyleboxOverride("pressed", ldh); }
+        lang.AddThemeColorOverride("font_color", Skin.Text);
+        foreach (var (code, name) in Core.Lang.Languages) lang.AddItem(name);
+        lang.Selected = Array.FindIndex(Core.Lang.Languages, l => l.Code == Core.Lang.Code);
+        lang.ItemSelected += i => Core.Lang.Set(Core.Lang.Languages[(int)i].Code);
+        lr.AddChild(lang);
+        v.AddChild(lr);
+
         // the preset
         var pr = new HBoxContainer();
         pr.AddThemeConstantOverride("separation", 12);

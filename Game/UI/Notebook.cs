@@ -32,6 +32,7 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
     private float _progressK;
     private string _tab = "all";
     private Inventory? _pack;
+    private Label? _titleLabel;
     private readonly StyleBoxTexture? _page;
     private static StyleBoxTexture? _ring, _ringHover, _ringOff, _underline;
     private static StyleBoxTexture? Ring
@@ -83,7 +84,8 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         var v = new VBoxContainer();
         v.AddThemeConstantOverride("separation", 4);
         AddChild(v);
-        var title = new Label { Text = "Przepisy" };
+        var title = new Label { Text = Core.Lang.T("nb.title") };
+        _titleLabel = title;
         Handwrite(title, 36, Ink);
         title.Draw += () =>
         {
@@ -148,13 +150,14 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
     {
         _progress.Visible = true;
         _progressK = k;
-        _progressText.Text = $"{(r.Id.StartsWith("read:") ? r.Name : "Making: " + r.Name)}  {t:0} / {r.Seconds:0} s   (Esc stops)";
+        _progressText.Text = $"{(r.Id.StartsWith("read:") ? r.Name : Core.Lang.T("inv.making", r.Name))}  {t:0} / {r.Seconds:0} s   {Core.Lang.T("inv.esc_stops")}";
         foreach (var c in _progress.GetChildren()) if (c is Control g && g is not Label) g.QueueRedraw();
     }
 
     public void Fill(Inventory pack)
     {
         _pack = pack;
+        if (_titleLabel != null) _titleLabel.Text = Core.Lang.T("nb.title");
         _progress.Visible = _screen.Busy;
         foreach (var c in _tabs.GetChildren()) c.QueueFree();
         foreach (var c in _rows.GetChildren()) c.QueueFree();
@@ -163,7 +166,7 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         foreach (var (id, pl, sticker) in Tabs)
         {
             if (id != "all" && !cats.Contains(id)) continue;
-            var b = new Button { Text = pl, ToggleMode = true, ButtonPressed = id == _tab, CustomMinimumSize = new Vector2(0, 30) };
+            var b = new Button { Text = Core.Lang.T("tab." + id), ToggleMode = true, ButtonPressed = id == _tab, CustomMinimumSize = new Vector2(0, 30) };
             string art = id switch { "Cooking" => "cooking", "Medicine" => "medicine", "Fire" => "fire", "Bigos" => "bigos", "Trouble" => "trouble", _ => "materials" };
             StyleBox sb = Skin.Box($"icons/notebook/tab_{art}.png", 8, 0, id == _tab ? Colors.White : new Color(1, 1, 1, 0.6f)) as StyleBox
                 ?? new StyleBoxFlat { BgColor = id == _tab ? sticker : new Color(sticker, 0.55f), ContentMarginLeft = 10, ContentMarginRight = 10, CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2 };
@@ -186,14 +189,14 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
                 if (!headed)
                 {
                     headed = true;
-                    var head = new Label { Text = "Jeszcze nie umiem" };
+                    var head = new Label { Text = Core.Lang.T("nb.not_learnt") };
                     Handwrite(head, 28, Ink);
                     _rows.AddChild(head);
                 }
                 var line = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, SizeFlagsHorizontal = SizeFlags.ExpandFill };
                 Handwrite(line, 21, Pencil);
                 bool have = pack.Count(r.Book!) > 0;
-                line.Text = $"? ? ?  {r.Name}  [color=#{(have ? Green : Pencil).ToHtml(false)}]— learn it from {ItemDb.Say(r.Book!)}{(have ? " (it's in your pack: Read)" : "")}[/color]";
+                line.Text = $"? ? ?  {r.Name}  [color=#{(have ? Green : Pencil).ToHtml(false)}]— {Core.Lang.T("nb.learn_from", ItemDb.Say(r.Book!))}{(have ? Core.Lang.T("nb.in_pack") : "")}[/color]";
                 _rows.AddChild(line);
                 continue;
             }
@@ -226,9 +229,9 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
         string Mark(string label, bool ok) => ok ? $"[color=#{Green.ToHtml(false)}]{label}[/color] {Pencil_("tick")}" : $"{Pencil_("cross")} [color=#{Red.ToHtml(false)}]{label}[/color]";
         var parts = r.Inputs.Select(p => Mark(p.Count > 1 ? $"{p.Count} × {ItemDb.Say(p.Item)}" : ItemDb.Say(p.Item), pack.CountMatching(p.Item) >= p.Count)).ToList();
         var tools = r.Tools.Select(alts => Mark(string.Join(" or ", alts.Select(ItemDb.Say)), alts.Any(a => pack.CountMatching(a) > 0))).ToList();
-        if (r.Heat) { var heat = Recipes.HeatHere?.Invoke(pack); tools.Add(Mark(heat != null ? $"heat ({heat})" : Recipes.HeatName, heat != null)); }
+        if (r.Heat) { var heat = Recipes.HeatHere?.Invoke(pack); tools.Add(Mark(heat != null ? Core.Lang.T("nb.heat", heat) : Recipes.HeatName, heat != null)); }
         if (r.Evolve != null && miss.FirstOrDefault(m => m.Contains(ItemDb.Get(r.Evolve)?.Name ?? r.Evolve)) is { } potMiss) tools.Add(Mark(potMiss, false));
-        string makes = r.Places != null ? $"a {r.Places} on the ground" : r.Evolve != null ? $"a better {r.Evolve}" : Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count)));
+        string makes = r.Places != null ? Core.Lang.T("nb.on_ground", Core.Lang.Pl ? "ognisko" : r.Places) : r.Evolve != null ? Core.Lang.T("nb.better", r.Evolve) : Inventory.Say(r.Outputs.Select(o => new ItemStack(o.Item, o.Count)));
         var uses = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
         Handwrite(uses, 20, Ink);
         uses.Text = (parts.Count > 0 ? string.Join(", ", parts) : "") + (tools.Count > 0 ? (parts.Count > 0 ? "  ·  " : "") + string.Join(", ", tools) : "")
@@ -241,7 +244,7 @@ public partial class NotebookColumn : PanelContainer, ICraftColumn
             text.AddChild(about);
         }
         row.AddChild(text);
-        var make = new Button { Text = r.Seconds > 0 ? $"Make · {Recipes.SecondsFor(r):0} s" : "Make", Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(124, 40), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        var make = new Button { Text = r.Seconds > 0 ? Core.Lang.T("nb.make", Recipes.SecondsFor(r).ToString("0")) : Core.Lang.T("nb.make_now"), Disabled = !can || _screen.Busy, CustomMinimumSize = new Vector2(124, 40), SizeFlagsVertical = SizeFlags.ShrinkCenter };
         var ring = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0), BorderColor = Ink, BorderWidthBottom = 2, BorderWidthTop = 2, BorderWidthLeft = 2, BorderWidthRight = 2, CornerRadiusTopLeft = 18, CornerRadiusTopRight = 14, CornerRadiusBottomLeft = 14, CornerRadiusBottomRight = 18, ContentMarginLeft = 8, ContentMarginRight = 8 };
         var hover = (StyleBoxFlat)ring.Duplicate(); hover.BgColor = new Color(Amber, 0.15f);
         var off = (StyleBoxFlat)ring.Duplicate(); off.BorderColor = new Color(Pencil, 0.35f);

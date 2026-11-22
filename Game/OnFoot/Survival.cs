@@ -89,20 +89,20 @@ public sealed partial class Survival : Node
         int fr = Freshness.Stage(d, st.Made);
         float k = Freshness.FoodFactor(fr);
         Hunger = Math.Clamp(Hunger + d.Food * k, 0, 100); Thirst = Math.Clamp(Thirst + d.Drink * k, 0, 100);
-        string what = fr is Freshness.Stale or Freshness.Rotten ? $"{Freshness.Word(fr)} {d.Name}" : d.Name;
-        Say(d.Category == "drink" ? $"You drink a {what}" : $"You eat a {what}");
+        string what = fr == Freshness.Stale ? Core.Lang.T("eat.stale_name", d.Name) : fr == Freshness.Rotten ? Core.Lang.T("eat.rotten_name", d.Name) : d.Name;
+        Say(Core.Lang.T(d.Category == "drink" ? "eat.you_drink" : "eat.you_eat", what));
         if (fr == Freshness.Rotten)
         {
             Health = MathF.Max(1, Health - 10);
             _cause = "rotten food";
-            Say("It's gone off. Your stomach turns.");
+            Say(Core.Lang.T("eat.rotten"));
         }
         if (d.Matches("tag:dirty_water"))
         {
             // unboiled (D111): it quenches, and it costs you
             Health = MathF.Max(1, Health - 8);
             _cause = "river water";
-            Say("It tastes of mud. Your stomach turns. Boil it next time.");
+            Say(Core.Lang.T("eat.river"));
         }
         if (d.Leaves != null) Pack.Add(d.Leaves, 1, st.Made);
     }
@@ -127,10 +127,10 @@ public sealed partial class Survival : Node
         }
         if (d.Category == "medical")
         {
-            if (Health >= 99) { Say("You're fine"); return; }
+            if (Health >= 99) { Say(Core.Lang.T("eat.fine")); return; }
             _healing += d.Heal * (1 + Skills.Bonus("first_aid"));   // a practised hand (D113)
             Skills.Add("first_aid", 8);
-            Say($"You patch yourself up with a {d.Name}");
+            Say(Core.Lang.T("eat.patch", d.Name));
         }
         else
         {
@@ -144,14 +144,14 @@ public sealed partial class Survival : Node
     public void UseMedkit()
     {
         if (Medkits <= 0) { Say("Nothing to patch yourself up with"); return; }
-        if (Health >= 99) { Say("You're fine"); return; }
+        if (Health >= 99) { Say(Core.Lang.T("eat.fine")); return; }
         // what fits the wound: a first aid kit for a bad one, a bandage or a plaster for less
         var id = Best(IsMedical, d => d.Heal, 100 - Health)!;
         var def = ItemDb.Def(id);
         Pack.Remove(id, 1);
         _healing += def.Heal * (1 + Skills.Bonus("first_aid"));
         Skills.Add("first_aid", 8);
-        Say($"You patch yourself up with a {def.Name}");
+        Say(Core.Lang.T("eat.patch", def.Name));
     }
 
     /// <summary>A bullet or a fall (D47: bandits).</summary>

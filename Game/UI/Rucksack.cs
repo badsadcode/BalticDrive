@@ -149,7 +149,7 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
         {
             int n = id == "all" ? piles.Sum(p => p.N) : counts.GetValueOrDefault(id);
             if (id != "all" && n == 0) continue;
-            var b = new Button { Text = $"{name} {n}", ToggleMode = true, ButtonPressed = id == _category, Icon = ItemIcons.Category(id), ExpandIcon = false };
+            var b = new Button { Text = $"{Core.Lang.T("cat." + id)} {n}", ToggleMode = true, ButtonPressed = id == _category, Icon = ItemIcons.Category(id), ExpandIcon = false };
             b.AddThemeFontSizeOverride("font_size", 13);
             Skin.Button(b, "button_small");
             if (id != "all") b.AddThemeColorOverride("font_color", ItemIcons.Of(id));
@@ -161,7 +161,7 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
         foreach (var c in _grid.GetChildren()) c.QueueFree();
         var shown = piles.Where(p => _category == "all" || p.Def?.Category == _category).ToList();
         if (_selected is { } sel && !shown.Any(p => p.Id == sel.Id && p.Stage == sel.Stage)) _selected = null;
-        if (shown.Count == 0) _grid.AddChild(new Label { Text = "  (empty)", Modulate = new Color(1, 1, 1, 0.5f) });
+        if (shown.Count == 0) _grid.AddChild(new Label { Text = "  " + Core.Lang.T("inv.empty"), Modulate = new Color(1, 1, 1, 0.5f) });
         foreach (var p in shown)
             _grid.AddChild(new ItemTile(this, p.Id, p.N, p.Def, p.Stage, _selected == (p.Id, p.Stage)));
         ShowCard(shown.FirstOrDefault(p => _selected == (p.Id, p.Stage)) is var s && s.Id != null ? s : default);
@@ -177,7 +177,7 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
         foreach (var c in _card.GetChildren()) c.QueueFree();
         if (p.Id == null || p.Def is not { } d)
         {
-            var hint = new Label { Text = Left ? "Pick something to take" : "Pick something to see what it is", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+            var hint = new Label { Text = Core.Lang.T(Left ? "card.pick_take" : "card.pick"), AutowrapMode = TextServer.AutowrapMode.WordSmart };
             hint.AddThemeColorOverride("font_color", new Color(NotebookColumn.Pencil, 0.8f));
             _card.AddChild(hint);
             return;
@@ -187,17 +187,17 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
         name.AddThemeColorOverride("font_color", NotebookColumn.Ink);   // dark ink on the paper label
         _card.AddChild(name);
         var facts = new List<string> { $"{d.Weight * p.N:0.00} kg" };
-        if (d.Food > 0) facts.Add($"food {d.Food:0}");
-        if (d.Drink > 0) facts.Add($"drink {d.Drink:0}");
-        if (d.Heal > 0) facts.Add($"heals {d.Heal:0}");
+        if (d.Food > 0) facts.Add(Core.Lang.T("card.food", d.Food.ToString("0")));
+        if (d.Drink > 0) facts.Add(Core.Lang.T("card.drink", d.Drink.ToString("0")));
+        if (d.Heal > 0) facts.Add(Core.Lang.T("card.heals", d.Heal.ToString("0")));
         if (Freshness.Perishable(d))
         {
             double age = Freshness.AgeDays(p.Made);
             facts.Add(p.Stage switch
             {
-                Freshness.Fresh => $"fresh, {Math.Max(0, d.Fresh - age):0.#} days left",
-                Freshness.Stale => $"stale: eat it soon ({Math.Max(0, d.Fresh + d.Stale - age):0.#} days)",
-                Freshness.Rotten => "rotten: only good for the bin",
+                Freshness.Fresh => Core.Lang.T("card.fresh", Math.Max(0, d.Fresh - age).ToString("0.#")),
+                Freshness.Stale => Core.Lang.T("card.stale", Math.Max(0, d.Fresh + d.Stale - age).ToString("0.#")),
+                Freshness.Rotten => Core.Lang.T("card.rotten"),
                 _ => "",
             });
         }
@@ -208,7 +208,7 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
         if (d.Note.Length > 0) line.Text += $"\n[color=#{NotebookColumn.Pencil.ToHtml(false)}]{d.Note}[/color]";
         // what it stands in for in recipes (D107)
         var counts = d.Tags.Select(t => ItemDb.Say("tag:" + t)).Distinct().ToList();
-        if (counts.Count > 0) line.Text += $"\n[color=#{NotebookColumn.Green.ToHtml(false)}]counts as: {string.Join(", ", counts)}[/color]";
+        if (counts.Count > 0) line.Text += $"\n[color=#{NotebookColumn.Green.ToHtml(false)}]{Core.Lang.T("card.counts_as", string.Join(", ", counts))}[/color]";
         _card.AddChild(line);
         var acts = new HBoxContainer();
         acts.AddThemeConstantOverride("separation", 6);
@@ -222,11 +222,11 @@ public partial class RucksackColumn : PanelContainer, IItemColumn
         }
         int? stage = p.Stage > 0 ? p.Stage : null;
         if (!Left && _usable != null && _usable(d))
-            Act(d.Category == "food" ? "Eat" : d.Category == "drink" ? "Drink" : d.Category == "fuel" ? "Pour" : d.Category == "book" ? "Read" : "Use", () => _screen.Use(p.Id, stage));
+            Act(Core.Lang.T(d.Category == "food" ? "act.eat" : d.Category == "drink" ? "act.drink" : d.Category == "fuel" ? "act.pour" : d.Category == "book" ? "act.read" : "act.use"), () => _screen.Use(p.Id, stage));
         if (_screen.HasContainer)
         {
-            Act(Left ? "Take one" : "Put one", () => _screen.Move(Left, p.Id, 1, stage));
-            if (p.N > 1) Act(Left ? "Take all" : "Put all", () => _screen.Move(Left, p.Id, p.N, stage));
+            Act(Core.Lang.T(Left ? "act.take_one" : "act.put_one"), () => _screen.Move(Left, p.Id, 1, stage));
+            if (p.N > 1) Act(Core.Lang.T(Left ? "act.take_all" : "act.put_all"), () => _screen.Move(Left, p.Id, p.N, stage));
         }
     }
 
@@ -264,7 +264,7 @@ public partial class ItemTile : Control
         _column = column; _id = id; _n = n; _def = def; _stage = stage; _selected = selected;
         CustomMinimumSize = new Vector2(88, 96);
         MouseFilter = MouseFilterEnum.Stop;
-        TooltipText = (def?.Name ?? id) + (stage is Freshness.Stale or Freshness.Rotten ? $" ({Freshness.Word(stage)})" : "");
+        TooltipText = (def?.Name ?? id) + (stage is Freshness.Stale or Freshness.Rotten ? $" ({Core.Lang.T("fresh." + Freshness.Word(stage))})" : "");
         MouseEntered += QueueRedraw;
         MouseExited += QueueRedraw;
     }
