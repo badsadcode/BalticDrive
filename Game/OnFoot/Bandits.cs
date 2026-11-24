@@ -515,7 +515,9 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
 
     private void Shoot(BanditField.Target t)
     {
-        _cooldown = Gun.Mode switch { FireMode.Auto => 60f / Gun.Rpm, FireMode.Semi => 0.35f + (float)_rng.NextDouble() * 0.2f, _ => 2.2f };
+        // automatic: no faster than the old AK's 600 a minute (D131: the 900-a-minute submachine gun killed you from
+        // full health in 3 s at 5 m)
+        _cooldown = Gun.Mode switch { FireMode.Auto => MathF.Max(60f / Gun.Rpm, 0.1f), FireMode.Semi => 0.35f + (float)_rng.NextDouble() * 0.2f, _ => 2.2f };
         var muzzle = _holder.ToGlobal(new Vector3(-Gun.Muzzle.X, Gun.Muzzle.Y, -Gun.Muzzle.Z) * Gun.Scale);
         var target = t.Aim;
         var dir = (target - muzzle).Normalized();

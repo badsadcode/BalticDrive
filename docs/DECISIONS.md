@@ -2033,3 +2033,16 @@ worked), `range` (12 of 12 targets, out to the 50 m plate), `tpgun` (third perso
 pistol, aiming and firing). Notes for BadGun's own session: the WW1 pistol has no Reload clip; the leaf-sight ADS
 socket's position; most WW1 pistols look modern. The rest of Synty (cars, props, the player's body) stays until
 generators replace it.
+
+## D131 — BadCharacters' big update: real backward and sideways walks
+Tom: "Bad characters just got quite a big update" (12 commits: walk backward, strafes, turns, 16 gestures, hit
+reactions, deaths, get-ups, crouched weapon clips, more body sliders). The bandits were exported again from the same
+seeds (`tools/people/export_bandits.ts`; same bodies, 136 clips each instead of 87, about 2.3 MB a file). The
+locomotion tree now uses the real `WalkBackward`, `StrafeLeft`/`StrafeRight` and `CrouchWalkBackward` instead of the
+forward clip played backwards (D129); running back or sideways uses those same clips, sped up by the tree. An export
+without them still falls back. Found on the way: a bandit with the submachine gun (D130) fired 15 rounds a second and
+took you from full health to nothing in 3 s at 5 m (twice out of two); bandits' automatic fire is capped at the old
+AK's 600 a minute, and the same test now leaves you at about 85 hp, as pistols do. The `people` test shows the new
+clips (backward, strafe, crouch-strafe, hit, get-up; death, crossed arms, phone, shrug, hands in pockets) and logs each
+one's clip and hip height. Not used yet: hit reactions, deaths and get-ups (the ragdoll and the knockdown do those
+jobs now), turns and gestures: candidates for bandits that feel more alive.

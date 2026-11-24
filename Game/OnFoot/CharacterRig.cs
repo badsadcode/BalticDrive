@@ -49,8 +49,9 @@ public static class CharacterRig
 
     /// <summary>A BadCharacters person (D129): the GLB under <paramref name="model"/> (it faces +Z like Synty's, so the
     /// same half turn), its own skeleton (Unity-named bones, as ours) and its own clips in the same locomotion tree.
-    /// BadCharacters has no backward or sideways walks: back is the forward clip played backwards, sideways the
-    /// forward one.</summary>
+    /// Backward and sideways (D131): its own WalkBackward, StrafeLeft/Right and the crouched ones; running back or
+    /// sideways uses the walking clips (the tree speeds them up between points). An older export without them falls
+    /// back to the forward clip, played backwards for back.</summary>
     public static (Skeleton3D? Skel, AnimationTree? Tree) BuildPerson(Node3D model, string glb)
     {
         if (!ResourceLoader.Exists(glb) || ResourceLoader.Load<PackedScene>(glb) is not { } scene) return (null, null);
@@ -61,13 +62,16 @@ public static class CharacterRig
         var player = root.FindChildren("*", "AnimationPlayer", true, false).OfType<AnimationPlayer>().FirstOrDefault();
         if (skel == null) { root.QueueFree(); return (null, null); }
         if (player == null) return (skel, null);
-        foreach (var c in new[] { "Idle", "Walk", "Run", "Sprint", "Crouch", "CrouchWalk" })
+        foreach (var c in new[] { "Idle", "Walk", "Run", "Sprint", "Crouch", "CrouchWalk", "WalkBackward", "StrafeLeft", "StrafeRight", "CrouchWalkBackward" })
             if (player.HasAnimation(c)) player.GetAnimation(c).LoopMode = Animation.LoopModeEnum.Linear;
+        (string, bool) Or(string clip, string fallback, bool back) => player.HasAnimation(clip) ? (clip, false) : (fallback, back);
         (string, bool) Map(string key) => key switch
         {
-            "idle" => ("Idle", false), "walk" or "walk_l" or "walk_r" => ("Walk", false), "run" or "run_l" or "run_r" => ("Run", false),
-            "sprint" => ("Sprint", false), "walk_b" => ("Walk", true), "run_b" => ("Run", true),
-            "crouch_idle" => ("Crouch", false), "crouch_f" => ("CrouchWalk", false), "crouch_b" => ("CrouchWalk", true),
+            "idle" => ("Idle", false), "walk" => ("Walk", false), "run" => ("Run", false), "sprint" => ("Sprint", false),
+            "walk_b" or "run_b" => Or("WalkBackward", key == "walk_b" ? "Walk" : "Run", true),
+            "walk_l" or "run_l" => Or("StrafeLeft", key == "walk_l" ? "Walk" : "Run", false),
+            "walk_r" or "run_r" => Or("StrafeRight", key == "walk_r" ? "Walk" : "Run", false),
+            "crouch_idle" => ("Crouch", false), "crouch_f" => ("CrouchWalk", false), "crouch_b" => Or("CrouchWalkBackward", "CrouchWalk", true),
             _ => ("Idle", false),   // falling: standing still in the air
         };
         return (skel, Tree(root, player, Map));

@@ -345,8 +345,8 @@ public sealed class Tests
         string[][] sets =
         {
             new[] { "Walk", "Run", "Sprint", "CrouchWalk", "Idle" },
-            new[] { "Crawl", "Crouch", "CarryDuffleWalk", "Jump", "CarryBoxWalk" },
-            new[] { "Idle", "Talk", "Eat", "SitGround", "Hammer" },
+            new[] { "WalkBackward", "StrafeLeft", "CrouchStrafeRight", "HitTorsoFront", "GetUpFromBack" },   // D131
+            new[] { "DeathForward", "CrossArms", "PhoneCall", "Shrug", "HandsInPockets" },
         };
         void Play(int set)
         {
@@ -399,7 +399,15 @@ public sealed class Tests
                 return true;
             }
             case 1: if (_peopleT < 1.3) return true; Shot("people_weapons"); Play(1); _peopleStep++; _peopleT = 0; return true;
-            case 2: if (_peopleT < 1.3) return true; Shot("people_moving"); Play(2); _peopleStep++; _peopleT = 0; return true;
+            case 2:
+                if (_peopleT < 1.3) return true;
+                foreach (var f in _folk)
+                {
+                    var sk = f.Node.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+                    float hips = sk == null ? -1 : (sk.GlobalTransform * sk.GetBoneGlobalPose(sk.FindBone("Hips")).Origin).Y - f.Node.GlobalPosition.Y;
+                    Log.Info("Test", $"people: {f.Name} plays {f.Anim?.CurrentAnimation} at {f.Anim?.CurrentAnimationPosition:0.00} s, hips {hips:0.00} m");
+                }
+                Shot("people_moving"); Play(2); _peopleStep++; _peopleT = 0; return true;
             case 3:
             {
                 if (_peopleT < 1.6) return true;
