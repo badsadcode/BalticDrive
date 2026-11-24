@@ -1,0 +1,436 @@
+{
+ "generator": "BadGun",
+ "version": "0.1.0",
+ "name": "BadGun_pistol_ww2_2",
+ "recipe": {
+  "archetype": "pistol",
+  "style": "ww2",
+  "seed": 2
+ },
+ "resolved": {
+  "params": {
+   "length": 0.99,
+   "bulk": 0.402,
+   "ornament": 0.161,
+   "detail": 0.477,
+   "smoothness": 0.794,
+   "wear": 0.586
+  },
+  "parts": {
+   "frame": "slide",
+   "grip": "broom",
+   "muzzle": "none",
+   "underbarrel": "none",
+   "sight": "none"
+  },
+  "palette": "Birch & Blued"
+ },
+ "conventions": {
+  "units": "meters",
+  "up": "+Y",
+  "forward": "+Z (muzzle direction)",
+  "left": "+X (the ejection port is on the right, -X)",
+  "origin": "Trigger hand on the pistol grip (SOCKET_Hand_Grip)",
+  "uv": "Two UV sets. Tiling: a physical unwrap, 1 UV unit = 0.25 m, for tiling textures and trim sheets (islands may overlap). Atlas: every surface packed once into the 0..1 square with uniform texel density and no overlaps, for hand painting, baking and unique texture sets. See \"uv\" for which set is which.",
+  "materials": "One shared material per semantic slot (MAT_<Slot>); names are stable across regenerations",
+  "sockets": "Empty nodes named SOCKET_*; their +Z axis is the socket forward direction"
+ },
+ "materials": [
+  {
+   "name": "MAT_Body",
+   "slot": "Body",
+   "def": {
+    "label": "blued steel",
+    "color": "#323437",
+    "metallic": 0.9,
+    "roughness": 0.5218778486156836
+   }
+  },
+  {
+   "name": "MAT_Barrel",
+   "slot": "Barrel",
+   "def": {
+    "label": "blued steel",
+    "color": "#2c2e31",
+    "metallic": 0.9,
+    "roughness": 0.5053908778782934
+   }
+  },
+  {
+   "name": "MAT_Grip",
+   "slot": "Grip",
+   "def": {
+    "label": "bakelite",
+    "color": "#513323",
+    "metallic": 0,
+    "roughness": 0.5053908778782934
+   }
+  },
+  {
+   "name": "MAT_Magazine",
+   "slot": "Magazine",
+   "def": {
+    "label": "blued steel",
+    "color": "#323437",
+    "metallic": 0.9,
+    "roughness": 0.5466083047217689
+   }
+  },
+  {
+   "name": "MAT_Detail",
+   "slot": "Detail",
+   "def": {
+    "label": "dark steel",
+    "color": "#242425",
+    "metallic": 0.9,
+    "roughness": 0.5878257315652445
+   }
+  }
+ ],
+ "components": [
+  {
+   "name": "Frame",
+   "kind": "frame",
+   "variant": "slide",
+   "parent": null,
+   "pivot": [
+    0,
+    0.0557,
+    0.0495
+   ],
+   "materials": [
+    "MAT_Grip",
+    "MAT_Detail"
+   ],
+   "triangles": 248
+  },
+  {
+   "name": "Slide",
+   "kind": "slide",
+   "variant": "serrated",
+   "parent": "Frame",
+   "pivot": [
+    0,
+    0.0557,
+    -0.0405
+   ],
+   "motion": {
+    "type": "translate",
+    "axis": [
+     0,
+     0,
+     -1
+    ],
+    "range": [
+     0,
+     0.04
+    ],
+    "purpose": "fire (recoil) / rack"
+   },
+   "materials": [
+    "MAT_Body",
+    "MAT_Detail",
+    "MAT_Barrel"
+   ],
+   "triangles": 356
+  },
+  {
+   "name": "Barrel",
+   "kind": "barrel",
+   "variant": "pistol",
+   "parent": "Frame",
+   "pivot": [
+    0,
+    0.0557,
+    -0.0205
+   ],
+   "materials": [
+    "MAT_Barrel"
+   ],
+   "triangles": 88
+  },
+  {
+   "name": "Trigger",
+   "kind": "trigger",
+   "variant": "blade",
+   "parent": "Frame",
+   "pivot": [
+    0,
+    0.036,
+    0.0515
+   ],
+   "motion": {
+    "type": "rotate",
+    "axis": [
+     1,
+     0,
+     0
+    ],
+    "range": [
+     0,
+     0.3
+    ],
+    "purpose": "fire"
+   },
+   "materials": [
+    "MAT_Detail"
+   ],
+   "triangles": 44
+  },
+  {
+   "name": "Magazine",
+   "kind": "magazine",
+   "variant": "grip",
+   "parent": "Frame",
+   "pivot": [
+    0,
+    0.034,
+    0.0045
+   ],
+   "motion": {
+    "type": "translate",
+    "axis": [
+     0,
+     -0.9727015797378696,
+     -0.23205955437226183
+    ],
+    "range": [
+     0,
+     0.14
+    ],
+    "purpose": "reload"
+   },
+   "materials": [
+    "MAT_Magazine",
+    "MAT_Detail"
+   ],
+   "triangles": 40
+  },
+  {
+   "name": "Grip",
+   "kind": "grip",
+   "variant": "broom",
+   "parent": "Frame",
+   "pivot": [
+    0,
+    0.034,
+    0.0295
+   ],
+   "materials": [
+    "MAT_Grip",
+    "MAT_Detail"
+   ],
+   "triangles": 320
+  }
+ ],
+ "sockets": [
+  {
+   "name": "SOCKET_Muzzle",
+   "parent": "Muzzle",
+   "position": [
+    0,
+    0.0557,
+    0.1965
+   ],
+   "forward": [
+    0,
+    0,
+    1
+   ],
+   "description": "Muzzle tip: projectiles, flashes, tracers."
+  },
+  {
+   "name": "SOCKET_Optic",
+   "parent": "Receiver",
+   "position": [
+    0,
+    0.0733,
+    0.0045
+   ],
+   "forward": [
+    0,
+    0,
+    1
+   ],
+   "description": "Optic mount point on top of the weapon."
+  },
+  {
+   "name": "SOCKET_ADS",
+   "parent": "Receiver",
+   "position": [
+    0,
+    0.1033,
+    -0.1155
+   ],
+   "forward": [
+    0,
+    0,
+    1
+   ],
+   "description": "Eye position when aiming down sights (place the camera here)."
+  },
+  {
+   "name": "SOCKET_Hand_Grip",
+   "parent": "Grip",
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "forward": [
+    0,
+    0,
+    1
+   ],
+   "description": "Shooting hand on the grip."
+  },
+  {
+   "name": "SOCKET_Hand_Support",
+   "parent": "Grip",
+   "position": [
+    0.02,
+    -0.01,
+    0.005
+   ],
+   "forward": [
+    0,
+    0,
+    1
+   ],
+   "description": "Support hand wrapped around the shooting hand (left side)."
+  },
+  {
+   "name": "SOCKET_Magazine",
+   "parent": "Frame",
+   "position": [
+    0,
+    -0.0716,
+    -0.0195
+   ],
+   "forward": [
+    0,
+    -0.9727,
+    -0.2321
+   ],
+   "description": "Magazine well at the bottom of the grip."
+  },
+  {
+   "name": "SOCKET_Underbarrel",
+   "parent": "Frame",
+   "position": [
+    0,
+    0.032,
+    0.145
+   ],
+   "forward": [
+    0,
+    0,
+    1
+   ],
+   "description": "Under-frame mount for a light or laser. Attachments hang down from here."
+  },
+  {
+   "name": "SOCKET_Eject",
+   "parent": "Slide",
+   "position": [
+    -0.0177,
+    0.0713,
+    0.0882
+   ],
+   "forward": [
+    -1,
+    0.6,
+    -0.1
+   ],
+   "description": "Where casings (or heat) come out, right side."
+  }
+ ],
+ "bounds": {
+  "min": [
+   -0.015,
+   -0.0801,
+   -0.0465
+  ],
+  "max": [
+   0.015,
+   0.0793,
+   0.1965
+  ],
+  "size": [
+   0.03,
+   0.1593,
+   0.243
+  ]
+ },
+ "collision": {
+  "type": "box",
+  "center": [
+   0,
+   -0.0004,
+   0.075
+  ],
+  "size": [
+   0.03,
+   0.1593,
+   0.243
+  ]
+ },
+ "uv": {
+  "tiling": "TEXCOORD_0",
+  "atlas": "TEXCOORD_1",
+  "charts": 419,
+  "coverage": 0.752,
+  "texelsPerMeter": {
+   "1024": 2521,
+   "2048": 5043
+  },
+  "padding": 4
+ },
+ "animations": [
+  {
+   "name": "Fire",
+   "description": "Pull the trigger and fire one shot.",
+   "duration": 0.32,
+   "events": {
+    "shot": 0.06
+   },
+   "parts": [
+    "Trigger",
+    "Slide"
+   ]
+  },
+  {
+   "name": "Reload",
+   "description": "Swap the magazine, then chamber a round.",
+   "duration": 1.82,
+   "events": {
+    "magOut": 0.45,
+    "magIn": 1.3,
+    "chambered": 1.67
+   },
+   "parts": [
+    "Magazine",
+    "Slide"
+   ]
+  },
+  {
+   "name": "Cycle",
+   "description": "Rack the slide.",
+   "duration": 0.38,
+   "events": {
+    "back": 0.2,
+    "release": 0.28
+   },
+   "parts": [
+    "Slide"
+   ]
+  }
+ ],
+ "stats": {
+  "triangles": 1096,
+  "vertices": 1934,
+  "meshes": 6,
+  "primitives": 11,
+  "materials": 5
+ }
+}

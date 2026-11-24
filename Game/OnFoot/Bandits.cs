@@ -86,7 +86,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         // the gun, as the player's: the model turned to look down -Z and scaled to metres
         _holder = new Node3D { Name = "Gun" };
         AddChild(_holder);
-        if (GunModel.Make(Gun) is { } model) _holder.AddChild(model);
+        if (GunModel.Make(Gun, _rng.Next(16)) is { } model) _holder.AddChild(model);
         _flash = new OmniLight3D { LightColor = new Color(1f, 0.72f, 0.38f), LightEnergy = 0, OmniRange = 14, OmniAttenuation = 1.6f, ShadowEnabled = false };
         _holder.AddChild(_flash);
         _flash.Position = new Vector3(-Gun.Muzzle.X, Gun.Muzzle.Y, -Gun.Muzzle.Z) * Gun.Scale;
@@ -634,9 +634,11 @@ public sealed partial class GunHold : SkeletonModifier3D
 /// (D40), no collision, muzzle flash part hidden.</summary>
 public static class GunModel
 {
-    public static Node3D? Make(WeaponDef gun)
+    /// <param name="look">which of the gun's looks (D130: three pistols), if it has more than one</param>
+    public static Node3D? Make(WeaponDef gun, int look = 0)
     {
-        if (!ResourceLoader.Exists(gun.Scene) || ResourceLoader.Load<PackedScene>(gun.Scene) is not { } ps) return null;
+        string path = gun.Looks is { Length: > 0 } l ? l[look % l.Length] : gun.Scene;
+        if (!ResourceLoader.Exists(path) || ResourceLoader.Load<PackedScene>(path) is not { } ps) return null;
         var inst = ps.Instantiate<Node3D>();
         foreach (var body in inst.FindChildren("*", "CollisionObject3D", true, false)) body.Free();
         foreach (var part in inst.GetChildren().OfType<MeshInstance3D>())

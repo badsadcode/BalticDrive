@@ -2011,3 +2011,25 @@ fairly: two other Godot games were running on the same GPU (both styles swung be
 1.1k–1.5k triangles. Still Synty: the player's body, and every gun. BadGun guns (which BadCharacters already fits
 hands and clips to) are the next step for those. The repos stay read-only to Baltic Drive; Tom will join BadGun and
 BadCharacters himself when both are polished.
+
+## D130 — The guns are BadGun's
+Tom: "we will definitely use only bad guns", in WW2, WW1 and maybe modern styles (not the scrap/survivor one). From a
+lineup of 18 in the game (`--autotest=gunlineup`), the game's three: a WW2 bolt-action rifle (seed 3) in the Mosin's
+place, a WW2 drum-fed submachine gun (seed 1) in the AK's place, and a WW2 pistol (seed 2); Tom kept the three pistols
+that look different, so bandits carry one of three (`WeaponDef.Looks`). Files in `Assets/Guns`, made by
+`tools/guns/export_guns.ts`; the other candidates are in `data/guns/candidates` (not in git). The ids stay `mosin`,
+`ak`, `pistol` (saves and loot use them); the names shown are Rifle, Submachine gun, Pistol. The submachine gun is a
+new gun, not a renamed AK: 71-round drum, 900 rounds a minute, 490 m/s, 5.5 g bullets, 26 damage.
+Everything the old guns had typed in by hand per Synty model is now read from the GLB (`WeaponDef.BadGun`): the
+muzzle, ejection port and both hands from its sockets; the slide, magazine and bolt handle by name (the knob for the
+hand is the handle's outermost point on the right); and the gun's own clips (Fire, Reload, Cycle) move its parts,
+stretched to the game's reload and bolt times, instead of the procedural slide, bolt and magazine moves (still there
+for any gun without clips). One exception: BadGun's `SOCKET_ADS` is meant as the eye's position, but on the
+leaf-sighted rifle it sits 23 cm ahead of the trigger, and aiming put the eye inside the receiver. So only its height
+is used: the sight line runs over the grip, and `Eye` says how far in front of the eye the grip is held (rifle 28 cm,
+SMG 24, pistol 42 at arm's length). Working the bolt now lowers the rifle further (16 cm, out to the right), or the
+hand on the bolt lifted the elbow across the view. Checked: `shoot` (every gun fires, hits, reloads; the bolt is
+worked), `range` (12 of 12 targets, out to the 50 m plate), `tpgun` (third person) and `banditlook` (a bandit with a
+pistol, aiming and firing). Notes for BadGun's own session: the WW1 pistol has no Reload clip; the leaf-sight ADS
+socket's position; most WW1 pistols look modern. The rest of Synty (cars, props, the player's body) stays until
+generators replace it.

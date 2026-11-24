@@ -10,32 +10,69 @@ namespace BalticDrive.OnFoot;
 public enum FireMode { Semi, Auto, Bolt }
 
 /// <summary>
-/// One gun's identity (D40, the on-foot brief: a Mosin-style bolt-action, an AK-style rifle, a pistol). Model space:
-/// the barrel along +Z, Y up (Synty's convention); <see cref="Sight"/> is the point on the rear sight that the eye
-/// looks along when aiming; <see cref="Muzzle"/> the barrel's end; both in the model's own units.
+/// One gun's identity (D40, the on-foot brief: a bolt-action rifle, an automatic, a pistol). Model space: the barrel
+/// along +Z, Y up; <see cref="Sight"/> is the point on the rear sight that the eye looks along when aiming;
+/// <see cref="Muzzle"/> the barrel's end; both in the model's own units. Since D130 the guns are BadGun's: those points,
+/// the hands' places and the moving parts are read from the GLB's sockets (<see cref="BadGun"/>), and the gun's own
+/// clips (Fire, Reload, Cycle) move its parts (<see cref="Clips"/>). The ids stay "mosin", "ak", "pistol" (saves, loot).
 /// </summary>
 public sealed record WeaponDef(
     string Id, string Name, string Scene, float Scale, FireMode Mode, float Rpm, float MuzzleVelocity,
     int Magazine, int Reserve, float ReloadTime, float RecoilPitch, float RecoilYaw, float Kick, float AimFov,
     Vector3 Hip, Vector3 Sight, Vector3 Muzzle, Vector3 Ejection, string? Slide, string? Mag, string? Bolt, string? Flash,
     float Boom, float Pitch, string? Texture = null, float Eye = 0.18f,
-    Vector3 RightGrip = default, Vector3 LeftGrip = default, bool TwoHandedPistol = false, float BulletGrams = 8f, float Damage = 30f)
+    Vector3 RightGrip = default, Vector3 LeftGrip = default, bool TwoHandedPistol = false, float BulletGrams = 8f, float Damage = 30f,
+    bool Clips = false, Vector3 BoltKnob = default, string[]? Looks = null)
 {
     public static readonly WeaponDef[] All =
     {
-        new("mosin", "Mosin rifle", "res://Assets/Synty/PolygonWar/SM_Wep_Russian_Rifle_01.fbx", 0.111f, FireMode.Bolt, 50, 860,
-            5, 25, 3.4f, 0.055f, 0.012f, 0.09f, 55, new Vector3(0.17f, -0.17f, -0.32f), new Vector3(0, 0.61f, 2.6f), new Vector3(0, 0.4f, 8.2f),
-            new Vector3(0.3f, 0.45f, 0.9f), null, null, "SM_Wep_Russian_Rifle_01_Bolt", null, 1.0f, 0.75f, "res://Assets/Synty/PolygonWar/PolygonWar_Texture_01_A.png", Eye: 0.55f,
-            RightGrip: new Vector3(0, -0.22f, -0.25f), LeftGrip: new Vector3(0, 0.12f, 3.5f), BulletGrams: 9.6f, Damage: 95f),
-        new("ak", "AK rifle", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Rifle_Assault_03.tscn", 1f, FireMode.Auto, 600, 715,
-            30, 90, 2.6f, 0.012f, 0.008f, 0.035f, 58, new Vector3(0.16f, -0.16f, -0.3f), new Vector3(0, 0.142f, 0.02f), new Vector3(0, 0.1f, 0.62f),
-            new Vector3(0.03f, 0.12f, 0.2f), "SM_Wep_Rifle_Assault_Slide_03", "SM_Wep_Rifle_Assault_Mag_03", null, "SM_Wep_Rifle_Assault_Flash_03", 0.75f, 1.0f,
-            RightGrip: new Vector3(0, -0.02f, 0.0f), LeftGrip: new Vector3(0, 0.06f, 0.32f), BulletGrams: 7.9f, Damage: 34f),
-        new("pistol", "Pistol", "res://Assets/PolygonBattleRoyale/Prefabs/Weapons/SM_Wep_Pistol_Heavy_01.tscn", 1f, FireMode.Semi, 400, 360,
-            8, 32, 1.8f, 0.03f, 0.01f, 0.05f, 62, new Vector3(0.15f, -0.14f, -0.36f), new Vector3(0, 0.1f, -0.06f), new Vector3(0, 0.07f, 0.13f),
-            new Vector3(0.02f, 0.08f, 0.0f), "SM_Wep_Pistol_Heavy_Slide_01", "SM_Wep_Pistol_Heavy_Mag_01", null, null, 0.55f, 1.35f, Eye: 0.42f,
-            RightGrip: new Vector3(0, -0.045f, -0.02f), LeftGrip: new Vector3(0, -0.065f, -0.02f), TwoHandedPistol: true, Damage: 24f),
+        // a WW2 bolt-action rifle (the Mosin's place): 5 rounds from a stripper clip, the bolt worked after each shot
+        BadGun(new("mosin", "Rifle", "res://Assets/Guns/rifle.glb", 1f, FireMode.Bolt, 50, 860,
+            5, 25, 3.4f, 0.055f, 0.012f, 0.09f, 55, new Vector3(0.17f, -0.17f, -0.3f), default, default, default, null, null, null, null,
+            1.0f, 0.75f, Eye: 0.28f, BulletGrams: 9.6f, Damage: 95f)),
+        // a WW2 drum-fed submachine gun (the AK's place): fast, short-ranged, pistol rounds
+        BadGun(new("ak", "Submachine gun", "res://Assets/Guns/smg.glb", 1f, FireMode.Auto, 900, 490,
+            71, 142, 2.6f, 0.009f, 0.008f, 0.03f, 60, new Vector3(0.16f, -0.16f, -0.28f), default, default, default, null, null, null, null,
+            0.6f, 1.15f, Eye: 0.24f, BulletGrams: 5.5f, Damage: 26f)),
+        // a WW2 pistol; bandits carry one of three looks (Tom kept the three that look different)
+        BadGun(new("pistol", "Pistol", "res://Assets/Guns/pistol.glb", 1f, FireMode.Semi, 400, 360,
+            8, 32, 1.8f, 0.03f, 0.01f, 0.05f, 62, new Vector3(0.15f, -0.14f, -0.36f), default, default, default, null, null, null, null,
+            0.55f, 1.35f, Eye: 0.42f, TwoHandedPistol: true, Damage: 24f,
+            Looks: new[] { "res://Assets/Guns/pistol.glb", "res://Assets/Guns/pistol_b.glb", "res://Assets/Guns/pistol_c.glb" })),
     };
+
+    /// <summary>A BadGun weapon (D130): the sight line's height (SOCKET_ADS is an eye position, and on the leaf-sighted
+    /// rifle it sits 23 cm ahead of the trigger: only its height is used; the line runs over the grip, and
+    /// <see cref="Eye"/> is then how far in front of the eye the grip is held), muzzle, ejection port and both hands from its sockets (SOCKET_ADS,
+    /// _Muzzle, _Eject, _Hand_Grip, _Hand_Support), its moving parts by name (Slide, Magazine, BoltHandle; the bolt's
+    /// knob is the handle's outermost point on the right), and its own clips to move them.</summary>
+    private static WeaponDef BadGun(WeaponDef d)
+    {
+        if (!ResourceLoader.Exists(d.Scene) || ResourceLoader.Load<PackedScene>(d.Scene) is not { } ps) return d;
+        var root = ps.Instantiate<Node3D>();
+        Transform3D In(Node n)
+        {
+            var t = Transform3D.Identity;
+            for (Node? p = n; p != null && p != root; p = p.GetParent()) if (p is Node3D q) t = q.Transform * t;
+            return t;
+        }
+        Vector3 At(string name, Vector3 fallback) => root.FindChild(name, true, false) is Node3D n ? In(n).Origin : fallback;
+        string? Has(string name) => root.FindChild(name, true, false) != null ? name : null;
+        var knob = Vector3.Zero;
+        if (root.FindChild("BoltHandle", true, false) is MeshInstance3D bm && bm.Mesh != null)
+        {
+            var a = bm.Mesh.GetAabb();
+            knob = new Vector3(a.Position.X, a.GetCenter().Y, a.GetCenter().Z);   // BadGun's +X is the gun's left: the knob sticks out to -X
+        }
+        var r = d with
+        {
+            Sight = new Vector3(0, At("SOCKET_ADS", new Vector3(0, 0.08f, 0)).Y, 0), Muzzle = At("SOCKET_Muzzle", new Vector3(0, 0.05f, 0.4f)), Ejection = At("SOCKET_Eject", Vector3.Zero),
+            RightGrip = At("SOCKET_Hand_Grip", Vector3.Zero), LeftGrip = At("SOCKET_Hand_Support", new Vector3(0, 0, 0.3f)),
+            Slide = Has("Slide"), Mag = Has("Magazine"), Bolt = Has("BoltHandle"), Clips = true, BoltKnob = knob,
+        };
+        root.Free();
+        return r;
+    }
 }
 
 /// <summary>
@@ -53,6 +90,7 @@ public partial class Weapons : Node3D
     private WeaponDef? _def;
     private readonly Dictionary<string, (int Mag, int Reserve)> _ammo = new();
     private Node3D? _slide, _mag, _bolt, _flash;
+    private AnimationPlayer? _anim;   // a BadGun gun's own clips (D130)
     private Vector3 _slideRest, _magRest, _boltRest;
     private Quaternion _boltRot;
     private OmniLight3D _flashLight = null!;
@@ -203,7 +241,7 @@ public partial class Weapons : Node3D
         bool same = _def?.Id == id;   // the same key again holsters the gun
         if (_model != null) { _model.QueueFree(); _model = null!; }
         _def = id == null || same ? null : WeaponDef.All.FirstOrDefault(d => d.Id == id);
-        _slide = _mag = _bolt = _flash = null;
+        _slide = _mag = _bolt = _flash = null; _anim = null;
         _reload = -1; _boltCycle = -1; _needBolt = false;
         if (_def == null) return;
         var model = new Node3D { Name = _def.Id };
@@ -227,6 +265,7 @@ public partial class Weapons : Node3D
             if (_mag != null) _magRest = _mag.Position;
             if (_bolt != null) { _boltRest = _bolt.Position; _boltRot = _bolt.Quaternion; }
             if (_flash != null) _flash.Visible = false;
+            if (_def.Clips) _anim = inst.FindChildren("*", "AnimationPlayer", true, false).OfType<AnimationPlayer>().FirstOrDefault();
         }
         else model.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(0.05f, 0.08f, 0.5f) }, Position = new Vector3(0, 0, 0.25f) });
         // the barrel along the eye's -Z: turn the model round, scale it to metres
@@ -296,6 +335,16 @@ public partial class Weapons : Node3D
         if (mag >= _def.Magazine || res <= 0) return;
         _reload = 0;
         Play(_mech, "reload");
+        Clip("Reload", _def.ReloadTime);
+    }
+
+    /// <summary>One of the gun's own clips (D130), stretched to last <paramref name="seconds"/> (0: as made).</summary>
+    private void Clip(string name, float seconds = 0)
+    {
+        if (_anim == null || !_anim.HasAnimation(name)) return;
+        float len = (float)_anim.GetAnimation(name).Length;
+        _anim.Stop();
+        _anim.Play(name, -1, seconds > 0 ? len / seconds : 1f);
     }
 
     // ---- per frame -----------------------------------------------------------------------------------------------
@@ -331,7 +380,7 @@ public partial class Weapons : Node3D
         if (!trigger) _dryClicked = false;
         if (_def.Mode != FireMode.Auto && !trigger) _semiReady = true;
         // the bolt: worked once the trigger is let go (Mosin)
-        if (_needBolt && !trigger && _cooldown <= 0 && _reload < 0) { _needBolt = false; _boltCycle = 0; Play(_mech, "bolt"); }
+        if (_needBolt && !trigger && _cooldown <= 0 && _reload < 0) { _needBolt = false; _boltCycle = 0; Play(_mech, "bolt"); Clip("Cycle", 0.85f); }
         if (_boltCycle >= 0) { _boltCycle += dt / 0.85f; if (_boltCycle >= 1) _boltCycle = -1; }
         if (_reload >= 0)
         {
@@ -371,22 +420,27 @@ public partial class Weapons : Node3D
             rot += new Vector3(0.15f, 0.05f, 0.3f) * r;
             // the magazine drops 25 cm out of the gun in the middle of the reload
             float drop = Mathf.Clamp(r * 1.6f - 0.6f, 0f, 1f);
-            if (_mag != null) _mag.Position = _magRest + new Vector3(0, -0.25f * drop / _def.Scale, 0);
+            if (_mag != null && !_def.Clips) _mag.Position = _magRest + new Vector3(0, -0.25f * drop / _def.Scale, 0);
         }
-        else if (_mag != null) _mag.Position = _magRest;
+        else if (_mag != null && !_def.Clips) _mag.Position = _magRest;
         // bolt cycle (Mosin): up, back, forward, down; the rifle tilts toward it
         if (_boltCycle >= 0 && _bolt != null)
         {
             float c = _boltCycle;
             float up = c < 0.2f ? c / 0.2f : c > 0.8f ? (1 - c) / 0.2f : 1f;
             float back = c < 0.2f ? 0 : c < 0.5f ? (c - 0.2f) / 0.3f : c < 0.8f ? 1 - (c - 0.5f) / 0.3f : 0;
-            _bolt.Quaternion = _boltRot * new Quaternion(Vector3.Forward, -1.3f * up);
-            _bolt.Position = _boltRest + new Vector3(0, 0, -1.1f * back);
+            if (!_def.Clips)   // a BadGun gun's Cycle clip works its own bolt (D130)
+            {
+                _bolt.Quaternion = _boltRot * new Quaternion(Vector3.Forward, -1.3f * up);
+                _bolt.Position = _boltRest + new Vector3(0, 0, -1.1f * back);
+            }
             rot += new Vector3(0.05f, 0, 0.35f) * MathF.Sin(c * MathF.PI);
-            pos += new Vector3(0.02f, -0.06f, 0.03f) * MathF.Sin(c * MathF.PI);   // the rifle dips off the cheek while the hand works
+            // the rifle dips off the cheek while the hand works; the BadGun rifle is held closer, so it comes down further,
+            // out and round to the right, or the hand on the bolt lifts the elbow across the face (D130)
+            pos += (_def.Clips ? new Vector3(0.08f, -0.16f, -0.04f) : new Vector3(0.02f, -0.06f, 0.03f)) * MathF.Sin(c * MathF.PI);
         }
         // slide (pistol, AK): snaps back on the shot
-        if (_slide != null) _slide.Position = _slideRest + new Vector3(0, 0, -_slideBack / _def.Scale);
+        if (_slide != null && !_def.Clips) _slide.Position = _slideRest + new Vector3(0, 0, -_slideBack / _def.Scale);
         _slideBack = Mathf.MoveToward(_slideBack, 0, dt * 0.9f);
 
         _holder.Position = pos;
@@ -432,7 +486,8 @@ public partial class Weapons : Node3D
         if (_boltCycle >= 0 && _bolt != null)
         {
             float w = Mathf.Clamp(MathF.Sin(_boltCycle * MathF.PI) * 2f, 0f, 1f);
-            var knob = _bolt.ToGlobal(new Vector3(-0.5f, -0.02f, -1.3f));   // the handle's knob: right side, rear end of the bolt (bolt mesh z -1.55..-0.2)
+            // the handle's knob: right side, rear end of the bolt (the Synty Mosin's bolt mesh z -1.55..-0.2; BadGun's from its mesh)
+            var knob = _bolt.ToGlobal(d.Clips ? d.BoltKnob : new Vector3(-0.5f, -0.02f, -1.3f));
             // the hand comes to the knob from behind, fingers forward-down; the elbow stays low and back (a forward
             // elbow put the forearm across the face: Tom saw it bend the wrong way)
             right = right with
@@ -493,6 +548,7 @@ public partial class Weapons : Node3D
         _kickRot += new Vector3(d.RecoilPitch * 2.2f, 0, (float)GD.RandRange(-0.03, 0.03));
         _slideBack = d.Slide != null ? 0.035f : 0;
         _flashTime = FlashTime;
+        Clip("Fire");
         if (_flash != null) _flash.Rotation = _flash.Rotation with { Z = (float)GD.RandRange(0, MathF.Tau) };
         Audio.GunSound.Play(this, _eye.GlobalPosition, d, own: true);   // crack, echoes off the walls round you, roll (D53)
         if (d.Mode != FireMode.Bolt) EjectCasing();

@@ -108,7 +108,7 @@
  "hud.carry": "{0}/{1} kg · jedzenie {2} · picie {3} · apteczka {4} · Tab",
  "hud.keys_top": "{0} ([ ] czas, F9 zrzut, F10 ustawienia, N radar)   ",
  "hud.keys_fly": "F8: jedź stąd   prawy przycisk: rozglądanie   WASD/QE ruch, Shift/Ctrl szybciej",
- "hud.keys_foot": "F: wsiądź (przytrzymaj F: warsztat)   WASD chód, Shift bieg, Alt powoli, Ctrl kucnij, Q/E wychyl, Spacja skok, V kamera, Esc mysz, F8 wolna kamera\n1 Mosin, 2 AK, 3 pistolet (jeszcze raz: schowaj)   lewy przycisk strzał, prawy celowanie (Shift: wstrzymaj oddech), R przeładuj, T cele, B bandyci, H apteczka, F skrzynki",
+ "hud.keys_foot": "F: wsiądź (przytrzymaj F: warsztat)   WASD chód, Shift bieg, Alt powoli, Ctrl kucnij, Q/E wychyl, Spacja skok, V kamera, Esc mysz, F8 wolna kamera\n1 karabin, 2 pistolet maszynowy, 3 pistolet (jeszcze raz: schowaj)   lewy przycisk strzał, prawy celowanie (Shift: wstrzymaj oddech), R przeładuj, T cele, B bandyci, H apteczka, F skrzynki",
  "hud.keys_car": "F: wysiądź   F8: wolna kamera   W/S jazda, A/D skręt, Spacja ręczny, C kamera, H światła, R z powrotem na drogę",
  "hud.on_foot": "pieszo, {0} km/h{1}   ",
  "hud.crouching": ", kucasz",

@@ -248,6 +248,78 @@ public sealed class Tests
         return true;
     }
 
+    private double _gunsT = -1;
+    private bool _gunsLook;
+    private int _gunsStep;
+    private Camera3D? _gunsCam;
+
+    /// <summary>--autotest=gunlineup (D130): the game's BadGun guns (Assets/Guns/*.glb, or a folder given by
+    /// --guns=res://...) hung in rows of three on the street, muzzles to the right, pistols at 2.5x, each with its name
+    /// and length; a shot of each pair of rows.</summary>
+    private bool GunLineup(double delta)
+    {
+        if (_gunsT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _gunsT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        _gunsT += delta;
+        var w = _main.Walker!;
+        var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+        var side = new Vector3(-fwd.Z, 0, fwd.X);   // to the camera's right
+        var origin = w.GlobalPosition + fwd * 4f;
+        Vector3 RowAt(int row) => origin + Vector3.Up * (3.6f - row * 0.55f);
+        if (_gunsStep == 0)
+        {
+            if (_gunsT < 1) return true;
+            string folder = Main.Args.GetValueOrDefault("guns", "res://Assets/Guns");
+            var names = DirAccess.GetFilesAt(folder).Where(f => f.EndsWith(".glb")).Select(f => f[..^4]).OrderBy(f => f).ToArray();
+            var basis = new Basis(Vector3.Up.Cross(side), Vector3.Up, side);   // +Z (muzzle) to the right, +Y up
+            for (int i = 0; i < names.Length; i++)
+            {
+                int row = i / 3, col = i % 3;
+                bool pistol = names[i].StartsWith("pistol");
+                var scene = ResourceLoader.Load<PackedScene>($"{folder}/{names[i]}.glb");
+                if (scene == null) { Log.Error("Test", $"guns: {names[i]} didn't load"); continue; }
+                var g = scene.Instantiate<Node3D>();
+                _main.AddChild(g);
+                var at = RowAt(row) + side * ((col - 1) * 1.6f);
+                g.GlobalTransform = new Transform3D(basis.Scaled(Vector3.One * (pistol ? 2.5f : 1f)), at);
+                // centred on its own middle (the origin is the grip)
+                var inv = g.GlobalTransform.AffineInverse();
+                Aabb? box = null;
+                foreach (var m in g.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>())
+                {
+                    var b = (inv * m.GlobalTransform) * m.GetAabb();
+                    box = box is { } bb ? bb.Merge(b) : b;
+                }
+                if (box is { } bx) g.GlobalPosition -= g.GlobalBasis * bx.GetCenter();
+                var label = new Label3D { Text = names[i] + (pistol ? " (x2.5)" : "") + (box is { } b2 ? $"  {b2.Size.Z:0.00} m" : ""), FontSize = 26, PixelSize = 0.0022f, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, OutlineSize = 8 };
+                _main.AddChild(label);
+                label.GlobalPosition = at + Vector3.Down * 0.2f;
+            }
+            _gunsCam = new Camera3D { Fov = 50 };
+            _main.AddChild(_gunsCam);
+            _gunsCam.MakeCurrent();
+            w.Visible = false;
+            _gunsStep = 1; _gunsT = 0;
+            return true;
+        }
+        string[] shots = { "guns_bolt", "guns_auto", "guns_pistols" };
+        int k = _gunsStep - 1;
+        if (k < shots.Length)
+        {
+            var mid = (RowAt(k * 2) + RowAt(k * 2 + 1)) / 2 + Vector3.Down * 0.08f;
+            _gunsCam!.GlobalPosition = mid - fwd * 2.6f;
+            _gunsCam.LookAt(mid, Vector3.Up);
+            if (_gunsT < 0.6) return true;
+            Shot(shots[k]); _gunsStep++; _gunsT = 0; return true;
+        }
+        return false;
+    }
+
     private double _peopleT = -1;
     private bool _people;
     private int _peopleStep;
@@ -1433,6 +1505,7 @@ public sealed class Tests
         _fridge = Main.Args.GetValueOrDefault("autotest", "").Contains("fridge");
         _build = Main.Args.GetValueOrDefault("autotest", "") == "build";
         _people = Main.Args.GetValueOrDefault("autotest", "") == "people";
+        _gunsLook = Main.Args.GetValueOrDefault("autotest", "") == "gunlineup";
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -3021,6 +3094,12 @@ public sealed class Tests
         {
             if (WellsTest(delta)) return;
             _wells = false;
+        }
+        if (_gunsLook)
+        {
+            if (GunLineup(delta)) return;
+            _gunsLook = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
         }
         if (_people)
         {

@@ -108,7 +108,7 @@
  "hud.carry": "{0}/{1} kg · food {2} · drink {3} · med {4} · Tab",
  "hud.keys_top": "{0} ([ ] time, F9 dump, F10 settings, N radar)   ",
  "hud.keys_fly": "F8: drive here   right mouse: look   WASD/QE move, Shift/Ctrl faster",
- "hud.keys_foot": "F: get in (hold F: workshop)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 Mosin, 2 AK, 3 pistol (again: holster)   left mouse fire, right mouse aim (Shift: hold breath), R reload, T targets, B bandits, H medkit, F crates",
+ "hud.keys_foot": "F: get in (hold F: workshop)   WASD walk, Shift run, Alt slow, Ctrl crouch, Q/E lean, Space jump, V camera, Esc mouse, F8 free camera\n1 rifle, 2 SMG, 3 pistol (again: holster)   left mouse fire, right mouse aim (Shift: hold breath), R reload, T targets, B bandits, H medkit, F crates",
  "hud.keys_car": "F: get out   F8: free camera   W/S drive, A/D steer, Space handbrake, C camera, H lights, R back to road",
  "hud.on_foot": "on foot, {0} km/h{1}   ",
  "hud.crouching": ", crouching",
