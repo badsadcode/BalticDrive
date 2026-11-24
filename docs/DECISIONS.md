@@ -2046,3 +2046,18 @@ AK's 600 a minute, and the same test now leaves you at about 85 hp, as pistols d
 clips (backward, strafe, crouch-strafe, hit, get-up; death, crossed arms, phone, shrug, hands in pockets) and logs each
 one's clip and hip height. Not used yet: hit reactions, deaths and get-ups (the ragdoll and the knockdown do those
 jobs now), turns and gestures: candidates for bandits that feel more alive.
+
+## D132 — Bandits flinch when hit and get up properly; deaths stay ragdolls
+Tom: "I kind of like the rag dolls", then yes to the extras that don't replace them. Two one-off layers on top of the
+locomotion tree (`CharacterRig.Act`): **hit**, which plays only on the spine, chest, neck and head (filtered), so a
+hit bandit's upper body jerks while its legs keep walking and the arm IK keeps the hands on the gun: `HitHeadFront`,
+`HitHeadBack`, `HitTorsoFront` or `HitTorsoBack`, from where the bullet came; and **act**, the whole body, for getting
+up after a car knockdown: `GetUpFromBack` if the ragdoll lies face up, `GetUpFromFront` if face down (the hips
+bone's front tells which). Both clips start with the hips over the origin, on the back with the head behind (-Z),
+face down with it ahead (+Z), so the bandit is turned to match the ragdoll's head-to-feet line and stands where the
+hips lie; the ragdoll lets go into the clip over 0.3 s (was 0.8 s into a crouch), and they're up when it's nearly
+done (2.5–2.7 s). Deaths stay ragdolls (no death clips). Characters without these clips (Synty, older exports) do what
+they did. Checked: `banditlook` now grazes the bandit at 1.2 m and logs the flinch playing at once and gone a second
+later; `knockdown` (lying, up onto the knees, standing with the gun, engaging at 6.5 s); `ragdoll` (still a ragdoll).
+Found, not caused by this: `knockdown`'s second half ("never reached B", the car never hits the second bandit) fails
+the same way without this change.

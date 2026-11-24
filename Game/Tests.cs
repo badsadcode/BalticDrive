@@ -2784,6 +2784,15 @@ public sealed class Tests
         if (_lookTime > 0.7 && f.All.Count > 0) { w.Face(f.All[0].GlobalPosition + Vector3.Up * 1.0f); w.CameraOrbit = 0.5f; }
         if (Now(1.0)) { Shot("banditlook_relaxed"); Log.Info("Test", $"banditlook: {f.All[0].State}, {f.All[0].Gun.Id}"); }
         if (Now(1.2)) w.Crouch(false);
+        // a graze from in front at 1.2 m (D132: the head if crouched, else the chest): the upper body flinches, the hands stay on the gun
+        if (Now(2.0) && f.All.Count > 0)
+        {
+            var b0 = f.All[0];
+            var to = (b0.GlobalPosition + Vector3.Up * 1.2f - w.GlobalPosition).Normalized();
+            Log.Info("Test", $"banditlook: hit from in front: {b0.Hit(new OnFoot.BulletHit(b0.GlobalPosition + Vector3.Up * 1.2f, -to, to * 300f, 0.008f, 5f, 4f))}");
+        }
+        if (Now(2.15)) { Shot("banditlook_hit"); Log.Info("Test", $"banditlook: flinching {f.All[0].Flinching}"); }
+        if (Now(3.2)) Log.Info("Test", $"banditlook: a second later, flinching {f.All[0].Flinching}");
         if (Now(4.0)) { Shot("banditlook_aiming"); Log.Info("Test", $"banditlook: {f.All[0].State}; you {w.Body.Health:0} hp; {f.All[0].Heights()}"); }
         if (Now(4.5)) { w.CameraOrbit = 2.6f; }
         if (Now(5.0)) { Shot("banditlook_side"); Log.Info("Test", "banditlook: done"); _banditLook = false; }

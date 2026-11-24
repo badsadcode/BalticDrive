@@ -116,6 +116,9 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         }
         Health -= h.Damage * (headshot ? 2.5f : 1f);
         _flinch = 0.4f;
+        // the body flinches from the hit (D132): head or torso, from in front or behind
+        if (_tree != null && Health > 0)
+            CharacterRig.Act(_tree, (headshot ? "HitHead" : "HitTorso") + (h.Velocity.Dot(-GlobalBasis.Z) < 0 ? "Front" : "Back"), hit: true);
         _settle = 0;
         _lastSeen = h.Point - h.Velocity.Normalized() * h.Range;   // where it came from
         _awareness = 1;
@@ -157,7 +160,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     // Tom: "a knockdown, ragdoll for a moment, then they get up if alive; little damage so running people over isn't
     // the easy way to win". The car itself never collides with people (they'd be walls to it); each bandit checks
     // whether the car's body has reached it.
-    private float _downFor, _downTime, _getUp;
+    private float _downFor, _downTime, _getUp, _getUpLen;
 
     /// <summary>Knocked down if the moving car's body has reached this bandit (checked every physics step).</summary>
     private void CheckCar()
@@ -220,13 +223,31 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
             GlobalPosition = hit.Count > 0 ? (Vector3)hit["position"] : p with { Y = p.Y - 0.15f };
             var face = _lastSeen - GlobalPosition;
             if (new Vector2(face.X, face.Z).LengthSquared() > 0.01f) _yaw = MathF.Atan2(-face.X, -face.Z);
+            // a real get-up (D132): from the back or the front, whichever way the body lies, turned so the clip's
+            // first pose lies where the ragdoll does (both start with the hips over the origin; on the back the head
+            // is behind, -Z; face down it's ahead, +Z), and the ragdoll lets go into it quickly
+            _getUpLen = 0;
+            if (_tree != null && _ragdoll?.Hips is { } hb)
+            {
+                bool onBack = hb.GlobalBasis.Z.Y > 0;   // the skeleton's +Z is the body's front: facing up
+                var head = _ragdoll.Head?.GlobalPosition ?? hb.GlobalPosition + hb.GlobalBasis.Y;
+                var toFeet = (hb.GlobalPosition - head) with { Y = 0 };
+                var front = onBack ? toFeet : -toFeet;
+                if (front.LengthSquared() > 0.0025f && CharacterRig.Act(_tree, onBack ? "GetUpFromBack" : "GetUpFromFront", hit: false) is var len and > 0)
+                {
+                    _yaw = MathF.Atan2(-front.X, -front.Z);
+                    _getUpLen = len;
+                    Log.Info("Bandits", $"getting up from the {(onBack ? "back" : "front")} ({len:0.0} s)");
+                }
+            }
             Rotation = new Vector3(0, _yaw, 0);
             _getUp = 0.0001f;
         }
         _getUp += dt;
-        float t = Mathf.Clamp(_getUp / 0.8f, 0f, 1f);
+        float blend = _getUpLen > 0 ? 0.3f : 0.8f;
+        float t = Mathf.Clamp(_getUp / blend, 0f, 1f);
         if (_ragdoll != null) _ragdoll.Sim.Influence = 1f - t * t * (3f - 2f * t);
-        if (t < 1f) return;
+        if (_getUp < MathF.Max(blend, _getUpLen * 0.92f)) return;
         _ragdoll?.Stop();
         if (_ragdoll != null) _ragdoll.Sim.Influence = 1f;
         CollisionLayer = Bodies.Characters;
@@ -242,6 +263,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
 
     /// <summary>Self-tests: knocked down right now, and how many times the car has hit this one.</summary>
     public bool IsDown => State == Mode.Down;
+    /// <summary>Self-tests: a hit's flinch is playing (D132).</summary>
+    public bool Flinching => _tree != null && (bool)_tree.Get("parameters/hit/active");
     public int KnockCount;
     private Vector3 _fallAxis = Vector3.Right;
     private Ragdoll? _ragdoll;

@@ -164,7 +164,29 @@ public static class CharacterRig
         bt.ConnectNode("crouch", 1, "crouchbs");
         bt.ConnectNode("air", 0, "crouch");
         bt.ConnectNode("air", 1, "fall");
-        bt.ConnectNode("output", 0, "air");
+        // one-off clips on top (D132): "hit", a flinch that moves only the spine, neck and head (the legs keep
+        // walking, the arms stay on the gun), and "act", a whole-body clip (getting up). See Act.
+        var hit = new AnimationNodeOneShot { FadeInTime = 0.06f, FadeOutTime = 0.25f, FilterEnabled = true };
+        string? skelPath = null;
+        if (animPlayer.GetAnimationList().FirstOrDefault() is { } any)
+        {
+            var a = animPlayer.GetAnimation(any);
+            for (int i = 0; i < a.GetTrackCount() && skelPath == null; i++)
+            {
+                string p = a.TrackGetPath(i).ToString();
+                if (p.IndexOf(':') is var c and > 0) skelPath = p[..c];
+            }
+        }
+        if (skelPath != null) foreach (var b in new[] { "Spine", "Chest", "UpperChest", "Neck", "Head" }) hit.SetFilterPath($"{skelPath}:{b}", true);
+        bt.AddNode("hit_clip", A("idle"));
+        bt.AddNode("hit", hit);
+        bt.AddNode("act_clip", A("idle"));
+        bt.AddNode("act", new AnimationNodeOneShot { FadeInTime = 0.05f, FadeOutTime = 0.3f });
+        bt.ConnectNode("hit", 0, "air");
+        bt.ConnectNode("hit", 1, "hit_clip");
+        bt.ConnectNode("act", 0, "hit");
+        bt.ConnectNode("act", 1, "act_clip");
+        bt.ConnectNode("output", 0, "act");
         var tree = new AnimationTree { Name = "AnimationTree", TreeRoot = bt };
         parent.AddChild(tree);
         tree.AnimPlayer = tree.GetPathTo(animPlayer);
@@ -187,6 +209,18 @@ public static class CharacterRig
         float lift = MathF.Min(Y(l), Y(r)) - baseY - MathF.Min(RestY(l), RestY(r));
         float want = weight > 0.01f ? -MathF.Max(0, lift) * weight : 0;
         model.Position = model.Position with { Y = Mathf.Lerp(baseY, want, 1f - MathF.Exp(-20f * dt)) };
+    }
+
+    /// <summary>Plays <paramref name="clip"/> once on top of the walking (D132): as a flinch of the upper body
+    /// (<paramref name="hit"/>) or over the whole body. Returns its length, 0 if the character hasn't got it (Synty's
+    /// clips, an older export).</summary>
+    public static float Act(AnimationTree tree, string clip, bool hit)
+    {
+        if (tree.GetNodeOrNull<AnimationPlayer>(tree.AnimPlayer) is not { } p || !p.HasAnimation(clip)) return 0;
+        var bt = (AnimationNodeBlendTree)tree.TreeRoot;
+        ((AnimationNodeAnimation)bt.GetNode(hit ? "hit_clip" : "act_clip")).Animation = clip;
+        tree.Set($"parameters/{(hit ? "hit" : "act")}/request", (int)AnimationNodeOneShot.OneShotRequest.Fire);
+        return (float)p.GetAnimation(clip).Length;
     }
 
     /// <summary>One frame of the tree: <paramref name="v"/> is the velocity in the body's frame (x right, y forward).</summary>
