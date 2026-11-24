@@ -38,7 +38,7 @@ public sealed class ArmIk
             .Where(i => i >= 0).ToArray()).Where(c => c.Length > 0).ToArray();
     }
 
-    public bool Ok => _up >= 0 && _lo >= 0 && _hand >= 0 && _mid >= 0 && _l1 > 0 && _l2 > 0;
+    public bool Ok => _up >= 0 && _lo >= 0 && _hand >= 0 && _l1 > 0 && _l2 > 0;
     public float Reach => _l1 + _l2;
 
     public void Solve(HandGoal g)
@@ -89,7 +89,8 @@ public sealed class ArmIk
         // hand: rest (wrist→knuckles, palm down in the T-pose) onto the goal's direction and palm
         var restHand = s.GetBoneRest(_hand);
         var handAtRest = gLo * restHand.Basis;
-        var restDir = (handAtRest * s.GetBoneRest(_mid).Origin).Normalized();
+        // wrist → knuckles at rest: towards the middle finger, or (mitten hands, D129) straight on from the forearm
+        var restDir = (_mid >= 0 ? handAtRest * s.GetBoneRest(_mid).Origin : gLo * restHand.Origin).Normalized();
         var restPalm = (gLo * restHand.Basis * (s.GetBoneGlobalRest(_hand).Basis.Inverse() * Vector3.Down)).Normalized();
         var gHand = Frame(dir, palm) * Frame(restDir, restPalm).Transposed() * handAtRest;
         // the roll about the forearm goes into the forearm, not the wrist (D43)

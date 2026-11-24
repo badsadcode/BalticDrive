@@ -1992,3 +1992,22 @@ storage rooms), plastic barrel (*plastikowa beczka*, shelves, storage rooms), ba
 boxes; a GLB at `Assets/Props/Built/<piece>.glb` replaces one with no code change (docs/BUILD_MODELS_BRIEF.md has the
 sizes for Tom). Found on the way: `--autotest=build` also ran the UI test, since "build" contains "ui" and tests are
 matched by substring; the UI test now ignores it. Self-test `--autotest=build`, English and Polish.
+
+## D129 — Bandits are BadCharacters people (brick)
+The bandits were Synty City characters: licensed, never in the public repo, so a build from GitHub had no people in
+it. They are now people from Tom's own generator, **BadCharacters** (brick style, Tom: "Yes, brick", after a lineup of
+stylized and brick people on Emilii Plater): eight bodies, five survivors and three wasteland raiders, no weapons,
+in `Assets/People/Bandits` (14 MB, made by `tools/people/export_bandits.ts`, reproducible from their seeds). Each
+carries its own 25-bone humanoid skeleton (Unity names, the same as Godot's humanoid profile and ours) and 87 clips.
+`CharacterRig.BuildPerson` puts one under the model and drives the same locomotion tree with its own clips: Idle,
+Walk, Run, Sprint, Crouch, CrouchWalk. BadCharacters has no backward or sideways walks, so backwards is the forward
+clip played backwards and sideways is the forward one. The gun is still the game's own (`WeaponDef`), held by the
+same arm IK. Two fixes for a skeleton built differently from Synty's: the IK finds the hand's direction from the
+forearm when there are no finger bones (mitten hands), and each ragdoll joint's cone now turns onto its bone (Synty's
+bones run along Y; BadCharacters' arms run along X at rest, all rest rotations identity). Checked with
+`banditlook` (walks with the Mosin in both hands, crouches, shoulders it and shoots), `ragdoll` (falls, settles 0.18 m
+above the ground, follows an origin shift) and `knockdown` (lies, gets up, engages). Frame rate couldn't be compared
+fairly: two other Godot games were running on the same GPU (both styles swung between 6 and 46 fps); the bodies are
+1.1k–1.5k triangles. Still Synty: the player's body, and every gun. BadGun guns (which BadCharacters already fits
+hands and clips to) are the next step for those. The repos stay read-only to Baltic Drive; Tom will join BadGun and
+BadCharacters himself when both are polished.

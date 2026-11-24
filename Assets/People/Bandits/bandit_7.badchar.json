@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "name": "Olaf Lowpoly",
+  "seed": 202,
+  "style": "brick",
+  "theme": "raider",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.746,
+    "gender": 0.1,
+    "muscle": 0.384,
+    "fat": 0.081,
+    "headScale": 1.015,
+    "roundness": 0,
+    "legLength": 0.314,
+    "skin": "#8d5a3b"
+  },
+  "face": {
+    "eyes": "sleepy",
+    "iris": "#4a6fa5",
+    "mouth": "line",
+    "brows": "thick",
+    "browColor": "#1e1611",
+    "blush": false,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "mohawk",
+      "color": "#1e1611",
+      "color2": "#1e1611",
+      "torn": true
+    },
+    "beard": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611",
+      "torn": true
+    },
+    "head": {
+      "id": "none",
+      "color": "#2f2f2f",
+      "color2": "#8a8a8a",
+      "torn": true
+    },
+    "mask": {
+      "id": "gasmask",
+      "color": "#5a3a2a",
+      "color2": "#b8a24a",
+      "torn": true
+    },
+    "top": {
+      "id": "jacket",
+      "color": "#6a5a4a",
+      "color2": "#2f2f2f",
+      "pattern": "grime",
+      "torn": true
+    },
+    "bottom": {
+      "id": "cargo",
+      "color": "#2f2f2f",
+      "color2": "#8a8a8a",
+      "pattern": "grime",
+      "torn": true
+    },
+    "legs": {
+      "id": "none",
+      "color": "#2f2f2f",
+      "color2": "#c96a1a",
+      "torn": true
+    },
+    "feet": {
+      "id": "boots",
+      "color": "#3a2a22",
+      "color2": "#c96a1a",
+      "torn": true
+    },
+    "hands": {
+      "id": "gloves",
+      "color": "#6a5a4a",
+      "color2": "#c96a1a",
+      "torn": true
+    },
+    "armor": {
+      "id": "scrap",
+      "color": "#3a2a22",
+      "color2": "#b8a24a",
+      "torn": true
+    },
+    "belt": {
+      "id": "belt",
+      "color": "#2f2f2f",
+      "color2": "#c96a1a",
+      "torn": true
+    },
+    "back": {
+      "id": "none",
+      "color": "#5a3a2a",
+      "color2": "#a33b1f",
+      "torn": true
+    },
+    "neck": {
+      "id": "none",
+      "color": "#5a3a2a",
+      "color2": "#8a8a8a",
+      "torn": true
+    },
+    "prop": {
+      "id": "crossbow",
+      "color": "#5a3c22",
+      "color2": "#555a60",
+      "torn": true
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

@@ -47,6 +47,32 @@ public static class CharacterRig
         return (skel, tree);
     }
 
+    /// <summary>A BadCharacters person (D129): the GLB under <paramref name="model"/> (it faces +Z like Synty's, so the
+    /// same half turn), its own skeleton (Unity-named bones, as ours) and its own clips in the same locomotion tree.
+    /// BadCharacters has no backward or sideways walks: back is the forward clip played backwards, sideways the
+    /// forward one.</summary>
+    public static (Skeleton3D? Skel, AnimationTree? Tree) BuildPerson(Node3D model, string glb)
+    {
+        if (!ResourceLoader.Exists(glb) || ResourceLoader.Load<PackedScene>(glb) is not { } scene) return (null, null);
+        var root = scene.Instantiate<Node3D>();
+        model.AddChild(root);
+        model.RotationDegrees = new Vector3(0, 180, 0);
+        var skel = root.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+        var player = root.FindChildren("*", "AnimationPlayer", true, false).OfType<AnimationPlayer>().FirstOrDefault();
+        if (skel == null) { root.QueueFree(); return (null, null); }
+        if (player == null) return (skel, null);
+        foreach (var c in new[] { "Idle", "Walk", "Run", "Sprint", "Crouch", "CrouchWalk" })
+            if (player.HasAnimation(c)) player.GetAnimation(c).LoopMode = Animation.LoopModeEnum.Linear;
+        (string, bool) Map(string key) => key switch
+        {
+            "idle" => ("Idle", false), "walk" or "walk_l" or "walk_r" => ("Walk", false), "run" or "run_l" or "run_r" => ("Run", false),
+            "sprint" => ("Sprint", false), "walk_b" => ("Walk", true), "run_b" => ("Run", true),
+            "crouch_idle" => ("Crouch", false), "crouch_f" => ("CrouchWalk", false), "crouch_b" => ("CrouchWalk", true),
+            _ => ("Idle", false),   // falling: standing still in the air
+        };
+        return (skel, Tree(root, player, Map));
+    }
+
     private static void ClearOwner(Node n)
     {
         n.Owner = null;
@@ -95,8 +121,18 @@ public static class CharacterRig
         model.AddChild(animPlayer);
         animPlayer.RootNode = new NodePath("..");
         animPlayer.AddAnimationLibrary("", lib);
+        return Tree(model, animPlayer, key => (lib.HasAnimation(key) ? key : "idle", false));
+    }
 
-        AnimationNodeAnimation A(string key) => new() { Animation = lib.HasAnimation(key) ? key : "idle" };
+    /// <summary>The tree over <paramref name="animPlayer"/>, under <paramref name="parent"/>; <paramref name="clip"/>
+    /// names the clip for each of our keys, and whether it plays backwards.</summary>
+    private static AnimationTree Tree(Node parent, AnimationPlayer animPlayer, Func<string, (string Name, bool Back)> clip)
+    {
+        AnimationNodeAnimation A(string key)
+        {
+            var (name, back) = clip(key);
+            return new() { Animation = name, PlayMode = back ? AnimationNodeAnimation.PlayModeEnum.Backward : AnimationNodeAnimation.PlayModeEnum.Forward };
+        }
         var stand = new AnimationNodeBlendSpace2D { MinSpace = new Vector2(-7, -7), MaxSpace = new Vector2(7, 7) };
         stand.AddBlendPoint(A("idle"), Vector2.Zero);
         stand.AddBlendPoint(A("walk"), new Vector2(0, WalkSpeed));
@@ -126,7 +162,7 @@ public static class CharacterRig
         bt.ConnectNode("air", 1, "fall");
         bt.ConnectNode("output", 0, "air");
         var tree = new AnimationTree { Name = "AnimationTree", TreeRoot = bt };
-        model.AddChild(tree);
+        parent.AddChild(tree);
         tree.AnimPlayer = tree.GetPathTo(animPlayer);
         tree.Active = true;
         return tree;

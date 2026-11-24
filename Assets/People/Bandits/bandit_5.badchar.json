@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "name": "Lena Mesh",
+  "seed": 105,
+  "style": "brick",
+  "theme": "survivor",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.811,
+    "gender": 0.145,
+    "muscle": 0.071,
+    "fat": 0.06,
+    "headScale": 0.959,
+    "roundness": 0.01,
+    "legLength": -0.249,
+    "skin": "#e8b896"
+  },
+  "face": {
+    "eyes": "square",
+    "iris": "#5a3a6a",
+    "mouth": "grin",
+    "brows": "none",
+    "browColor": "#4a3222",
+    "blush": false,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#8a5a2b",
+      "color2": "#8a5a2b"
+    },
+    "beard": {
+      "id": "none",
+      "color": "#8a5a2b",
+      "color2": "#8a5a2b"
+    },
+    "head": {
+      "id": "beanie",
+      "color": "#5a5a4a",
+      "color2": "#c9b48a",
+      "torn": true
+    },
+    "mask": {
+      "id": "none",
+      "color": "#3e4a52",
+      "color2": "#c9b48a"
+    },
+    "top": {
+      "id": "hoodie",
+      "color": "#7a6a52",
+      "color2": "#2f3236",
+      "pattern": "grime"
+    },
+    "bottom": {
+      "id": "cargo",
+      "color": "#7a3a2a",
+      "color2": "#c9b48a",
+      "pattern": "grime"
+    },
+    "legs": {
+      "id": "kneepads",
+      "color": "#5a5a4a",
+      "color2": "#c9b48a"
+    },
+    "feet": {
+      "id": "sneakers",
+      "color": "#3e4a52",
+      "color2": "#c9b48a"
+    },
+    "hands": {
+      "id": "gloves",
+      "color": "#2f3236",
+      "color2": "#8a7a5a"
+    },
+    "armor": {
+      "id": "none",
+      "color": "#2f3236",
+      "color2": "#2a2a22",
+      "torn": true
+    },
+    "belt": {
+      "id": "utility",
+      "color": "#7a6a52",
+      "color2": "#c9b48a"
+    },
+    "back": {
+      "id": "backpack",
+      "color": "#3e4a52",
+      "color2": "#8a7a5a"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#4a5a3a",
+      "color2": "#2a2a22"
+    },
+    "prop": {
+      "id": "crossbow",
+      "color": "#6e4a2a",
+      "color2": "#555a60"
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

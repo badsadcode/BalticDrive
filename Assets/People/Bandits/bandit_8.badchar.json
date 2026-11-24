@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "name": "Wren Quadsworth",
+  "seed": 203,
+  "style": "brick",
+  "theme": "raider",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.596,
+    "gender": 0.998,
+    "muscle": 0.296,
+    "fat": 0.518,
+    "headScale": 0.969,
+    "roundness": 0.088,
+    "legLength": 0.313,
+    "skin": "#8d5a3b"
+  },
+  "face": {
+    "eyes": "wide",
+    "iris": "#7a8a9a",
+    "mouth": "open",
+    "brows": "none",
+    "browColor": "#8a6a3a",
+    "blush": false,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#d8b46a",
+      "color2": "#d8b46a"
+    },
+    "beard": {
+      "id": "none",
+      "color": "#d8b46a",
+      "color2": "#d8b46a"
+    },
+    "head": {
+      "id": "none",
+      "color": "#5a3a2a",
+      "color2": "#c96a1a",
+      "torn": true
+    },
+    "mask": {
+      "id": "gasmask",
+      "color": "#5a3a2a",
+      "color2": "#b8a24a"
+    },
+    "top": {
+      "id": "jacket",
+      "color": "#4a3a2a",
+      "color2": "#3a2a22",
+      "pattern": "grime",
+      "torn": true
+    },
+    "bottom": {
+      "id": "pants",
+      "color": "#3a2a22",
+      "color2": "#8a8a8a",
+      "pattern": "grime"
+    },
+    "legs": {
+      "id": "none",
+      "color": "#2f2f2f",
+      "color2": "#8a8a8a"
+    },
+    "feet": {
+      "id": "boots",
+      "color": "#2f2f2f",
+      "color2": "#a33b1f",
+      "torn": true
+    },
+    "hands": {
+      "id": "gloves",
+      "color": "#3a2a22",
+      "color2": "#b8a24a",
+      "torn": true
+    },
+    "armor": {
+      "id": "bandolier",
+      "color": "#5a3a2a",
+      "color2": "#c96a1a",
+      "torn": true
+    },
+    "belt": {
+      "id": "utility",
+      "color": "#2f2f2f",
+      "color2": "#b8a24a"
+    },
+    "back": {
+      "id": "none",
+      "color": "#2f2f2f",
+      "color2": "#b8a24a"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#6a5a4a",
+      "color2": "#a33b1f"
+    },
+    "prop": {
+      "id": "none",
+      "color": "#5a3c22",
+      "color2": "#d8cfb8",
+      "torn": true
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

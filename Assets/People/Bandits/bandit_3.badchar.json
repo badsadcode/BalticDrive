@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "name": "Suki Kneecap",
+  "seed": 103,
+  "style": "brick",
+  "theme": "survivor",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.819,
+    "gender": 0.15,
+    "muscle": 0.058,
+    "fat": 0.624,
+    "headScale": 0.944,
+    "roundness": 0.059,
+    "legLength": 0.011,
+    "skin": "#4a2c1d"
+  },
+  "face": {
+    "eyes": "square",
+    "iris": "#3b2a1a",
+    "mouth": "small",
+    "brows": "none",
+    "browColor": "#2a1d14",
+    "blush": false,
+    "nose": false,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#8c8c8c",
+      "color2": "#8c8c8c"
+    },
+    "beard": {
+      "id": "none",
+      "color": "#8c8c8c",
+      "color2": "#8c8c8c"
+    },
+    "head": {
+      "id": "beanie",
+      "color": "#5a5a4a",
+      "color2": "#2a2a22"
+    },
+    "mask": {
+      "id": "goggles",
+      "color": "#7a6a52",
+      "color2": "#8a7a5a"
+    },
+    "top": {
+      "id": "hoodie",
+      "color": "#2f3236",
+      "color2": "#2a2a22"
+    },
+    "bottom": {
+      "id": "cargo",
+      "color": "#4a5a3a",
+      "color2": "#5a5a4a",
+      "pattern": "grime"
+    },
+    "legs": {
+      "id": "kneepads",
+      "color": "#5a5a4a",
+      "color2": "#2a2a22"
+    },
+    "feet": {
+      "id": "sneakers",
+      "color": "#6a4a3a",
+      "color2": "#2a2a22"
+    },
+    "hands": {
+      "id": "gloves",
+      "color": "#7a3a2a",
+      "color2": "#c9b48a",
+      "torn": true
+    },
+    "armor": {
+      "id": "none",
+      "color": "#2f3236",
+      "color2": "#8a7a5a",
+      "torn": true
+    },
+    "belt": {
+      "id": "utility",
+      "color": "#7a6a52",
+      "color2": "#c9b48a"
+    },
+    "back": {
+      "id": "backpack",
+      "color": "#7a3a2a",
+      "color2": "#2a2a22"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#7a3a2a",
+      "color2": "#2a2a22"
+    },
+    "prop": {
+      "id": "none",
+      "color": "#7a5532",
+      "color2": "#3a2a1a"
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

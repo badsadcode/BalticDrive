@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "name": "Zia Badly",
+  "seed": 101,
+  "style": "brick",
+  "theme": "survivor",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.691,
+    "gender": 0.138,
+    "muscle": 0.318,
+    "fat": 0.455,
+    "headScale": 1.047,
+    "roundness": 0,
+    "legLength": -0.305,
+    "skin": "#d29b74"
+  },
+  "face": {
+    "eyes": "square",
+    "iris": "#2a2a2a",
+    "mouth": "smile",
+    "brows": "none",
+    "browColor": "#a0522d",
+    "blush": true,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#3b2414",
+      "color2": "#3b2414"
+    },
+    "beard": {
+      "id": "none",
+      "color": "#3b2414",
+      "color2": "#3b2414"
+    },
+    "head": {
+      "id": "bandana",
+      "color": "#7a3a2a",
+      "color2": "#8a7a5a"
+    },
+    "mask": {
+      "id": "bandanamask",
+      "color": "#3e4a52",
+      "color2": "#8a7a5a"
+    },
+    "top": {
+      "id": "jacket",
+      "color": "#6a4a3a",
+      "color2": "#5a5a4a",
+      "pattern": "patched"
+    },
+    "bottom": {
+      "id": "cargo",
+      "color": "#7a6a52",
+      "color2": "#7a3a2a",
+      "pattern": "grime",
+      "torn": true
+    },
+    "legs": {
+      "id": "none",
+      "color": "#2f3236",
+      "color2": "#8a7a5a"
+    },
+    "feet": {
+      "id": "sneakers",
+      "color": "#4a5a3a",
+      "color2": "#c9b48a"
+    },
+    "hands": {
+      "id": "gloves",
+      "color": "#3e4a52",
+      "color2": "#c9b48a"
+    },
+    "armor": {
+      "id": "none",
+      "color": "#7a3a2a",
+      "color2": "#c9b48a"
+    },
+    "belt": {
+      "id": "utility",
+      "color": "#7a6a52",
+      "color2": "#8a7a5a"
+    },
+    "back": {
+      "id": "backpack",
+      "color": "#7a3a2a",
+      "color2": "#c9b48a"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#7a3a2a",
+      "color2": "#2a2a22"
+    },
+    "prop": {
+      "id": "none",
+      "color": "#5a3c22",
+      "color2": "#d8cfb8"
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

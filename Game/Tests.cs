@@ -248,6 +248,111 @@ public sealed class Tests
         return true;
     }
 
+    private double _peopleT = -1;
+    private bool _people;
+    private int _peopleStep;
+    private Camera3D? _peopleCam;
+    private readonly List<(Node3D Node, AnimationPlayer? Anim, string Name)> _folk = new();
+
+    /// <summary>--autotest=people (D129): the bandits' BadCharacters bodies (Assets/People/Bandits) stood in a row in
+    /// the world, each playing one of their own clips; three sets of clips, a screenshot of each, then a close-up.
+    /// Nothing is saved.</summary>
+    private bool PeopleTest(double delta)
+    {
+        if (_peopleT < 0)
+        {
+            if (_settledFor < 2.0 || _main.Car == null) return true;
+            _peopleT = 0;
+            _main.ToggleOnFoot();
+            return true;
+        }
+        _peopleT += delta;
+        var w = _main.Walker!;
+        var world = _main.World!;
+        string[] names = { "bandit_1", "bandit_2", "bandit_6", "bandit_3", "bandit_7" };
+        string[][] sets =
+        {
+            new[] { "Walk", "Run", "Sprint", "CrouchWalk", "Idle" },
+            new[] { "Crawl", "Crouch", "CarryDuffleWalk", "Jump", "CarryBoxWalk" },
+            new[] { "Idle", "Talk", "Eat", "SitGround", "Hammer" },
+        };
+        void Play(int set)
+        {
+            foreach (var (f, i) in _folk.Select((f, i) => (f, i)))
+            {
+                if (f.Anim == null) continue;
+                string clip = sets[set][i];
+                if (!f.Anim.HasAnimation(clip)) { Log.Info("Test", $"people: {f.Name} has no {clip}"); clip = "Idle"; }
+                var a = f.Anim.GetAnimation(clip);
+                a.LoopMode = Animation.LoopModeEnum.Linear;
+                f.Anim.Play(clip);
+            }
+        }
+        switch (_peopleStep)
+        {
+            case 0:
+            {
+                if (_peopleT < 1) return true;
+                // a row of them 5 m ahead, 1.6 m apart, facing back at the walker
+                var fwd = new Vector3(-MathF.Sin(w.Yaw), 0, -MathF.Cos(w.Yaw));
+                var side = new Vector3(fwd.Z, 0, -fwd.X);
+                var centre = w.GlobalPosition + fwd * 5f;
+                for (int i = 0; i < names.Length; i++)
+                {
+                    var scene = ResourceLoader.Load<PackedScene>($"res://Assets/People/Bandits/{names[i]}.glb");
+                    if (scene == null) { Log.Error("Test", $"people: {names[i]}.glb didn't load"); continue; }
+                    var n = scene.Instantiate<Node3D>();
+                    _main.AddChild(n);
+                    var at = centre + side * ((i - 2) * 1.6f);
+                    var (x, _, z) = WorldOrigin.ToWorld(at);
+                    n.GlobalPosition = at with { Y = world.Height(x, z) };
+                    n.LookAt(n.GlobalPosition + fwd, Vector3.Up);   // a Godot node looks down -Z; the glb faces +Z, so its front turns back at us
+                    var anim = n.FindChildren("*", "AnimationPlayer", true, false).OfType<AnimationPlayer>().FirstOrDefault();
+                    var skel = n.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+                    int tris = n.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().Sum(m => m.Mesh?.GetFaces().Length / 3 ?? 0);
+                    var clips = anim?.GetAnimationList() ?? Array.Empty<string>();
+                    Log.Info("Test", $"people: {names[i]}: {skel?.GetBoneCount() ?? 0} bones, {tris} tris, {clips.Length} clips; weapon clips {string.Join(" ", clips.Where(c => c.StartsWith("Weapon_")))}");
+                    _folk.Add((n, anim, names[i]));
+                }
+                // our own camera: a bit above eye height, looking at the row
+                _peopleCam = new Camera3D { Fov = 55 };
+                _main.AddChild(_peopleCam);
+                var eye = w.GlobalPosition + Vector3.Up * 1.7f - fwd * 1.5f;
+                _peopleCam.GlobalPosition = eye;
+                _peopleCam.LookAt(centre + Vector3.Up * 0.9f, Vector3.Up);
+                _peopleCam.MakeCurrent();
+                w.Visible = false;
+                Play(0);
+                _peopleStep++; _peopleT = 0;
+                return true;
+            }
+            case 1: if (_peopleT < 1.3) return true; Shot("people_weapons"); Play(1); _peopleStep++; _peopleT = 0; return true;
+            case 2: if (_peopleT < 1.3) return true; Shot("people_moving"); Play(2); _peopleStep++; _peopleT = 0; return true;
+            case 3:
+            {
+                if (_peopleT < 1.6) return true;
+                Shot("people_life");
+                // close up on the first, walking, seen from its left front
+                Play(0);
+                var f = _folk[0].Node;
+                var face = f.GlobalBasis.Z;   // the glb's front
+                _peopleCam!.GlobalPosition = f.GlobalPosition + face * 2.0f + f.GlobalBasis.X * 1.2f + Vector3.Up * 1.5f;
+                _peopleCam.LookAt(f.GlobalPosition + Vector3.Up * 1.2f, Vector3.Up);
+                _peopleStep++; _peopleT = 0;
+                return true;
+            }
+            case 4:
+            {
+                if (_peopleT < 1.0) return true;
+                Shot("people_close");
+                var f = _folk[0];
+                if (f.Anim != null && f.Anim.HasAnimation("Weapon_Fire")) Log.Info("Test", $"people: Weapon_Fire is {f.Anim.GetAnimation("Weapon_Fire").Length:0.00} s, tracks {f.Anim.GetAnimation("Weapon_Fire").GetTrackCount()}");
+                return false;
+            }
+        }
+        return true;
+    }
+
     private double _fridgeT = -1;
     private bool _fridge;
     private Power.Generators.Gen? _fridgeGen;
@@ -1327,6 +1432,7 @@ public sealed class Tests
         _boot = Main.Args.GetValueOrDefault("autotest", "").Contains("boot");
         _fridge = Main.Args.GetValueOrDefault("autotest", "").Contains("fridge");
         _build = Main.Args.GetValueOrDefault("autotest", "") == "build";
+        _people = Main.Args.GetValueOrDefault("autotest", "") == "people";
         _respawn = Main.Args.GetValueOrDefault("autotest", "").Contains("respawn");
         _walk = Main.Args.GetValueOrDefault("autotest", "").Contains("walk");
         _shoot = Main.Args.GetValueOrDefault("autotest", "").Contains("shoot");
@@ -2915,6 +3021,12 @@ public sealed class Tests
         {
             if (WellsTest(delta)) return;
             _wells = false;
+        }
+        if (_people)
+        {
+            if (PeopleTest(delta)) return;
+            _people = false;
+            Log.Info("Test", "done"); _main.GetTree().Quit(0); return;
         }
         if (_build)
         {

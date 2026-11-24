@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "name": "Dax Bonebridge",
+  "seed": 104,
+  "style": "brick",
+  "theme": "survivor",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.757,
+    "gender": 0.845,
+    "muscle": 0.057,
+    "fat": 0.298,
+    "headScale": 1.019,
+    "roundness": 0.053,
+    "legLength": 0.39,
+    "skin": "#f3d2b8"
+  },
+  "face": {
+    "eyes": "sleepy",
+    "iris": "#7a8a9a",
+    "mouth": "smile",
+    "brows": "none",
+    "browColor": "#8a6a3a",
+    "blush": true,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611",
+      "torn": true
+    },
+    "beard": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611"
+    },
+    "head": {
+      "id": "none",
+      "color": "#7a6a52",
+      "color2": "#c9b48a"
+    },
+    "mask": {
+      "id": "none",
+      "color": "#7a3a2a",
+      "color2": "#2a2a22"
+    },
+    "top": {
+      "id": "hoodie",
+      "color": "#2f3236",
+      "color2": "#2a2a22",
+      "torn": true
+    },
+    "bottom": {
+      "id": "cargo",
+      "color": "#5a5a4a",
+      "color2": "#2f3236",
+      "pattern": "grime"
+    },
+    "legs": {
+      "id": "kneepads",
+      "color": "#6a4a3a",
+      "color2": "#8a7a5a"
+    },
+    "feet": {
+      "id": "hikers",
+      "color": "#7a6a52",
+      "color2": "#c9b48a",
+      "torn": true
+    },
+    "hands": {
+      "id": "none",
+      "color": "#3e4a52",
+      "color2": "#8a7a5a"
+    },
+    "armor": {
+      "id": "none",
+      "color": "#3e4a52",
+      "color2": "#c9b48a"
+    },
+    "belt": {
+      "id": "belt",
+      "color": "#4a5a3a",
+      "color2": "#c9b48a"
+    },
+    "back": {
+      "id": "assault",
+      "color": "#3e4a52",
+      "color2": "#2a2a22"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#5a5a4a",
+      "color2": "#c9b48a"
+    },
+    "prop": {
+      "id": "rifle",
+      "color": "#7a5532",
+      "color2": "#d8cfb8"
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

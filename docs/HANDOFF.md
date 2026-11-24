@@ -114,6 +114,9 @@ storks; per-car handling (`GameData/cars.json`), parked cars, trucks, wrecks you
   2. Weapons on a shooting range: aim, shoot, reload, hits on walls and targets; simple ballistics first.
   3. Bots: patrol, notice, chase, cover, shoot back; navigation per streamed chunk (or along roads and pavements
      first), never one navmesh for all of Mazowsze.
+     DONE (D129): bandits are BadCharacters people (brick, Tom's pick), in git (`Assets/People/Bandits`, made by
+     `tools/people/export_bandits.ts` from BadCharacters cloned beside this folder). Still Synty: the player's body and
+     every gun; next, BadGun guns (BadCharacters already fits hands and clips to them) and a brick player.
   4. Loot caches: placed from what the world already knows (BadBuilding shop_entrance markers, kiosks, garages,
      gate passages and yards, car parks, fuel stations), a pickup prompt and a small inventory; picked-up caches
      remembered by a stable id (first step of the persistent changes).

@@ -33,7 +33,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
     /// <summary>The lead whose stash this one guards (D54), 0 for none.</summary>
     public int Guarding;
     /// <summary>Synty City characters in everyday clothes (not the police one: a bandit in uniform would mislead).</summary>
-    public static readonly string[] Looks = { "Character_Male_Jacket", "Character_Female_Jacket", "Character_Female_Coat" };
+    /// <summary>Their bodies (D129, Tom: "brick"): BadCharacters people, survivors and raiders, in git with the game.</summary>
+    public static readonly string[] Looks = Enumerable.Range(1, 8).Select(i => $"res://Assets/People/Bandits/bandit_{i}.glb").ToArray();
 
     private readonly BanditField _field;
     private readonly Random _rng;
@@ -75,7 +76,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         AddChild(new CollisionShape3D { Shape = new CapsuleShape3D { Radius = 0.33f, Height = 1.8f }, Position = new Vector3(0, 0.9f, 0) });
         _model = new Node3D { Name = "Model" };
         AddChild(_model);
-        var (skel, tree) = CharacterRig.Build(_model, Looks[_rng.Next(Looks.Length)], out _cycle);
+        var (skel, tree) = CharacterRig.BuildPerson(_model, Looks[_rng.Next(Looks.Length)]);
         _tree = tree;
         _skel = skel;
         _headBone = skel?.FindBone("Head") ?? -1;

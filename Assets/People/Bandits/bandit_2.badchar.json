@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "name": "Kit Elbows",
+  "seed": 102,
+  "style": "brick",
+  "theme": "survivor",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.698,
+    "gender": 0.093,
+    "muscle": 0.544,
+    "fat": 0.314,
+    "headScale": 1.053,
+    "roundness": 0,
+    "legLength": -0.185,
+    "skin": "#f3d2b8"
+  },
+  "face": {
+    "eyes": "wide",
+    "iris": "#7a8a9a",
+    "mouth": "small",
+    "brows": "none",
+    "browColor": "#4a3222",
+    "blush": false,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611"
+    },
+    "beard": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611"
+    },
+    "head": {
+      "id": "bandana",
+      "color": "#5a5a4a",
+      "color2": "#2a2a22"
+    },
+    "mask": {
+      "id": "none",
+      "color": "#4a5a3a",
+      "color2": "#c9b48a",
+      "torn": true
+    },
+    "top": {
+      "id": "longsleeve",
+      "color": "#7a3a2a",
+      "color2": "#8a7a5a",
+      "pattern": "grime"
+    },
+    "bottom": {
+      "id": "cargo",
+      "color": "#2f3236",
+      "color2": "#5a5a4a",
+      "pattern": "patched"
+    },
+    "legs": {
+      "id": "kneepads",
+      "color": "#2f3236",
+      "color2": "#c9b48a",
+      "torn": true
+    },
+    "feet": {
+      "id": "hikers",
+      "color": "#4a5a3a",
+      "color2": "#2a2a22"
+    },
+    "hands": {
+      "id": "none",
+      "color": "#4a5a3a",
+      "color2": "#2a2a22",
+      "torn": true
+    },
+    "armor": {
+      "id": "none",
+      "color": "#7a3a2a",
+      "color2": "#c9b48a"
+    },
+    "belt": {
+      "id": "utility",
+      "color": "#2f3236",
+      "color2": "#c9b48a"
+    },
+    "back": {
+      "id": "rucksack",
+      "color": "#3e4a52",
+      "color2": "#c9b48a"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#7a6a52",
+      "color2": "#2a2a22"
+    },
+    "prop": {
+      "id": "rifle",
+      "color": "#5a3c22",
+      "color2": "#555a60"
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}

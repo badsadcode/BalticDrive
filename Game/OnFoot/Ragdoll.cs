@@ -79,11 +79,13 @@ public sealed class Ragdoll
                 pb.Set("joint_constraints/softness", 0.8f);
                 pb.Set("joint_constraints/relaxation", 1f);
             }
-            sim.AddChild(pb);
             // the shape, in the bone's own space: a capsule from the bone to the next one, or a sphere a little up
             // the bone (the head)
             Vector3 along = to != null ? (rest.AffineInverse() * skel.GetBoneGlobalRest(skel.FindBone(to))).Origin : Vector3.Up * (0.12f / scale);
             float len = along.Length();
+            // the cone's axis is the joint's X: turned onto the bone (Synty's bones run along Y: the old quarter turn)
+            if (len > 1e-5f) pb.JointRotation = (AlignY(along / len) * new Basis(Vector3.Back, MathF.PI / 2)).GetEuler();
+            sim.AddChild(pb);
             Shape3D shape = to == null
                 ? new SphereShape3D { Radius = radius / scale }
                 : new CapsuleShape3D { Radius = radius / scale, Height = MathF.Max(len, 2.2f * radius / scale) };

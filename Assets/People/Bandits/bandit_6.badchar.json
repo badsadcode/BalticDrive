@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "name": "Mira Blockwood",
+  "seed": 201,
+  "style": "brick",
+  "theme": "raider",
+  "body": {
+    "race": "human",
+    "shape": {},
+    "height": 1.877,
+    "gender": 0.151,
+    "muscle": 0.426,
+    "fat": 0.037,
+    "headScale": 0.991,
+    "roundness": 0,
+    "legLength": -0.088,
+    "skin": "#e8b896"
+  },
+  "face": {
+    "eyes": "round",
+    "iris": "#3f7a4a",
+    "mouth": "line",
+    "brows": "none",
+    "browColor": "#8a6a3a",
+    "blush": true,
+    "nose": true,
+    "ears": true
+  },
+  "outfit": {
+    "hair": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611"
+    },
+    "beard": {
+      "id": "none",
+      "color": "#1e1611",
+      "color2": "#1e1611",
+      "torn": true
+    },
+    "head": {
+      "id": "none",
+      "color": "#3a2a22",
+      "color2": "#b8a24a"
+    },
+    "mask": {
+      "id": "gasmask",
+      "color": "#2f2f2f",
+      "color2": "#a33b1f",
+      "torn": true
+    },
+    "top": {
+      "id": "tank",
+      "color": "#2f2f2f",
+      "color2": "#8a8a8a"
+    },
+    "bottom": {
+      "id": "pants",
+      "color": "#4a3a2a",
+      "color2": "#2f2f2f",
+      "pattern": "grime"
+    },
+    "legs": {
+      "id": "none",
+      "color": "#5a3a2a",
+      "color2": "#8a8a8a"
+    },
+    "feet": {
+      "id": "boots",
+      "color": "#4a3a2a",
+      "color2": "#a33b1f"
+    },
+    "hands": {
+      "id": "gloves",
+      "color": "#6a5a4a",
+      "color2": "#a33b1f",
+      "torn": true
+    },
+    "armor": {
+      "id": "scrap",
+      "color": "#2f2f2f",
+      "color2": "#a33b1f",
+      "torn": true
+    },
+    "belt": {
+      "id": "utility",
+      "color": "#5a3a2a",
+      "color2": "#8a8a8a",
+      "torn": true
+    },
+    "back": {
+      "id": "rucksack",
+      "color": "#4a3a2a",
+      "color2": "#8a8a8a"
+    },
+    "neck": {
+      "id": "none",
+      "color": "#3a2a22",
+      "color2": "#b8a24a"
+    },
+    "prop": {
+      "id": "crossbow",
+      "color": "#5a3c22",
+      "color2": "#3a2a1a"
+    }
+  },
+  "rig": {
+    "restPose": "T"
+  },
+  "mesh": {
+    "detail": "medium",
+    "shading": "flat",
+    "morphs": true
+  }
+}
