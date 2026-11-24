@@ -2146,7 +2146,7 @@ public sealed class Tests
 
     private double _knockTime = -1, _knockHitAt = -1;
     private OnFoot.Bandit? _knockA, _knockB;
-    private bool _knockOut;
+    private bool _knockOut, _knockStuck;
 
     /// <summary>--autotest=knockdown (D80): two bandits on the road 40 m ahead, one healthy and one nearly dead; the car
     /// drives into the first at ~45 km/h and brakes; it should fly, lie a few seconds and get up angry. Then the car
@@ -2217,10 +2217,40 @@ public sealed class Tests
                 if (At(9))
                 {
                     Log.Info("Test", $"knockdown: A after 9 s: {_knockA!.State} (should be up), health {_knockA.Health:0}");
+                    // the car back on the road, facing along it ("R back to road"): the knockdown can leave it on the
+                    // verge, and B, 35 m ahead of its nose, then lay beyond a row of bollards it crashed into
+                    car.Recover();
+                    // back to the car's door: getting in needs you beside it (you were 5 m off, watching A, and
+                    // stayed on foot in the road while the car went on alone)
+                    if (_knockOut && _main.Walker is { } w1) w1.GlobalPosition = Ground(car.GlobalPosition - car.GlobalBasis.X * 1.4f) + Vector3.Up * 0.3f;
                     if (_knockOut && _main.ToggleOnFoot()) _knockOut = false;
+                    Log.Info("Test", $"knockdown: back in the car: {!_knockOut}");
                     var fwd = (-car.GlobalTransform.Basis.Z with { Y = 0 }).Normalized();
-                    _knockB = field.SpawnOne(Ground(car.GlobalPosition + fwd * 35));
+                    // B where the car has a clear run at it: a parked car on the way stopped it dead (1 run in 5)
+                    var right = fwd.Cross(Vector3.Up);
+                    var space = car.GetWorld3D().DirectSpaceState;
+                    bool Clear(Vector3 to)
+                    {
+                        foreach (float s in new[] { -1f, 0f, 1f })
+                        {
+                            var q = PhysicsRayQueryParameters3D.Create(car.GlobalPosition + Vector3.Up * 0.6f + right * s, to + Vector3.Up * 0.6f + right * s,
+                                Bodies.Vehicles | Bodies.Props | Bodies.Buildings);
+                            q.Exclude = new Godot.Collections.Array<Rid> { car.GetRid() };
+                            if (space.IntersectRay(q).Count > 0) return false;
+                        }
+                        return true;
+                    }
+                    var bAt = car.GlobalPosition + fwd * 35;
+                    foreach (float d in new[] { 35f, 28f, 42f })
+                        foreach (float l in new[] { 0f, -2.5f, 2.5f, -5f, 5f })
+                            if (Clear(car.GlobalPosition + fwd * d + right * l)) { bAt = car.GlobalPosition + fwd * d + right * l; goto found; }
+                    Log.Info("Test", "knockdown: no clear run to B found");
+                    found:
+                    _knockB = field.SpawnOne(Ground(bAt));
                     _knockB.Health = 8;
+                    // it stays put: the bandits engage a car coming at them and step off its line (the autopilot then
+                    // swerved after it into the parked cars and stuck there: "never reached B", since D129-D131)
+                    _knockB.StandStill = true;
                     Phase(2);
                 }
                 break;
@@ -2229,6 +2259,14 @@ public sealed class Tests
                 {
                     Log.Info("Test", $"knockdown: B hit, state {_knockB.State} (should be Dead), killed {field.Killed}");
                     Phase(3);
+                }
+                if (t > 3 && MathF.Abs(car.Speed) < 0.5f && !_knockStuck)
+                {
+                    _knockStuck = true;
+                    var toB = (_knockB.GlobalPosition - car.GlobalPosition) with { Y = 0 };
+                    float off = Mathf.RadToDeg((-car.GlobalBasis.Z with { Y = 0 }).SignedAngleTo(toB, Vector3.Up));
+                    Log.Info("Test", $"knockdown: stuck on the way to B, {toB.Length():0} m off, {off:0}° off the car's nose");
+                    Shot("knock_stuck");
                 }
                 if (t > 25) { Log.Error("Test", "knockdown: never reached B"); _main.GetTree().Quit(); }
                 break;

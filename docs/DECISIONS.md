@@ -2059,5 +2059,11 @@ hips lie; the ragdoll lets go into the clip over 0.3 s (was 0.8 s into a crouch)
 done (2.5–2.7 s). Deaths stay ragdolls (no death clips). Characters without these clips (Synty, older exports) do what
 they did. Checked: `banditlook` now grazes the bandit at 1.2 m and logs the flinch playing at once and gone a second
 later; `knockdown` (lying, up onto the knees, standing with the gun, engaging at 6.5 s); `ragdoll` (still a ragdoll).
-Found, not caused by this: `knockdown`'s second half ("never reached B", the car never hits the second bandit) fails
-the same way without this change.
+Found, not caused by this: `knockdown`'s second half ("never reached B") failed the same way without it. Three
+reasons, all in the test: B stepped off the car's line once it saw the car coming (bandits engage), and the autopilot
+swerved after it into the verge; the first knockdown can leave the car on the grass, and B, spawned 35 m ahead of its
+nose, then lay beyond a row of bollards; and once a parked car stood between them. And you, out watching A 5 m away,
+never got back in (getting in needs you beside the door), so the car went on alone. Now B stands still (a test-only
+`Bandit.StandStill`: it still looks and shoots), the car goes back on the road first (`Recover`, the R key's), you're
+put at its door, B goes where three rays from the car find a clear run, and a stop on the way is photographed and
+logged. Six runs in six pass (it was about two in three).

@@ -263,6 +263,8 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
 
     /// <summary>Self-tests: knocked down right now, and how many times the car has hit this one.</summary>
     public bool IsDown => State == Mode.Down;
+    /// <summary>Self-tests: stays where it stands (it still looks, aims and shoots), so a test car can reach it.</summary>
+    public bool StandStill;
     /// <summary>Self-tests: a hit's flinch is playing (D132).</summary>
     public bool Flinching => _tree != null && (bool)_tree.Get("parameters/hit/active");
     public int KnockCount;
@@ -455,7 +457,7 @@ public sealed partial class Bandit : CharacterBody3D, IHittable
         // walking: straight at the spot, or along a route round what's in the way (D62)
         var to = Steer() - GlobalPosition; to.Y = 0;
         float speed = State == Mode.Patrol ? CharacterRig.WalkSpeed * 0.8f : _running ? CharacterRig.RunSpeed : CharacterRig.WalkSpeed;
-        if (_crouch) speed = 0;
+        if (_crouch || StandStill) speed = 0;
         var want = to.Length() > 0.6f ? to.Normalized() * speed : Vector3.Zero;
         var v = Velocity;
         var flat = new Vector3(v.X, 0, v.Z).MoveToward(want, 10f * dt);
