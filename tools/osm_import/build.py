@@ -267,19 +267,28 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscal
     weak = 1e-4
     alpha += weak
     rhs += weak * gnode
-    # A = diag(alpha + deg) - W, W symmetric with w on (u, v) and (v, u): one CSR with 32-bit indices
+    # A = diag(alpha + deg) - W, W symmetric with w on (u, v) and (v, u). W is laid out as CSR directly (each
+    # node's neighbours in a row, sorted once; no COO copy to convert) and the diagonal stays a vector: A x =
+    # diag * x - W x. The sums are the same; only the order duplicate edges are added in can differ.
     diag = alpha + deg
     del alpha, deg
-    rows = np.concatenate([u, v, np.arange(nnodes, dtype=np.int32)])
-    cols = np.concatenate([v, u, np.arange(nnodes, dtype=np.int32)])
+    src = np.concatenate([u, v])
+    order = np.argsort(src, kind='stable')
+    indptr = np.zeros(nnodes + 1, dtype=np.int64)
+    np.cumsum(np.bincount(src, minlength=nnodes), out=indptr[1:])
+    del src
+    dst = np.concatenate([v, u])
     del u, v
-    vals = np.concatenate([-w, -w, diag])
-    del w
-    A = sp.csr_matrix((vals, (rows, cols)), shape=(nnodes, nnodes))
-    del rows, cols, vals
-    M = sp.diags(1.0 / diag)
-    del diag
+    indices = dst[order]
+    del dst
+    data = np.concatenate([w, w])[order]
+    del w, order
+    W = sp.csr_matrix((data, indices, indptr), shape=(nnodes, nnodes))
+    del data, indices, indptr
+    A = spla.LinearOperator((nnodes, nnodes), matvec=lambda x: diag * x.ravel() - W @ x.ravel(), dtype=np.float64)
+    M = spla.LinearOperator((nnodes, nnodes), matvec=lambda x: x.ravel() / diag, dtype=np.float64)
     h, info = spla.cg(A, rhs, x0=gnode, rtol=1e-7, maxiter=3000, M=M)
+    del W
     if info != 0:
         log(f'warning: road height solver stopped early ({info})')
     return h
@@ -427,10 +436,21 @@ def build_roads(work, dem):
     underpasses = find_underpasses(xy0, off0, attrs, nodes0)
     xy, off, node, nnodes = densify(xy0, off0, nodes0)
     log(f'{len(attrs)} road/rail ways, {len(xy0)} -> {len(xy)} points after densifying to {ROAD_STEP:.0f} m')
-    ground = np.empty(len(xy), dtype=np.float32)
-    step = 2_000_000
-    for i in range(0, len(xy), step):
-        ground[i:i + step] = dem.sample_world(xy[i:i + step, 0], xy[i:i + step, 1])
+    del xy0, nodes0, roads   # not needed after densifying (D133: memory)
+    # sampling the DEM under every road point is hours for all of Poland: kept in the work folder (D133) and reused
+    # while the points and the DEM are the same (the DEM folder's newest file is part of the name)
+    stamp = int(max((e.stat().st_mtime for e in os.scandir(dem.folder) if e.name.endswith('.tif')), default=0))
+    cache = None if KEEP is not None else os.path.join(work, f'road_ground_{len(xy)}_{stamp}.npy')
+    if cache and os.path.exists(cache):
+        ground = np.load(cache)
+        log(f'road ground heights from {os.path.basename(cache)}')
+    else:
+        ground = np.empty(len(xy), dtype=np.float32)
+        step = 2_000_000
+        for i in range(0, len(xy), step):
+            ground[i:i + step] = dem.sample_world(xy[i:i + step, 0], xy[i:i + step, 1])
+        if cache:
+            np.save(cache, ground)
     bad = ~np.isfinite(ground)
     if bad.any():
         # outside the DEM: the height of the nearest road point that has one
