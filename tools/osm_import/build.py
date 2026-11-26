@@ -204,35 +204,52 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscal
     averages the ground over about L metres. Bridge points have no ground term (they are interpolated between their
     ends). `anchor_extra` = (node indices, targets, weight) pins chosen nodes (bridge decks over roads).
     """
+    # Memory (D133): all of Poland is 138 million road points, and this ran Tom's 32 GB PC out of memory (twice: a
+    # hard crash, then the watchdog). The same sums, leaner: a lookup table for the class lengths (np.vectorize
+    # made an array of 138 million Python objects), 32-bit indices, temporaries freed as soon as they're used, and
+    # the matrix built once as CSR (it was a COO, a CSR and the CSR with its diagonal, all alive at once).
     import scipy.sparse as sp
     import scipy.sparse.linalg as spla
     n = len(xy)
     last = np.zeros(n, dtype=bool)
     last[off[1:] - 1] = True
-    a = np.nonzero(~last)[0]
+    a = np.nonzero(~last)[0].astype(np.int32)
+    del last
     a = a[a < n - 1]
     b = a + 1
     d = np.maximum(0.5, np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1]))
-    way = np.repeat(np.arange(len(attrs)), np.diff(off))
+    way = np.repeat(np.arange(len(attrs), dtype=np.int32), np.diff(off))
     cls = attrs['cls'][way]
     flags = attrs['flags'][way]
-    L = np.vectorize(SMOOTH.get)(cls).astype(np.float64)
+    del way
+    lut = np.zeros(256)
+    for k, val in SMOOTH.items():
+        lut[k] = val
+    L = lut[cls]
     if lscale is not None:
-        L = L * lscale
+        L *= lscale
     # bridge decks and road tunnels have no ground term: they run straight between their ends and pins
     free = (((flags & F_BRIDGE) != 0) & ((flags & F_TUNNEL) == 0)) | (((flags & F_TUNNEL) != 0) & ((flags & F_RAIL) == 0) & (cls < 8))
+    del cls, flags
     # each point owns half of each segment next to it; bridge interiors are free (no ground term)
     share = np.zeros(n)
     np.add.at(share, a, d * 0.5)
     np.add.at(share, b, d * 0.5)
-    alpha_pt = np.where(free, 0.0, share / (L * L))
+    alpha_pt = share / (L * L)
+    del share, L
+    alpha_pt[free] = 0.0
+    del free
     # a bridge's end points belong to its ramps too: keep the ground term where a non-bridge way meets them
-    u, v = node[a], node[b]
+    u = node[a].astype(np.int32)
+    v = node[b].astype(np.int32)
+    del a, b
     w = 1.0 / d
+    del d
     alpha = np.zeros(nnodes)
     np.add.at(alpha, node, alpha_pt)
     rhs = np.zeros(nnodes)
     np.add.at(rhs, node, alpha_pt * ground)
+    del alpha_pt
     if anchor_extra is not None:
         idx, target, weight = anchor_extra
         np.add.at(alpha, idx, weight)
@@ -246,13 +263,22 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscal
     np.add.at(gnode, node, ground)
     np.add.at(gcount, node, 1)
     gnode /= np.maximum(1, gcount)
+    del gcount
     weak = 1e-4
     alpha += weak
     rhs += weak * gnode
-    W = sp.coo_matrix((np.concatenate([w, w]), (np.concatenate([u, v]), np.concatenate([v, u]))),
-                      shape=(nnodes, nnodes)).tocsr()
-    A = sp.diags(alpha + deg) - W
-    M = sp.diags(1.0 / (alpha + deg))
+    # A = diag(alpha + deg) - W, W symmetric with w on (u, v) and (v, u): one CSR with 32-bit indices
+    diag = alpha + deg
+    del alpha, deg
+    rows = np.concatenate([u, v, np.arange(nnodes, dtype=np.int32)])
+    cols = np.concatenate([v, u, np.arange(nnodes, dtype=np.int32)])
+    del u, v
+    vals = np.concatenate([-w, -w, diag])
+    del w
+    A = sp.csr_matrix((vals, (rows, cols)), shape=(nnodes, nnodes))
+    del rows, cols, vals
+    M = sp.diags(1.0 / diag)
+    del diag
     h, info = spla.cg(A, rhs, x0=gnode, rtol=1e-7, maxiter=3000, M=M)
     if info != 0:
         log(f'warning: road height solver stopped early ({info})')
@@ -281,6 +307,14 @@ def urban_scale(xy):
     return scale
 
 
+def ramp_grades():
+    """RAMP_GRADE as a lookup table by class (0.08 for the rest)."""
+    lut = np.full(256, 0.08)
+    for k, val in RAMP_GRADE.items():
+        lut[k] = val
+    return lut
+
+
 def limit_ramps(h, node, nnodes, xy, off, attrs, ground):
     """Raised roads (bridge decks and what leads up to them) come down no steeper than RAMP_GRADE: from every node
     that rides above the ground, neighbours are lifted to at least h - grade * distance (an embankment)."""
@@ -293,7 +327,7 @@ def limit_ramps(h, node, nnodes, xy, off, attrs, ground):
     b = a + 1
     d = np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1])
     way = np.repeat(np.arange(len(attrs)), np.diff(off))
-    g = np.vectorize(lambda c: RAMP_GRADE.get(int(c), 0.08))(attrs['cls'][way[a]])
+    g = ramp_grades()[attrs['cls'][way[a]]]   # a lookup table, not 138 million Python calls (D133)
     u, v = node[a], node[b]
     uu = np.concatenate([u, v]); vv = np.concatenate([v, u])
     dd = np.concatenate([d * g, d * g])                       # height allowed to drop along each edge
@@ -339,7 +373,7 @@ def limit_dips(h, node, nnodes, xy, off, attrs, ground):
     b = a + 1
     d = np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1])
     way = np.repeat(np.arange(len(attrs)), np.diff(off))
-    g = np.vectorize(lambda c: RAMP_GRADE.get(int(c), 0.08))(attrs['cls'][way[a]])
+    g = ramp_grades()[attrs['cls'][way[a]]]   # a lookup table, not 138 million Python calls (D133)
     u, v = node[a], node[b]
     uu = np.concatenate([u, v]); vv = np.concatenate([v, u])
     dd = np.concatenate([d * g, d * g])
