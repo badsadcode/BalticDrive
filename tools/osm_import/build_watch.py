@@ -3,7 +3,7 @@ after 2.5 hours, with nothing in the logs to say why. This starts the build itse
 memory (its main process; the pool workers come and go) to a log every 30 s, and stops the build cleanly if free RAM
 falls under a floor: a stopped build costs time, a frozen PC costs whatever else was open.
 
-    python tools/osm_import/build_watch.py --log data/work/build_poland_mem.log --floor-gb 2.5 -- \
+    python tools/osm_import/build_watch.py --log data/work/build_poland_mem.log --floor-gb 4 -- \
         python tools/osm_import/build.py data/work/poland2 map --dem data/dem/gugik10 --name poland --workers 3
 
 Windows only (GlobalMemoryStatusEx, GetProcessMemoryInfo through ctypes: no extra packages).
@@ -52,8 +52,9 @@ def process_gb(pid):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", required=True)
-    ap.add_argument("--floor-gb", type=float, default=2.5, help="stop the build if free RAM falls below this")
-    ap.add_argument("--every", type=float, default=30)
+    ap.add_argument("--floor-gb", type=float, default=4.0, help="stop the build if free RAM falls below this")
+    ap.add_argument("--every", type=float, default=2, help="seconds between checks (30 was too slow: the PC froze between two)")
+    ap.add_argument("--log-every", type=float, default=30, help="seconds between log lines (every check near the floor)")
     ap.add_argument("cmd", nargs=argparse.REMAINDER)
     a = ap.parse_args()
     cmd = a.cmd[1:] if a.cmd and a.cmd[0] == "--" else a.cmd
@@ -64,22 +65,20 @@ def main():
         say("start: " + " ".join(cmd))
         p = subprocess.Popen(cmd)
         peak = 0.0
-        low = 0
+        last_log = 0.0
         while p.poll() is None:
             free, free_commit = free_gb()
             ws, committed = process_gb(p.pid)
             peak = max(peak, committed)
-            say(f"free RAM {free:5.1f} GB, free commit {free_commit:5.1f} GB; build {ws:5.1f} GB in RAM, {committed:5.1f} GB committed (peak {peak:.1f})")
-            low = low + 1 if free < a.floor_gb else 0
-            if low >= 2:   # twice in a row: not a passing spike
-                say(f"STOPPED: free RAM under {a.floor_gb} GB twice in a row")
+            if time.time() - last_log >= a.log_every or free < a.floor_gb + 2:
+                say(f"free RAM {free:5.1f} GB, free commit {free_commit:5.1f} GB; build {ws:5.1f} GB in RAM, {committed:5.1f} GB committed (peak {peak:.1f})")
+                last_log = time.time()
+            if free < a.floor_gb:   # at once: the third crash froze the PC within the 30 s between two checks
+                say(f"STOPPED: free RAM {free:.1f} GB, under {a.floor_gb} GB")
                 subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
                 p.wait()
                 return 3
-            for _ in range(int(a.every)):
-                if p.poll() is not None:
-                    break
-                time.sleep(1)
+            time.sleep(a.every)
         say(f"build ended with code {p.returncode}; peak {peak:.1f} GB committed")
         return p.returncode
 

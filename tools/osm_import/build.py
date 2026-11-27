@@ -324,33 +324,51 @@ def ramp_grades():
     return lut
 
 
-def limit_ramps(h, node, nnodes, xy, off, attrs, ground):
-    """Raised roads (bridge decks and what leads up to them) come down no steeper than RAMP_GRADE: from every node
-    that rides above the ground, neighbours are lifted to at least h - grade * distance (an embankment)."""
-    import heapq
+def ramp_graph(node, nnodes, xy, off, attrs):
+    """The road graph for limit_ramps and limit_dips (D133): for each node its neighbours and the height a road may
+    drop to each (grade x distance), as start offsets into flat arrays, built once for both. It was built twice, as
+    a dozen arrays the size of the road network each (about 25 GB for all of Poland, the third crash); this is the
+    same graph in the same order (a stable sort of the same pairs), with 32-bit neighbour indices."""
     n = len(xy)
     last = np.zeros(n, dtype=bool)
     last[off[1:] - 1] = True
-    a = np.nonzero(~last)[0]
+    a = np.nonzero(~last)[0].astype(np.int32)
+    del last
     a = a[a < n - 1]
     b = a + 1
+    way = np.repeat(np.arange(len(attrs), dtype=np.int32), np.diff(off))
     d = np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1])
-    way = np.repeat(np.arange(len(attrs)), np.diff(off))
-    g = ramp_grades()[attrs['cls'][way[a]]]   # a lookup table, not 138 million Python calls (D133)
-    u, v = node[a], node[b]
-    uu = np.concatenate([u, v]); vv = np.concatenate([v, u])
-    dd = np.concatenate([d * g, d * g])                       # height allowed to drop along each edge
-    order = np.argsort(uu, kind='stable')
-    uu, vv, dd = uu[order], vv[order], dd[order]
-    start = np.searchsorted(uu, np.arange(nnodes + 1))
+    d *= ramp_grades()[attrs['cls'][way[a]]]                  # height allowed to drop along each edge
+    del way
+    u = node[a].astype(np.int32)
+    v = node[b].astype(np.int32)
+    del a, b
+    src = np.concatenate([u, v])
+    order = np.argsort(src, kind='stable')
+    start = np.zeros(nnodes + 1, dtype=np.int64)
+    np.cumsum(np.bincount(src, minlength=nnodes), out=start[1:])
+    del src
+    nbr = np.concatenate([v, u])[order]
+    del u, v
+    dd = np.concatenate([d, d])[order]
+    return start, nbr, dd
+
+
+def limit_ramps(h, node, nnodes, xy, off, attrs, ground, graph):
+    """Raised roads (bridge decks and what leads up to them) come down no steeper than RAMP_GRADE: from every node
+    that rides above the ground, neighbours are lifted to at least h - grade * distance (an embankment)."""
+    import heapq
+    start, vv, dd = graph
     gnode = np.full(nnodes, np.inf)
     np.minimum.at(gnode, node, ground)
     h = h.copy()
     # sources: bridge decks only (an ordinary road in a dip may sit above the ground and must not spread)
-    fl = attrs['flags'][way]
+    fl = attrs['flags'][np.repeat(np.arange(len(attrs), dtype=np.int32), np.diff(off))]
     on_bridge = np.zeros(nnodes, dtype=bool)
     on_bridge[node[((fl & F_BRIDGE) != 0) & ((fl & F_TUNNEL) == 0)]] = True
+    del fl
     lifted = np.nonzero(on_bridge & (h > gnode + 1.0))[0]
+    del on_bridge, gnode
     heap = [(-float(h[i]), int(i)) for i in lifted]
     heapq.heapify(heap)
     raised = 0
@@ -370,32 +388,21 @@ def limit_ramps(h, node, nnodes, xy, off, attrs, ground):
     return h
 
 
-def limit_dips(h, node, nnodes, xy, off, attrs, ground):
+def limit_dips(h, node, nnodes, xy, off, attrs, ground, graph):
     """The mirror of limit_ramps for underpasses (D16): from every road-tunnel node sunk below the ground, neighbours
     are lowered to at most h + grade * distance, so the road dives into its cutting no steeper than RAMP_GRADE."""
     import heapq
-    n = len(xy)
-    last = np.zeros(n, dtype=bool)
-    last[off[1:] - 1] = True
-    a = np.nonzero(~last)[0]
-    a = a[a < n - 1]
-    b = a + 1
-    d = np.hypot(xy[b, 0] - xy[a, 0], xy[b, 1] - xy[a, 1])
-    way = np.repeat(np.arange(len(attrs)), np.diff(off))
-    g = ramp_grades()[attrs['cls'][way[a]]]   # a lookup table, not 138 million Python calls (D133)
-    u, v = node[a], node[b]
-    uu = np.concatenate([u, v]); vv = np.concatenate([v, u])
-    dd = np.concatenate([d * g, d * g])
-    order = np.argsort(uu, kind='stable')
-    uu, vv, dd = uu[order], vv[order], dd[order]
-    start = np.searchsorted(uu, np.arange(nnodes + 1))
+    start, vv, dd = graph
     gnode = np.full(nnodes, -np.inf)
     np.maximum.at(gnode, node, ground)
     h = h.copy()
+    way = np.repeat(np.arange(len(attrs), dtype=np.int32), np.diff(off))
     fl = attrs['flags'][way]
     in_tunnel = np.zeros(nnodes, dtype=bool)
     in_tunnel[node[((fl & F_TUNNEL) != 0) & ((fl & F_RAIL) == 0) & (attrs['cls'][way] < 8)]] = True
+    del fl, way
     sunk = np.nonzero(in_tunnel & (h < gnode - 1.0))[0]
+    del in_tunnel, gnode
     heap = [(float(h[i]), int(i)) for i in sunk]
     heapq.heapify(heap)
     lowered = 0
@@ -462,15 +469,22 @@ def build_roads(work, dem):
             _, idx = cKDTree(xy[~bad]).query(xy[bad])
             ground[bad] = ground[~bad][idx]
     ground = ground.astype(np.float64)
-    lscale = urban_scale(xy)
-    h = solve_heights(node, nnodes, xy, off, attrs, ground, lscale=lscale)
-    log('road heights solved (pass 1)')
+    # the solved road heights are kept too (D133): the three solves are half an hour for all of Poland
+    hcache = None if cache is None else cache.replace('road_ground_', 'road_h_')
+    solved = hcache is not None and os.path.exists(hcache)
+    if solved:
+        h = np.load(hcache)
+        log(f'road heights from {os.path.basename(hcache)}')
+    else:
+        lscale = urban_scale(xy)
+        h = solve_heights(node, nnodes, xy, off, attrs, ground, lscale=lscale)
+        log('road heights solved (pass 1)')
 
     # Bridges that pass over a road or railway keep a deck DECK_CLEAR above it, but only over it (plus the crossed
     # road's half width and DECK_MARGIN): the rest of the deck is free to slope down to its ends, so the ramps
     # beyond a long bridge are not raised the full clearance (D15). Repeated so stacked levels add up (a level-2
     # bridge clears the level-1 bridge under it once that one has been raised).
-    for p in range(2 if crossings or underpasses else 0):
+    for p in range(0 if solved else 2 if crossings or underpasses else 0):
         pin_idx, pin_t = [], []
         # underpasses (D16): the tunnel runs TUNNEL_DEPTH under each road it passes below, over that road's width
         for tw, lst in underpasses.items():
@@ -509,9 +523,13 @@ def build_roads(work, dem):
         h = solve_heights(node, nnodes, xy, off, attrs, ground,
                           (np.array(pin_idx, dtype=np.int64), np.array(pin_t), 5.0), lscale=lscale)
         log(f'road heights solved (deck pass {p + 1}, {len(pin_idx)} deck points pinned)')
-    h = limit_ramps(h, node, nnodes, xy, off, attrs, ground)
+    if hcache is not None and not solved:
+        np.save(hcache, h)
+    graph = ramp_graph(node, nnodes, xy, off, attrs)
+    h = limit_ramps(h, node, nnodes, xy, off, attrs, ground, graph)
     if underpasses:
-        h = limit_dips(h, node, nnodes, xy, off, attrs, ground)
+        h = limit_dips(h, node, nnodes, xy, off, attrs, ground, graph)
+    del graph
     y = h[node]
     lift = np.clip(y - ground, 0, 25.5)
 
