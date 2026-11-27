@@ -274,7 +274,7 @@ def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscal
     del alpha, deg
     src = np.concatenate([u, v])
     order = np.argsort(src, kind='stable')
-    indptr = np.zeros(nnodes + 1, dtype=np.int64)
+    indptr = np.zeros(nnodes + 1, dtype=np.int32)
     np.cumsum(np.bincount(src, minlength=nnodes), out=indptr[1:])
     del src
     dst = np.concatenate([v, u])
@@ -345,7 +345,7 @@ def ramp_graph(node, nnodes, xy, off, attrs):
     del a, b
     src = np.concatenate([u, v])
     order = np.argsort(src, kind='stable')
-    start = np.zeros(nnodes + 1, dtype=np.int64)
+    start = np.zeros(nnodes + 1, dtype=np.int32)
     np.cumsum(np.bincount(src, minlength=nnodes), out=start[1:])
     del src
     nbr = np.concatenate([v, u])[order]
@@ -442,6 +442,7 @@ def build_roads(work, dem):
     crossings, _ = find_crossings(xy0, off0, attrs, nodes0)
     underpasses = find_underpasses(xy0, off0, attrs, nodes0)
     xy, off, node, nnodes = densify(xy0, off0, nodes0)
+    node = node.astype(np.int32)   # D133: 138 million indices, all under 2^31
     log(f'{len(attrs)} road/rail ways, {len(xy0)} -> {len(xy)} points after densifying to {ROAD_STEP:.0f} m')
     del xy0, nodes0, roads   # not needed after densifying (D133: memory)
     # sampling the DEM under every road point is hours for all of Poland: kept in the work folder (D133) and reused
@@ -468,7 +469,8 @@ def build_roads(work, dem):
         else:
             _, idx = cKDTree(xy[~bad]).query(xy[bad])
             ground[bad] = ground[~bad][idx]
-    ground = ground.astype(np.float64)
+    # kept 32-bit (D133): it was sampled as float32, and widening it only made copies; the sums that use it upcast
+    # it to the same float64 values on the fly
     # the solved road heights are kept too (D133): the three solves are half an hour for all of Poland
     hcache = None if cache is None else cache.replace('road_ground_', 'road_h_')
     solved = hcache is not None and os.path.exists(hcache)
