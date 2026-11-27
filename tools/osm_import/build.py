@@ -197,7 +197,55 @@ def find_underpasses(xy, off, attrs, nodes):
     return out
 
 
+BAND_POINTS = int(os.environ.get('BD_BAND_POINTS', 40_000_000))   # above this many road points: solved in strips
+BAND_MARGIN = 5000.0     # metres of overlap each side of a strip: 25 smoothing lengths of the widest class (200 m)
+
+
 def solve_heights(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscale=None):
+    """Road heights (see solve_heights_one). All of Poland (138 million points) needs about 20 GB solved at once,
+    more than Tom's PC has free (D133): above BAND_POINTS the country is cut into west-to-east strips, each solved
+    with BAND_MARGIN of the neighbours' roads around it (whole ways, so junctions stay joined), and each node keeps
+    the height from the strip it lies in. A height only feels the ground within a few smoothing lengths, so the cut
+    is not felt (BD_BAND_CHECK=1 solves both ways and logs the largest difference)."""
+    if len(xy) <= BAND_POINTS:
+        return solve_heights_one(node, nnodes, xy, off, attrs, ground, anchor_extra, lscale)
+    k_bands = int(np.ceil(len(xy) / BAND_POINTS))
+    xs = xy[:, 0]
+    cuts = np.quantile(xs[::97], np.linspace(0, 1, k_bands + 1))
+    cuts[0], cuts[-1] = -np.inf, np.inf
+    nodex = np.empty(nnodes)
+    nodex[node] = xs
+    counts = np.diff(off)
+    h = np.zeros(nnodes)
+    for k in range(k_bands):
+        lo, hi = cuts[k], cuts[k + 1]
+        way = np.repeat(np.arange(len(attrs), dtype=np.int32), counts)
+        wsel = np.zeros(len(attrs), dtype=bool)
+        wsel[way[(xs >= lo - BAND_MARGIN) & (xs < hi + BAND_MARGIN)]] = True
+        pts = wsel[way]
+        del way
+        sub_off = np.concatenate([[0], np.cumsum(counts[wsel])])
+        uniq, sub_node = np.unique(node[pts], return_inverse=True)
+        sub_anchor = None
+        if anchor_extra is not None:
+            idx, target, weight = anchor_extra
+            pos = np.minimum(np.searchsorted(uniq, idx), len(uniq) - 1)
+            ok = uniq[pos] == idx
+            sub_anchor = (pos[ok], target[ok], weight)
+        hs = solve_heights_one(sub_node.astype(np.int32), len(uniq), xy[pts], sub_off, attrs[wsel], ground[pts],
+                               sub_anchor, None if lscale is None else lscale[pts])
+        core = (nodex[uniq] >= lo) & (nodex[uniq] < hi)
+        h[uniq[core]] = hs[core]
+        log(f'road heights: strip {k + 1}/{k_bands}, {int(pts.sum())} points, {int(core.sum())} nodes kept')
+        del pts, uniq, sub_node, hs, core, sub_off, wsel
+    if os.environ.get('BD_BAND_CHECK'):
+        whole = solve_heights_one(node, nnodes, xy, off, attrs, ground, anchor_extra, lscale)
+        diff = np.abs(whole - h)
+        log(f'strip check: largest difference {diff.max() * 1000:.3f} mm, mean {diff.mean() * 1000:.4f} mm')
+    return h
+
+
+def solve_heights_one(node, nnodes, xy, off, attrs, ground, anchor_extra=None, lscale=None):
     """Road heights on the node graph: as close to the ground as the class's smoothing length allows.
 
     Minimises sum(a_i (h_i - g_i)^2) + sum((h_i - h_j)^2 / d_ij), a_i = (node's length share) / L^2, so a profile
